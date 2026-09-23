@@ -43,9 +43,9 @@ Configurações do `.env`:
 | `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão `100`). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 
-## Cores (identidade visual do Active IA)
+## Cores (identidade visual do Active AI)
 
-Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css) (`--brand-primary`, `--brand-secondary`, `--brand-dark` etc.), com uma versão para o tema claro e outra para o escuro. Para mudar a paleta, basta trocar esses valores.
+A plataforma usa a mesma paleta do Active AI: tema escuro por padrão, fundo `#0a0a0a`, painéis `#121212`, bordas `#242424` e verde `#15803d` nos destaques. Também há um tema claro com o mesmo verde. Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css).
 
 ## Estrutura
 

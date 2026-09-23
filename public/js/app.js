@@ -136,7 +136,8 @@ document.getElementById('menu-btn').addEventListener('click', () => {
 // ---------- Tema claro/escuro ----------
 const themeBtn = document.getElementById('theme-toggle');
 function currentTheme() {
-  return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  // O tema escuro é o padrão, igual ao Active AI.
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 function renderThemeButton() {
   const dark = currentTheme() === 'dark';

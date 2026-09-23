@@ -146,7 +146,7 @@ function renderMessage(msg) {
     : '';
   return `
     <div class="msg msg-ai">
-      <div class="ia-avatar">${icon('sparkles')}</div>
+      <div class="ia-avatar">AI</div>
       <div class="bubble">${status}${body}${error}${sources}</div>
     </div>`;
 }
@@ -160,7 +160,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
   container.innerHTML = `
     <section class="ia">
       <header class="ia-header">
-        <div class="ia-avatar">${icon('sparkles')}</div>
+        <div class="ia-avatar">AI</div>
         <div class="spacer">
           <h2>Active IA</h2>
           <small>Assistente da Base de Conhecimento</small>
@@ -207,7 +207,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
       const suggestions = state.context ? DOC_SUGGESTIONS : SUGGESTIONS;
       messagesEl.innerHTML = `
         <div class="ia-welcome">
-          <div class="ia-avatar">${icon('sparkles')}</div>
+          <div class="ia-avatar">AI</div>
           <h3>Olá! Eu sou o Active IA.</h3>
           <p>Tenho acesso a todos os documentos da base de conhecimento do Suporte. Posso encontrar arquivos, responder dúvidas e explicar procedimentos.</p>
           <div class="suggestions">${suggestions.map((s) => `<button type="button" data-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}</div>
