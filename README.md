@@ -22,6 +22,16 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - as respostas aparecem em tempo real (streaming).
 - Tema claro/escuro e layout responsivo (funciona no celular).
 
+## Testar pelo GitHub (Codespaces)
+
+Dá para rodar a plataforma na nuvem do GitHub, sem instalar nada no computador:
+
+1. No GitHub, abra o repositório e clique em **Code → Codespaces → Create codespace**.
+2. Espere alguns minutos: o Codespace instala as dependências e inicia a plataforma sozinho.
+3. Quando aparecer o aviso da porta **3000**, clique em **Open in Browser**. Ele também aparece na aba **Ports**.
+
+Para usar o Active IA, cadastre a chave em **GitHub → Settings → Codespaces → Secrets** com o nome `ANTHROPIC_API_KEY`, liberada para este repositório. Depois recrie ou reinicie o Codespace.
+
 ## Como rodar
 
 Requisitos: **Node.js 20+**.
