@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase, createRepository } from './db.js';
 import { extractText } from './extract.js';
 import { createActiveIA } from './ai.js';
+import { createN8nActiveIA } from './n8n.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -23,10 +24,36 @@ export function createApp({
 
   const db = openDatabase(dataDir);
   const repo = createRepository(db);
-  const ai = aiOverride || createActiveIA({ repo, uploadsDir, model });
+  const ai = aiOverride || createAssistant({ repo, uploadsDir, model });
 
   const app = express();
   app.disable('x-powered-by');
+
+  // ---------- Integração (n8n / GPTMaker) ----------
+  // Endpoints somente leitura, protegidos por token, para fluxos externos consultarem a base.
+  const integrationToken = process.env.INTEGRATION_TOKEN;
+  const integration = express.Router();
+  integration.use((req, res, next) => {
+    const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+    const expected = Buffer.from(integrationToken || '');
+    if (integrationToken && given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
+    res.status(401).json({ error: 'Token de integração inválido.' });
+  });
+  integration.get('/buscar', (req, res) => {
+    const q = String(req.query.q || '').trim();
+    const limit = Math.min(Number(req.query.limite) || 8, 25);
+    const items = q ? repo.search(q, { limit }) : repo.listItems({ limit }).items;
+    res.json(items.map((i) => ({ id: i.id, titulo: i.title, categoria: i.category_name, tags: i.tags, resumo: i.summary, trecho: i.snippet, link: `#/item/${i.id}` })));
+  });
+  integration.get('/documentos/:id', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id), { full: true });
+    if (!item) return res.status(404).json({ error: 'Documento não encontrado.' });
+    res.json({
+      id: item.id, titulo: item.title, tipo: item.kind, categoria: item.category_name, tags: item.tags,
+      resumo: item.summary, arquivo: item.file_name, conteudo: item.kind === 'article' ? item.content : item.text,
+    });
+  });
+  app.use('/api/integracao', integration);
 
   // ---------- Autenticação opcional (HTTP Basic) ----------
   const authUser = process.env.BASIC_AUTH_USER;
@@ -115,7 +142,7 @@ export function createApp({
   });
 
   // ---------- Itens ----------
-  app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, model: ai.model } }));
+  app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, provider: ai.provider, model: ai.model } }));
 
   app.get('/api/tags', (req, res) => res.json(repo.allTags()));
 
@@ -276,6 +303,7 @@ export function createApp({
     await ai.chat({
       history: req.body.messages,
       contextItemId: parseId(req.body.context_item_id),
+      sessionId: String(req.body.session_id || '').slice(0, 100),
       emit,
       signal: controller.signal,
     });
@@ -298,7 +326,24 @@ export function createApp({
     res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message });
   });
 
-  return { app, db, repo };
+  return { app, db, repo, ai };
+}
+
+/**
+ * Escolhe o motor do Active IA: webhook do n8n (ex.: agente do GPTMaker) quando N8N_WEBHOOK_URL
+ * está definido; caso contrário, a API da Anthropic.
+ */
+function createAssistant({ repo, uploadsDir, model }) {
+  const provider = (process.env.ACTIVE_IA_PROVIDER || (process.env.N8N_WEBHOOK_URL ? 'n8n' : 'anthropic')).toLowerCase();
+  if (provider === 'n8n') {
+    return createN8nActiveIA({
+      repo,
+      webhookUrl: process.env.N8N_WEBHOOK_URL,
+      token: process.env.N8N_WEBHOOK_TOKEN,
+      options: process.env.N8N_TIMEOUT_SECONDS ? { timeoutMs: Number(process.env.N8N_TIMEOUT_SECONDS) * 1000 } : {},
+    });
+  }
+  return { ...createActiveIA({ repo, uploadsDir, model }), provider: 'anthropic' };
 }
 
 function httpError(status, message) {
@@ -310,11 +355,13 @@ function httpError(status, message) {
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const port = Number(process.env.PORT || 3000);
-  const { app } = createApp();
+  const createdInfo = createApp();
+  const { app } = createdInfo;
   app.listen(port, () => {
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
-    if (!process.env.ANTHROPIC_API_KEY && !process.env.ANTHROPIC_AUTH_TOKEN) {
-      console.log('Aviso: ANTHROPIC_API_KEY não definida — o Active IA ficará indisponível.');
-    }
+    const { ai } = createdInfo;
+    if (ai.provider === 'n8n') console.log(`Active IA: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
+    else if (ai.configured) console.log('Active IA: API da Anthropic');
+    if (!ai.configured) console.log('Aviso: Active IA não configurado — defina N8N_WEBHOOK_URL no arquivo .env.');
   });
 }

@@ -3,7 +3,9 @@
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
   "postCreateCommand": "npm install",
   "postAttachCommand": "npm start",
-  "forwardPorts": [3000],
+  "forwardPorts": [
+    3000
+  ],
   "portsAttributes": {
     "3000": {
       "label": "Base de Conhecimento",
@@ -11,8 +13,14 @@
     }
   },
   "secrets": {
-    "ANTHROPIC_API_KEY": {
-      "description": "Chave da API usada pelo Active IA (crie em https://console.anthropic.com)."
+    "N8N_WEBHOOK_URL": {
+      "description": "URL de produção do webhook do n8n que chama o agente do GPTMaker."
+    },
+    "N8N_WEBHOOK_TOKEN": {
+      "description": "Opcional: token Bearer exigido pelo webhook do n8n."
+    },
+    "INTEGRATION_TOKEN": {
+      "description": "Opcional: token para o n8n consultar a base pela API de integração."
     }
   }
 }

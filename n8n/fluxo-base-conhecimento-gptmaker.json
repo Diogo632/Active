@@ -1,0 +1,56 @@
+{
+  "name": "Base de Conhecimento - Active IA (GPTMaker)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "base-conhecimento",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5b0d6c1e-8f2a-4d7e-9a61-1c2b3d4e5f01",
+      "name": "Pergunta da Base",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "base-conhecimento"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.gptmaker.ai/v2/agent/SEU_AGENT_ID/conversation",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer SEU_TOKEN_GPTMAKER" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ contextId: $json.body.sessionId, prompt: $json.body.prompt }) }}",
+        "options": { "timeout": 120000 }
+      },
+      "id": "5b0d6c1e-8f2a-4d7e-9a61-1c2b3d4e5f02",
+      "name": "Agente GPTMaker",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {}
+      },
+      "id": "5b0d6c1e-8f2a-4d7e-9a61-1c2b3d4e5f03",
+      "name": "Responder à Base",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [520, 0]
+    }
+  ],
+  "connections": {
+    "Pergunta da Base": { "main": [[{ "node": "Agente GPTMaker", "type": "main", "index": 0 }]] },
+    "Agente GPTMaker": { "main": [[{ "node": "Responder à Base", "type": "main", "index": 0 }]] }
+  },
+  "settings": {}
+}

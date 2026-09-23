@@ -2,6 +2,10 @@ import { api } from './api.js';
 import { esc, icon, renderMarkdown, storage, hydrateIcons } from './util.js';
 
 const STORAGE_KEY = 'kb-ia-conversation';
+const SESSION_KEY = 'kb-ia-session';
+
+const newSessionId = () =>
+  `kb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const SUGGESTIONS = [
   'Quais documentos temos sobre configuração de impressoras?',
@@ -19,6 +23,8 @@ const DOC_SUGGESTIONS = [
 /** Estado único da conversa, compartilhado pelo painel lateral e pela página do Active IA. */
 const state = {
   messages: storage.get(STORAGE_KEY, []).filter((m) => m && m.content),
+  // Identifica a conversa no n8n/GPTMaker, que guarda o histórico por sessão.
+  sessionId: storage.get(SESSION_KEY) || newSessionId(),
   context: null, // { id, title } do documento aberto
   streaming: false,
   controller: null,
@@ -36,6 +42,7 @@ function notify() {
 }
 
 function persist() {
+  storage.set(SESSION_KEY, state.sessionId);
   storage.set(
     STORAGE_KEY,
     state.messages.slice(-40).map(({ role, content, sources }) => ({ role, content, sources })),
@@ -58,6 +65,7 @@ export const chat = {
   reset() {
     state.controller?.abort();
     state.messages = [];
+    state.sessionId = newSessionId();
     persist();
     notify();
   },
@@ -85,6 +93,7 @@ export const chat = {
       await api.chat({
         messages: history,
         contextItemId: state.context?.id,
+        sessionId: state.sessionId,
         signal: state.controller.signal,
         onEvent(event) {
           switch (event.type) {
@@ -170,7 +179,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
         ${variant === 'drawer' ? `<button class="icon-btn" data-action="close" type="button" title="Fechar">${icon('close')}</button>` : ''}
       </header>
       <div class="ia-context" hidden></div>
-      <div class="ia-unconfigured" hidden>O Active IA ainda não foi configurado no servidor (defina <code>ANTHROPIC_API_KEY</code> no arquivo <code>.env</code>).</div>
+      <div class="ia-unconfigured" hidden>O Active IA ainda não foi configurado no servidor (defina <code>N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>).</div>
       <div class="ia-messages" aria-live="polite"></div>
       <div class="ia-composer">
         <form>

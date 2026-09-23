@@ -14,6 +14,7 @@ let base;
 let repo;
 
 before(async () => {
+  process.env.INTEGRATION_TOKEN = 'tok-teste';
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-test-'));
   const created = createApp({ dataDir, ai: { configured: false, model: 'test', chat: async ({ emit }) => emit({ type: 'text', text: 'ok' }) } });
   repo = created.repo;
@@ -171,4 +172,13 @@ test('Active IA sem chave informa que não está configurado', async () => {
     if (saved.key !== undefined) process.env.ANTHROPIC_API_KEY = saved.key;
     if (saved.token !== undefined) process.env.ANTHROPIC_AUTH_TOKEN = saved.token;
   }
+});
+
+test('API de integração exige token e devolve o conteúdo completo', async () => {
+  const doc = repo.createItem({ kind: 'article', title: 'Integração teste', content: 'conteúdo integral zebra' });
+  assert.equal((await fetch(`${base}/api/integracao/buscar?q=zebra`)).status, 401);
+  const found = await (await fetch(`${base}/api/integracao/buscar?q=zebra`, { headers: { Authorization: 'Bearer tok-teste' } })).json();
+  assert.equal(found[0].id, doc.id);
+  const full = await (await fetch(`${base}/api/integracao/documentos/${doc.id}`, { headers: { Authorization: 'Bearer tok-teste' } })).json();
+  assert.equal(full.conteudo, 'conteúdo integral zebra');
 });

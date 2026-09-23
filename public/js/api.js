@@ -55,11 +55,11 @@ export const api = {
   },
 
   /** Conversa com o Active IA; `onEvent` recebe cada evento do stream SSE. */
-  async chat({ messages, contextItemId, signal, onEvent }) {
+  async chat({ messages, contextItemId, sessionId, signal, onEvent }) {
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, context_item_id: contextItemId }),
+      body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId }),
       signal,
     });
     if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com o Active IA.`);
