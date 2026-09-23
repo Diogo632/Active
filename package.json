@@ -1,0 +1,26 @@
+{
+  "name": "active-base-conhecimento",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Base de Conhecimento do Suporte da Active Corp com o assistente Active IA",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
+    "better-sqlite3": "^13.0.3",
+    "dompurify": "^3.4.15",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "marked": "^18.0.14",
+    "multer": "^2.4.0",
+    "officeparser": "^8.0.0"
+  }
+}
