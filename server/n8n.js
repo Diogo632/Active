@@ -158,7 +158,13 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
     });
   }
 
-  async function chat({ history, contextItemId, sessionId, emit, signal }) {
+  /**
+   * mode 'livre': conversa livre — envia só a pergunta; o agente usa a base própria (RAG do GPTMaker)
+   *               e, se configurado, o MCP desta plataforma.
+   * mode 'base':  a plataforma pesquisa a base e envia os documentos encontrados junto com a pergunta
+   *               (usado na resposta da busca e quando há um documento em foco).
+   */
+  async function chat({ history, contextItemId, sessionId, mode = 'base', emit, signal }) {
     if (!webhookUrl) {
       emit({ type: 'error', message: 'O Active IA ainda não foi configurado. Defina N8N_WEBHOOK_URL no arquivo .env do servidor.' });
       return;
@@ -170,13 +176,19 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       return;
     }
 
-    emit({ type: 'status', label: 'Pesquisando documentos na base' });
     const contextItem = contextItemId ? repo.getItem(contextItemId) : null;
-    // Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior na busca.
-    const previousUser = messages.filter((m) => m.role === 'user').slice(-2, -1)[0]?.content || '';
-    const documents = retrieve(`${last.content} ${keywords(last.content).length < 3 ? previousUser : ''}`, contextItem?.id);
-    const prompt = buildPrompt({ question: last.content, catalogText: catalog(repo), documents, contextItem });
-    const message = cfg.includeContext ? prompt : last.content;
+    // Com um documento em foco, a conversa sempre leva o conteúdo dele.
+    const useBase = cfg.includeContext && (mode === 'base' || Boolean(contextItem));
+    let documents = [];
+    let prompt = last.content;
+    if (useBase) {
+      emit({ type: 'status', label: contextItem ? `Lendo “${contextItem.title}”` : 'Pesquisando documentos na base' });
+      // Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior na busca.
+      const previousUser = messages.filter((m) => m.role === 'user').slice(-2, -1)[0]?.content || '';
+      documents = retrieve(`${last.content} ${keywords(last.content).length < 3 ? previousUser : ''}`, contextItem?.id);
+      prompt = buildPrompt({ question: last.content, catalogText: catalog(repo), documents, contextItem });
+    }
+    const message = prompt;
 
     emit({ type: 'status', label: 'Consultando o Active IA' });
     const timeout = AbortSignal.timeout(cfg.timeoutMs);

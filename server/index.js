@@ -9,6 +9,7 @@ import { openDatabase, createRepository } from './db.js';
 import { extractText } from './extract.js';
 import { createActiveIA } from './ai.js';
 import { createN8nActiveIA } from './n8n.js';
+import { createMcpHandler } from './mcp.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -32,13 +33,16 @@ export function createApp({
   // ---------- Integração (n8n / GPTMaker) ----------
   // Endpoints somente leitura, protegidos por token, para fluxos externos consultarem a base.
   const integrationToken = process.env.INTEGRATION_TOKEN;
-  const integration = express.Router();
-  integration.use((req, res, next) => {
-    const given = Buffer.from(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  // Aceita o token no header "Authorization: Bearer <token>" ou em ?token= (para clientes que não enviam headers).
+  const requireIntegrationToken = (req, res, next) => {
+    const raw = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.token || '');
+    const given = Buffer.from(raw);
     const expected = Buffer.from(integrationToken || '');
     if (integrationToken && given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
     res.status(401).json({ error: 'Token de integração inválido.' });
-  });
+  };
+  const integration = express.Router();
+  integration.use(requireIntegrationToken);
   integration.get('/buscar', (req, res) => {
     const q = String(req.query.q || '').trim();
     const limit = Math.min(Number(req.query.limite) || 8, 25);
@@ -54,6 +58,9 @@ export function createApp({
     });
   });
   app.use('/api/integracao', integration);
+
+  // Servidor MCP: o agente (GPTMaker, n8n ou outro cliente MCP) pesquisa e lê a base por aqui.
+  app.all('/mcp', requireIntegrationToken, express.json({ limit: '1mb' }), createMcpHandler({ repo, publicUrl: process.env.PUBLIC_URL || '' }));
 
   // ---------- Autenticação opcional (HTTP Basic) ----------
   const authUser = process.env.BASIC_AUTH_USER;
@@ -153,6 +160,7 @@ export function createApp({
     const tag = String(req.query.tag || '').trim().toLowerCase();
     const limit = Math.min(parseId(req.query.limit) || 50, 200);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const sort = req.query.sort === 'views' ? 'views' : undefined;
 
     if (q) {
       const items = repo.search(q, { categoryId, kind, limit });
@@ -163,12 +171,13 @@ export function createApp({
       const tagged = items.filter((i) => i.tags.some((t) => t.toLowerCase() === tag));
       return res.json({ items: tagged.slice(offset, offset + limit), total: tagged.length });
     }
-    res.json(repo.listItems({ categoryId, kind, limit, offset }));
+    res.json(repo.listItems({ categoryId, kind, limit, offset, sort }));
   });
 
   app.get('/api/items/:id', (req, res) => {
     const item = repo.getItem(parseId(req.params.id), { full: true });
     if (!item) throw httpError(404, 'Documento não encontrado.');
+    if (req.query.view !== undefined) repo.registerView(item.id);
     const { stored_name, ...rest } = item;
     // O texto extraído de arquivos pode ser grande; a interface mostra só uma prévia.
     rest.text_preview = rest.text.slice(0, 20000);
@@ -304,6 +313,7 @@ export function createApp({
       history: req.body.messages,
       contextItemId: parseId(req.body.context_item_id),
       sessionId: String(req.body.session_id || '').slice(0, 100),
+      mode: req.body.mode === 'livre' ? 'livre' : 'base',
       emit,
       signal: controller.signal,
     });

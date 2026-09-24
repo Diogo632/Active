@@ -117,7 +117,7 @@ test('com includeContext=false envia só a pergunta como mensagem', async () => 
   await ai.chat({ history: [{ role: 'user', content: 'erro 105?' }], emit: () => {} });
   assert.equal(received.body.chatInput, 'erro 105?');
   assert.equal(received.body.prompt, 'erro 105?');
-  assert.match(received.body.documentos[0].titulo, /Manual impressora fiscal/);
+  assert.deepEqual(received.body.documentos, []);
 });
 
 test('documento aberto vai inteiro, mesmo sendo longo', async () => {
@@ -129,4 +129,19 @@ test('documento aberto vai inteiro, mesmo sendo longo', async () => {
   assert.equal(enviado.parcial, false);
   assert.match(enviado.conteudo, /Passo final: faturar\./);
   assert.match(received.body.prompt, /documento completo/);
+});
+
+test('modo livre envia só a pergunta, sem documentos', async () => {
+  replyWith = { payload: { message: 'Resposta do RAG do GPTMaker' } };
+  const events = await ask('Qual o prazo de SLA do cliente X?', { mode: 'livre' });
+  assert.equal(received.body.prompt, 'Qual o prazo de SLA do cliente X?');
+  assert.deepEqual(received.body.documentos, []);
+  assert.ok(!events.some((e) => e.type === 'sources'));
+});
+
+test('modo livre com documento em foco envia o documento', async () => {
+  replyWith = { payload: { message: 'ok' } };
+  await ask('Resuma', { mode: 'livre', contextItemId: 1 });
+  assert.equal(received.body.documentos[0].id, 1);
+  assert.match(received.body.prompt, /Manual impressora fiscal/);
 });

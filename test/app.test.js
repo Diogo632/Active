@@ -182,3 +182,24 @@ test('API de integração exige token e devolve o conteúdo completo', async () 
   const full = await (await fetch(`${base}/api/integracao/documentos/${doc.id}`, { headers: { Authorization: 'Bearer tok-teste' } })).json();
   assert.equal(full.conteudo, 'conteúdo integral zebra');
 });
+
+test('servidor MCP: lista ferramentas, busca e lê documentos (com token)', async () => {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const doc = repo.createItem({ kind: 'article', title: 'Cadastro de ADEME', content: 'Para o ADEME refletir no custo, recalcule a tabela do transportador.' });
+
+  assert.equal((await fetch(`${base}/mcp`, { method: 'POST' })).status, 401);
+
+  const client = new Client({ name: 'teste', version: '1.0.0' });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: 'Bearer tok-teste' } } }));
+  const { tools } = await client.listTools();
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['buscar_documentos', 'ler_documento', 'listar_categorias', 'listar_documentos']);
+
+  const found = JSON.parse((await client.callTool({ name: 'buscar_documentos', arguments: { consulta: 'ADEME custo' } })).content[0].text);
+  assert.equal(found[0].id, doc.id);
+  assert.match(found[0].link, new RegExp(`#/item/${doc.id}$`));
+
+  const read = JSON.parse((await client.callTool({ name: 'ler_documento', arguments: { id: doc.id } })).content[0].text);
+  assert.match(read.conteudo, /recalcule a tabela/);
+  await client.close();
+});

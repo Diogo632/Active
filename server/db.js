@@ -45,12 +45,16 @@ export function openDatabase(dataDir) {
     );
   `);
 
+  // Migração: contador de acessos (bancos criados antes desta coluna existir).
+  const columns = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
+  if (!columns.includes('views')) db.exec('ALTER TABLE items ADD COLUMN views INTEGER NOT NULL DEFAULT 0');
+
   return db;
 }
 
 const ITEM_COLUMNS = `
   i.id, i.kind, i.title, i.summary, i.tags, i.category_id, i.author,
-  i.file_name, i.mime_type, i.size, i.extract_status, i.created_at, i.updated_at,
+  i.file_name, i.mime_type, i.size, i.extract_status, i.views, i.created_at, i.updated_at,
   c.name AS category_name
 `;
 
@@ -153,7 +157,7 @@ export function createRepository(db) {
       return toItem(row);
     },
 
-    listItems({ categoryId, kind, limit = 50, offset = 0 } = {}) {
+    listItems({ categoryId, kind, limit = 50, offset = 0, sort } = {}) {
       const where = [];
       const params = [];
       if (categoryId === 'none') where.push('i.category_id IS NULL');
@@ -171,7 +175,7 @@ export function createRepository(db) {
           `SELECT ${ITEM_COLUMNS}
              FROM items i LEFT JOIN categories c ON c.id = i.category_id
              ${whereSql}
-            ORDER BY i.updated_at DESC, i.id DESC
+            ORDER BY ${sort === 'views' ? 'i.views DESC, ' : ''}i.updated_at DESC, i.id DESC
             LIMIT ? OFFSET ?`,
         )
         .all(...params, limit, offset);
@@ -269,6 +273,10 @@ export function createRepository(db) {
       ).run(file.file_name, file.stored_name, file.mime_type, file.size, file.text, file.extract_status, id);
       syncFts(id);
       return repo.getItem(id);
+    },
+
+    registerView(id) {
+      db.prepare('UPDATE items SET views = views + 1 WHERE id = ?').run(id);
     },
 
     deleteItem(id) {
