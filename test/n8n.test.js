@@ -82,6 +82,7 @@ test('envia pergunta, sessão e documentos relevantes ao webhook', async () => {
   assert.match(received.body.prompt, /Erros conhecidos \(1\)/);
   // Compatível com o Chat Trigger do n8n e com webhooks próprios.
   assert.equal(received.body.action, 'sendMessage');
+  assert.equal(received.body.contextId, 'sessao-1');
   assert.equal(received.body.chatInput, received.body.prompt);
   assert.equal(received.body.message, received.body.prompt);
 

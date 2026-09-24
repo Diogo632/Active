@@ -183,6 +183,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
         body: JSON.stringify({
           action: 'sendMessage',
           sessionId: sessionId || 'base-conhecimento',
+          contextId: sessionId || 'base-conhecimento',
           chatInput: message,
           message,
           mensagem: message,
