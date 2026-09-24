@@ -27,8 +27,10 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 Dá para rodar a plataforma na nuvem do GitHub, sem instalar nada no computador:
 
 1. No GitHub, abra o repositório e clique em **Code → Codespaces → Create codespace**.
-2. Espere alguns minutos: o Codespace instala as dependências e inicia a plataforma sozinho.
-3. Quando aparecer o aviso da porta **3000**, clique em **Open in Browser**. Ele também aparece na aba **Ports**.
+2. Espere alguns minutos: o Codespace instala as dependências.
+3. No terminal, rode `npm start`. Quando aparecer o aviso da porta **3000**, espere uns segundos e clique em **Open in Browser**. O endereço também aparece na aba **Ports**.
+
+Para atualizar depois de novas versões: pare a plataforma (Ctrl+C) e rode `git pull`, `npm ci` e `npm start`.
 
 Para usar o Active IA, cadastre o secret `N8N_WEBHOOK_URL` em **GitHub → Settings → Codespaces → Secrets**, liberado para este repositório. Depois recrie ou reinicie o Codespace.
 

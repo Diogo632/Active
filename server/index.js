@@ -372,7 +372,17 @@ if (isMain) {
   const port = Number(process.env.PORT || 3000);
   const createdInfo = createApp();
   const { app } = createdInfo;
-  app.listen(port, () => {
+  app.listen(port, (err) => {
+    // No Express 5, falhas ao abrir a porta chegam aqui (ex.: outra cópia da plataforma já está rodando).
+    if (err) {
+      console.error(
+        err.code === 'EADDRINUSE'
+          ? `Erro: a porta ${port} já está em uso — a plataforma provavelmente já está rodando em outro terminal.\n` +
+              `Pare a outra cópia (Ctrl+C naquele terminal ou "pkill -f server/index.js") ou use outra porta: PORT=3001 npm start`
+          : `Erro ao iniciar o servidor: ${err.message}`,
+      );
+      process.exit(1);
+    }
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
     const { ai } = createdInfo;
     if (ai.provider === 'n8n') console.log(`Active IA: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
