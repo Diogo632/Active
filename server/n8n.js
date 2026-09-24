@@ -13,7 +13,10 @@ temos existe existem sei saber quero gostaria favor ajuda ajudar me explique exp
 
 const DEFAULTS = {
   maxDocuments: 6,
-  maxContextChars: 24_000,
+  // Espaço (em caracteres) para os trechos dos documentos encontrados na busca.
+  maxContextChars: 30_000,
+  // O documento aberto na tela vai inteiro até este limite, para resumos e perguntas sobre ele.
+  openDocChars: 80_000,
   chunkChars: 1_500,
   timeoutMs: 120_000,
   // true: a mensagem enviada ao workflow já leva os documentos da base junto com a pergunta.
@@ -92,7 +95,10 @@ function buildPrompt({ question, catalogText, documents, contextItem }) {
             `### [${d.titulo}](${d.link})\n` +
             `ID: ${d.id} · Tipo: ${d.tipo} · Categoria: ${d.categoria}${d.tags.length ? ` · Tags: ${d.tags.join(', ')}` : ''}\n` +
             (d.resumo ? `Descrição: ${d.resumo}\n` : '') +
-            `Conteúdo:\n${d.conteudo || '(sem texto legível — só os dados acima)'}`,
+            (d.parcial
+              ? `Conteúdo (TRECHOS selecionados; o documento completo tem ${d.total_caracteres} caracteres e continua além do que aparece aqui — não diga que ele termina nestes trechos):\n`
+              : 'Conteúdo (documento completo):\n') +
+            (d.conteudo || '(sem texto legível — só os dados acima)'),
         )
         .join('\n\n')
     : 'Nenhum documento da base corresponde a esta pergunta.';
@@ -129,11 +135,13 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
     const ids = [...new Set([contextItemId, ...found.map((f) => f.id)].filter(Boolean))].slice(0, cfg.maxDocuments);
     const items = ids.map((id) => repo.getItem(id, { full: true })).filter(Boolean);
 
-    // O documento aberto recebe mais espaço; o restante é dividido entre os demais.
-    const share = Math.floor(cfg.maxContextChars / Math.max(items.length, 1));
+    // O documento aberto vai inteiro (até openDocChars); os demais dividem maxContextChars.
+    const others = items.filter((i) => i.id !== contextItemId).length;
+    const share = Math.max(Math.floor(cfg.maxContextChars / Math.max(others, 1)), 3_000);
     return items.map((item) => {
-      const body = item.kind === 'article' ? item.content : item.text;
-      const budget = item.id === contextItemId ? Math.max(share, Math.floor(cfg.maxContextChars / 2)) : share;
+      const body = (item.kind === 'article' ? item.content : item.text) || '';
+      const budget = item.id === contextItemId ? cfg.openDocChars : share;
+      const conteudo = bestExcerpts(body, terms, budget, cfg.chunkChars);
       return {
         id: item.id,
         titulo: item.title,
@@ -142,7 +150,9 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
         tags: item.tags,
         resumo: item.summary || '',
         link: `#/item/${item.id}`,
-        conteudo: bestExcerpts(body, terms, budget, cfg.chunkChars),
+        conteudo,
+        parcial: conteudo.length < body.length,
+        total_caracteres: body.length,
         kind: item.kind,
       };
     });

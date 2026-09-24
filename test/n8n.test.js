@@ -119,3 +119,14 @@ test('com includeContext=false envia só a pergunta como mensagem', async () => 
   assert.equal(received.body.prompt, 'erro 105?');
   assert.match(received.body.documentos[0].titulo, /Manual impressora fiscal/);
 });
+
+test('documento aberto vai inteiro, mesmo sendo longo', async () => {
+  const longo = `Início do processo. ${'Detalhe do cálculo. '.repeat(1500)} Quilometragem utilizada no cálculo. Passo final: faturar.`;
+  const doc = repo.createItem({ kind: 'article', title: 'Processo longo', content: longo });
+  replyWith = { payload: { message: 'ok' } };
+  await ask('Resuma este documento', { contextItemId: doc.id });
+  const enviado = received.body.documentos.find((d) => d.id === doc.id);
+  assert.equal(enviado.parcial, false);
+  assert.match(enviado.conteudo, /Passo final: faturar\./);
+  assert.match(received.body.prompt, /documento completo/);
+});

@@ -343,6 +343,7 @@ function createAssistant({ repo, uploadsDir, model }) {
       token: process.env.N8N_WEBHOOK_TOKEN,
       options: {
         ...(process.env.N8N_TIMEOUT_SECONDS ? { timeoutMs: Number(process.env.N8N_TIMEOUT_SECONDS) * 1000 } : {}),
+        ...(process.env.N8N_MAX_OPEN_DOC_CHARS ? { openDocChars: Number(process.env.N8N_MAX_OPEN_DOC_CHARS) } : {}),
         ...(process.env.N8N_INCLUDE_CONTEXT ? { includeContext: !/^(false|0|nao|não|no)$/i.test(process.env.N8N_INCLUDE_CONTEXT) } : {}),
       },
     });
