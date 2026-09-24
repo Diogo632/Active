@@ -16,6 +16,9 @@ const DEFAULTS = {
   maxContextChars: 24_000,
   chunkChars: 1_500,
   timeoutMs: 120_000,
+  // true: a mensagem enviada ao workflow já leva os documentos da base junto com a pergunta.
+  // false: envia só a pergunta (use quando o workflow consulta a base sozinho pela API de integração).
+  includeContext: true,
 };
 
 /** Extrai palavras-chave de uma pergunta em linguagem natural. */
@@ -163,6 +166,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
     const previousUser = messages.filter((m) => m.role === 'user').slice(-2, -1)[0]?.content || '';
     const documents = retrieve(`${last.content} ${keywords(last.content).length < 3 ? previousUser : ''}`, contextItem?.id);
     const prompt = buildPrompt({ question: last.content, catalogText: catalog(repo), documents, contextItem });
+    const message = cfg.includeContext ? prompt : last.content;
 
     emit({ type: 'status', label: 'Consultando o Active IA' });
     const timeout = AbortSignal.timeout(cfg.timeoutMs);
@@ -174,8 +178,16 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
           Accept: 'application/json, text/plain',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+        // Os mesmos dados vão em vários nomes de campo para funcionar com workflows já existentes,
+        // como o Chat Trigger do n8n (action/chatInput/sessionId) ou webhooks próprios (message, mensagem…).
         body: JSON.stringify({
+          action: 'sendMessage',
           sessionId: sessionId || 'base-conhecimento',
+          chatInput: message,
+          message,
+          mensagem: message,
+          text: message,
+          origem: 'base-de-conhecimento',
           pergunta: last.content,
           prompt,
           historico: messages.slice(0, -1),

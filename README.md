@@ -78,6 +78,13 @@ A cada pergunta, a plataforma:
 
 O `sessionId` muda a cada **Nova conversa**. Use-o como `contextId` no GPTMaker para ele manter o histórico da conversa.
 
+### Usar o workflow do Active IA que já existe
+
+O corpo enviado ao webhook inclui os campos que workflows prontos costumam ler: `action: "sendMessage"`, `chatInput`, `message`, `mensagem`, `text` e `sessionId`. É o mesmo formato do **Chat Trigger** do n8n. Por padrão, esses campos levam a pergunta junto com os documentos relevantes da base. Assim, o agente atual responde usando a base sem nenhuma mudança no workflow.
+
+- `N8N_WEBHOOK_URL`: use o endereço que recebe as mensagens do chat do Active IA. Esse é o `POST` que a página chama, não necessariamente o endereço que abre a página.
+- `N8N_INCLUDE_CONTEXT=false`: envia só a pergunta. Use quando o próprio agente consultar a base pela API de integração.
+
 ### Fluxo pronto para importar
 
 O arquivo [`n8n/fluxo-base-conhecimento-gptmaker.json`](n8n/fluxo-base-conhecimento-gptmaker.json) traz o fluxo **Webhook → GPTMaker → Resposta**. Para usar:

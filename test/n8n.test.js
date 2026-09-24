@@ -80,6 +80,10 @@ test('envia pergunta, sessão e documentos relevantes ao webhook', async () => {
   assert.match(received.body.documentos[0].conteudo, /papel ausente/);
   assert.match(received.body.prompt, /#\/item\/1/);
   assert.match(received.body.prompt, /Erros conhecidos \(1\)/);
+  // Compatível com o Chat Trigger do n8n e com webhooks próprios.
+  assert.equal(received.body.action, 'sendMessage');
+  assert.equal(received.body.chatInput, received.body.prompt);
+  assert.equal(received.body.message, received.body.prompt);
 
   assert.equal(events.filter((e) => e.type === 'text').map((e) => e.text).join(''), 'Troque a bobina. Veja [Manual impressora fiscal](#/item/1).');
   assert.equal(events.find((e) => e.type === 'sources').items[0].id, 1);
@@ -104,4 +108,12 @@ test('sem URL do webhook informa que não está configurado', async () => {
   await ai.chat({ history: [{ role: 'user', content: 'oi' }], emit: (e) => events.push(e) });
   assert.equal(ai.configured, false);
   assert.match(events[0].message, /N8N_WEBHOOK_URL/);
+});
+
+test('com includeContext=false envia só a pergunta como mensagem', async () => {
+  replyWith = { payload: { output: 'ok' } };
+  const ai = createN8nActiveIA({ repo, webhookUrl: url(), options: { includeContext: false } });
+  await ai.chat({ history: [{ role: 'user', content: 'erro 105?' }], emit: () => {} });
+  assert.equal(received.body.chatInput, 'erro 105?');
+  assert.match(received.body.prompt, /Manual impressora fiscal/);
 });

@@ -340,7 +340,10 @@ function createAssistant({ repo, uploadsDir, model }) {
       repo,
       webhookUrl: process.env.N8N_WEBHOOK_URL,
       token: process.env.N8N_WEBHOOK_TOKEN,
-      options: process.env.N8N_TIMEOUT_SECONDS ? { timeoutMs: Number(process.env.N8N_TIMEOUT_SECONDS) * 1000 } : {},
+      options: {
+        ...(process.env.N8N_TIMEOUT_SECONDS ? { timeoutMs: Number(process.env.N8N_TIMEOUT_SECONDS) * 1000 } : {}),
+        ...(process.env.N8N_INCLUDE_CONTEXT ? { includeContext: !/^(false|0|nao|não|no)$/i.test(process.env.N8N_INCLUDE_CONTEXT) } : {}),
+      },
     });
   }
   return { ...createActiveIA({ repo, uploadsDir, model }), provider: 'anthropic' };
