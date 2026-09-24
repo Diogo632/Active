@@ -80,6 +80,8 @@ O `sessionId` muda a cada **Nova conversa**. Use-o como `contextId` no GPTMaker 
 
 ### Usar o workflow do Active IA que já existe
 
+Para o workflow **Active IA — Chat hospedado no n8n**, use `N8N_WEBHOOK_URL=https://n8n.activecorp.com.br/webhook/active-ia-msg`. O nó **GPT Maker — Texto** lê `body.prompt` e `body.contextId`, e o nó **Responder ao chat** devolve `{ "message": ... }`. A plataforma envia e lê exatamente esses campos, então o workflow não precisa de nenhuma alteração.
+
 O corpo enviado ao webhook inclui os campos que workflows prontos costumam ler: `action: "sendMessage"`, `chatInput`, `message`, `mensagem`, `text` e `sessionId`. É o mesmo formato do **Chat Trigger** do n8n. Por padrão, esses campos levam a pergunta junto com os documentos relevantes da base. Assim, o agente atual responde usando a base sem nenhuma mudança no workflow.
 
 - `N8N_WEBHOOK_URL`: use o endereço que recebe as mensagens do chat do Active IA. Esse é o `POST` que a página chama, não necessariamente o endereço que abre a página.

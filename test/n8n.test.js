@@ -116,5 +116,6 @@ test('com includeContext=false envia só a pergunta como mensagem', async () => 
   const ai = createN8nActiveIA({ repo, webhookUrl: url(), options: { includeContext: false } });
   await ai.chat({ history: [{ role: 'user', content: 'erro 105?' }], emit: () => {} });
   assert.equal(received.body.chatInput, 'erro 105?');
-  assert.match(received.body.prompt, /Manual impressora fiscal/);
+  assert.equal(received.body.prompt, 'erro 105?');
+  assert.match(received.body.documentos[0].titulo, /Manual impressora fiscal/);
 });

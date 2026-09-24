@@ -190,7 +190,8 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
           text: message,
           origem: 'base-de-conhecimento',
           pergunta: last.content,
-          prompt,
+          // Campo lido pelo workflow do Active IA (GPT Maker — Texto: { contextId, prompt }).
+          prompt: message,
           historico: messages.slice(0, -1),
           documento_aberto: contextItem ? { id: contextItem.id, titulo: contextItem.title } : null,
           documentos: documents.map(({ kind, ...d }) => d),
