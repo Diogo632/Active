@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { chat, mountChat } from './chat.js';
+import { mountAnswer } from './answer.js';
 import {
   esc, icon, hydrateIcons, formatDate, relativeDate, formatBytes, fileIcon, fileTypeLabel,
   renderMarkdown, toast, confirmDialog, storage, CATEGORY_ICONS,
@@ -8,6 +9,7 @@ import {
 /** Estado compartilhado entre as telas (categorias ficam em cache para formulários e menu). */
 export const shared = {
   categories: [],
+  aiConfigured: false,
   async refreshCategories() {
     shared.categories = await api.categories();
     document.dispatchEvent(new CustomEvent('categories-changed'));
@@ -66,69 +68,64 @@ function openIa(prompt) {
 // ======================================================================
 export async function homeView(view) {
   view.innerHTML = loading();
-  const [stats, recent] = await Promise.all([api.stats(), api.items({ limit: 8 })]);
+  const [popular, recent] = await Promise.all([api.items({ limit: 6, sort: 'views' }), api.items({ limit: 6 })]);
   const cats = shared.categories;
+  const empty = !recent.items.length;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+
+  const quickList = (items) =>
+    items
+      .map(
+        (i) => `
+        <a class="quick-item" href="#/item/${i.id}">
+          <span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>
+          <span class="quick-text"><strong>${esc(i.title)}</strong><small>${esc(i.category_name || 'Sem categoria')} · ${esc(relativeDate(i.updated_at))}</small></span>
+        </a>`,
+      )
+      .join('');
 
   view.innerHTML = `
-    <section class="hero">
-      <h1>Como podemos ajudar hoje?</h1>
-      <p>Encontre procedimentos, manuais e documentos do Suporte da Active Corp — ou pergunte diretamente ao Active IA.</p>
-      <form class="hero-search" id="hero-form">
-        <input name="q" placeholder="Ex.: erro de conexão com o banco, configurar impressora fiscal…" autocomplete="off" aria-label="Pesquisar ou perguntar" />
-        <button class="btn" type="submit" name="mode" value="search">${icon('search')}Pesquisar</button>
-        <button class="btn btn-ia" type="submit" name="mode" value="ia">${icon('sparkles')}Perguntar ao Active IA</button>
-      </form>
-      <div class="hero-hint">
-        <span>Experimente:</span>
-        <button type="button" data-ask="Quais documentos existem na base e sobre quais assuntos?">O que existe na base?</button>
-        <button type="button" data-ask="Quais foram os documentos adicionados mais recentemente? Resuma cada um.">Novidades da base</button>
+    <section class="home">
+      <div class="home-hero">
+        <h1>${greeting}! O que você precisa encontrar?</h1>
+        <form class="home-search" id="home-search" role="search">
+          ${icon('search')}
+          <input name="q" placeholder="Busque um processo, cliente, erro ou sistema…" autocomplete="off" aria-label="Buscar na base" autofocus />
+          <button class="btn btn-primary" type="submit">Buscar</button>
+        </form>
+        <p class="home-hint">O Active IA responde junto com os resultados<span class="kbd-hint"> · <kbd>Ctrl</kbd> <kbd>K</kbd> busca de qualquer tela</span></p>
+        ${
+          cats.length
+            ? `<nav class="chips" aria-label="Categorias">${cats
+                .map((c) => `<a class="chip" href="#/docs?category=${c.id}">${icon(c.icon)}${esc(c.name)}<span>${c.item_count}</span></a>`)
+                .join('')}</nav>`
+            : ''
+        }
       </div>
-    </section>
-
-    <div class="stats">
-      <div class="card stat"><strong>${stats.total}</strong><span>documentos na base</span></div>
-      <div class="card stat"><strong>${stats.articles}</strong><span>textos escritos</span></div>
-      <div class="card stat"><strong>${stats.files}</strong><span>arquivos enviados</span></div>
-      <div class="card stat"><strong>${stats.categories}</strong><span>categorias</span></div>
-    </div>
-
-    <div class="section-title"><h2>Categorias</h2><a href="#/categories">Gerenciar</a></div>
-    ${
-      cats.length
-        ? `<div class="category-grid">${cats
-            .map(
-              (c) => `
-          <a class="card category-card" href="#/docs?category=${c.id}">
-            <div class="cat-icon">${icon(c.icon)}</div>
-            <strong>${esc(c.name)}</strong>
-            <p>${c.item_count} documento(s)${c.description ? ` · ${esc(c.description)}` : ''}</p>
-          </a>`,
+      ${
+        empty
+          ? emptyState(
+              'library',
+              'A base ainda está vazia',
+              'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens e qualquer outro tipo).',
+              '<div class="row" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
             )
-            .join('')}</div>`
-        : emptyState('folder', 'Nenhuma categoria ainda', 'Crie categorias para organizar os documentos do Suporte.', '<a class="btn btn-primary" href="#/categories">Criar categoria</a>')
-    }
+          : `<div class="home-columns">
+              <section><h2>Mais acessados</h2><div class="quick-list">${quickList(popular.items)}</div></section>
+              <section><h2>Atualizados recentemente</h2><div class="quick-list">${quickList(recent.items)}</div><a class="small" href="#/docs">Ver todos os documentos →</a></section>
+            </div>`
+      }
+    </section>`;
 
-    <div class="section-title"><h2>Atualizados recentemente</h2><a href="#/docs">Ver todos</a></div>
-    ${
-      recent.items.length
-        ? `<div class="doc-list">${recent.items.map(docItem).join('')}</div>`
-        : emptyState(
-            'library',
-            'A base ainda está vazia',
-            'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens e qualquer outro tipo).',
-            '<div class="row" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
-          )
-    }`;
-
-  const form = view.querySelector('#hero-form');
+  const form = view.querySelector('#home-search');
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const q = form.q.value.trim();
     if (!q) return form.q.focus();
-    if (e.submitter?.value === 'ia') openIa(q);
-    else location.hash = `#/docs?q=${encodeURIComponent(q)}`;
+    location.hash = `#/docs?q=${encodeURIComponent(q)}`;
   });
-  view.querySelectorAll('[data-ask]').forEach((b) => b.addEventListener('click', () => openIa(b.dataset.ask)));
+  form.q.focus({ preventScroll: true });
 }
 
 // ======================================================================
@@ -147,12 +144,16 @@ export async function docsView(view, { query }) {
     <div class="page-header">
       <div>
         <h1>${esc(title)}</h1>
-        <p>${cat?.description ? esc(cat.description) : 'Textos e arquivos da base de conhecimento do Suporte.'}</p>
+        ${q ? '' : `<p>${cat?.description ? esc(cat.description) : 'Textos e arquivos da base de conhecimento do Suporte.'}</p>`}
       </div>
-      <div class="row">
+      ${
+        q
+          ? ''
+          : `<div class="row">
         <a class="btn" href="#/upload${category ? `?category=${category}` : ''}">${icon('upload')}Enviar arquivos</a>
         <a class="btn btn-primary" href="#/new${category ? `?category=${category}` : ''}">${icon('pen')}Escrever texto</a>
-      </div>
+      </div>`
+      }
     </div>
     <form class="filters" id="filters">
       <input class="input search-input" name="q" type="search" placeholder="Pesquisar por palavras-chave…" value="${esc(q)}" />
@@ -165,7 +166,11 @@ export async function docsView(view, { query }) {
       ${tag ? `<input type="hidden" name="tag" value="${esc(tag)}" />` : ''}
       <button class="btn btn-primary" type="submit">${icon('search')}Filtrar</button>
     </form>
+    <div id="answer"></div>
     <div id="results">${loading()}</div>`;
+
+  // Na busca, o Active IA responde no topo usando os documentos encontrados.
+  const stopAnswer = q && shared.aiConfigured ? mountAnswer(view.querySelector('#answer'), q) : null;
 
   const form = view.querySelector('#filters');
   const go = () => {
@@ -187,11 +192,12 @@ export async function docsView(view, { query }) {
       : emptyState('library', 'Nenhum documento aqui', 'Envie arquivos ou escreva um texto para começar.');
     results.querySelector('#ask-ia')?.addEventListener('click', () => openIa(`Estou procurando informações sobre: ${q}`));
     hydrateIcons(results);
-    return;
+    return stopAnswer;
   }
   results.innerHTML = `
     <p class="muted small">${data.total} documento(s)</p>
     <div class="doc-list">${data.items.map(docItem).join('')}</div>`;
+  return stopAnswer;
 }
 
 // ======================================================================
@@ -209,8 +215,7 @@ function filePreview(item) {
 
 export async function itemView(view, { params }) {
   view.innerHTML = loading();
-  const item = await api.item(params.id);
-  chat.setContext(item);
+  const item = await api.item(params.id, { view: true });
 
   const preview = item.kind === 'file' ? filePreview(item) : '';
   const extractNote = {
@@ -275,8 +280,13 @@ export async function itemView(view, { params }) {
       </aside>
     </div>`;
 
-  view.querySelector('#ask').addEventListener('click', () => openIa());
-  view.querySelector('#ask-summary').addEventListener('click', () => openIa('Resuma este documento em tópicos, destacando os pontos mais importantes.'));
+  // O documento só entra em foco no chat quando a pessoa pergunta sobre ele; fora isso, a conversa é livre.
+  const askAbout = (prompt) => {
+    chat.setContext(item);
+    openIa(prompt);
+  };
+  view.querySelector('#ask').addEventListener('click', () => askAbout());
+  view.querySelector('#ask-summary').addEventListener('click', () => askAbout('Resuma este documento em tópicos, destacando os pontos mais importantes.'));
 
   view.querySelector('#delete').addEventListener('click', async () => {
     const ok = await confirmDialog({

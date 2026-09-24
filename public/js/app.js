@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { setupPalette } from './palette.js';
 import { chat, mountChat } from './chat.js';
 import { esc, icon, hydrateIcons, toast } from './util.js';
 import {
@@ -55,8 +56,6 @@ async function router() {
   });
   renderNavCategories();
 
-  const topSearch = document.querySelector('#topbar-search input');
-  topSearch.value = path === '/docs' ? query.get('q') || '' : '';
 
   // Na página do Active IA o painel lateral fica redundante.
   if (route?.nav === 'ia') closeDrawer();
@@ -122,11 +121,8 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ---------- Barra superior ----------
-document.getElementById('topbar-search').addEventListener('submit', (e) => {
-  e.preventDefault();
-  const q = e.target.q.value.trim();
-  location.hash = q ? `#/docs?q=${encodeURIComponent(q)}` : '#/docs';
-});
+const palette = setupPalette();
+document.getElementById('topbar-search').addEventListener('click', () => palette.open());
 
 document.getElementById('menu-btn').addEventListener('click', () => {
   sidebar.classList.toggle('open');
@@ -162,6 +158,7 @@ async function init() {
     await shared.refreshCategories();
     const stats = await api.stats();
     chat.setConfigured(stats.ai.configured);
+    shared.aiConfigured = stats.ai.configured;
   } catch (err) {
     toast(`Falha ao conectar ao servidor: ${err.message}`, 'error');
   }

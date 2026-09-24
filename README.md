@@ -14,12 +14,12 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 - **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
 - **Organização**: categorias com ícone, tags e descrição curta.
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
-- **Active IA**:
-  - acessa todos os documentos da base por meio de ferramentas (pesquisar, ler, listar documentos e categorias);
-  - encontra documentos, responde dúvidas, resume e explica o conteúdo, sempre citando os documentos com links;
-  - fica disponível em qualquer página (painel lateral) e em tela cheia (menu **Active IA**);
-  - ao abrir um documento, ele entra como contexto e você pode perguntar sobre "este documento";
-  - as respostas aparecem em tempo real (streaming).
+- **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta do Active IA** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
+- **Active IA** (agente do GPTMaker, via n8n):
+  - **conversa livre** no chat, usando o conhecimento próprio do agente;
+  - resumos e dúvidas sobre o documento aberto;
+  - **servidor MCP** para o agente pesquisar e ler a base sozinho.
+- **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
 - Tema claro/escuro e layout responsivo (funciona no celular).
 
 ## Testar pelo GitHub (Codespaces)
@@ -55,6 +55,36 @@ Configurações do `.env`:
 | `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão `100`). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
+
+## Como o Active IA funciona na plataforma
+
+| Onde | O que é enviado ao agente | Para quê |
+| --- | --- | --- |
+| **Chat** (botão *Perguntar ao Active IA*) | Só a pergunta (**conversa livre**) | O agente responde com o próprio conhecimento (RAG do GPTMaker) e consulta a base pelo **MCP** quando precisa |
+| **Busca** (resultados e Ctrl+K) | Pergunta + documentos encontrados | O cartão *Resposta do Active IA* resume e responde a busca com base nos documentos, com links |
+| **Documento em foco** (*Perguntar ao Active IA* dentro de um documento) | Pergunta + documento inteiro | Resumos e dúvidas sobre aquele documento |
+
+O botão **Continuar a conversa** leva a resposta da busca para o chat e mantém a mesma sessão no agente.
+
+## Servidor MCP da Base de Conhecimento
+
+A plataforma expõe um servidor **MCP**, usando o transporte *Streamable HTTP*, em `https://SEU_ENDERECO/mcp`. Para ativar, defina `INTEGRATION_TOKEN` no `.env`. A autenticação é pelo header `Authorization: Bearer <INTEGRATION_TOKEN>`. Para clientes que não enviam headers, também dá para usar `https://SEU_ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
+
+Ferramentas disponíveis, todas somente leitura:
+
+| Ferramenta | O que faz |
+| --- | --- |
+| `buscar_documentos` | Pesquisa em texto completo; devolve id, título, categoria, trecho e link |
+| `ler_documento` | Lê o conteúdo completo de um documento (em partes de 30 mil caracteres) |
+| `listar_documentos` | Lista os documentos mais recentes, opcionalmente de uma categoria |
+| `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
+
+Formas de conectar:
+- **GPTMaker:** se o seu plano oferecer integração MCP, cadastre a URL `/mcp` com o token. Se não oferecer, use as mesmas funções pela API REST (`/api/integracao/*`), por exemplo em uma intenção ou webhook.
+- **n8n:** no workflow, adicione o nó **MCP Client Tool** apontando para `/mcp`, com *Header Auth*, e ligue-o a um nó **AI Agent**.
+- **Outros clientes MCP** (Claude, ChatGPT, Cursor etc.): use a mesma URL e o mesmo token.
+
+A plataforma precisa estar num endereço que o agente consiga acessar pela internet. Defina `PUBLIC_URL` com esse endereço para que os links devolvidos abram direto na plataforma.
 
 ## Active IA com n8n + GPTMaker
 
@@ -113,7 +143,8 @@ server/
   index.js    API REST (Express), upload e streaming do chat
   db.js       SQLite + índice de busca FTS5
   extract.js  Extração de texto dos arquivos
-  n8n.js      Active IA via webhook do n8n (busca na base + envio ao GPTMaker)
+  n8n.js      Active IA via webhook do n8n (conversa livre e respostas da busca)
+  mcp.js      Servidor MCP da base (ferramentas para o agente)
   ai.js       Alternativa: Active IA pela API da Anthropic
 n8n/          Fluxo de exemplo para importar no n8n
 public/

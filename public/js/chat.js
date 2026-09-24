@@ -8,10 +8,10 @@ const newSessionId = () =>
   `kb-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const SUGGESTIONS = [
-  'Quais documentos temos sobre configuração de impressoras?',
-  'Resuma os procedimentos de atendimento mais recentes da base.',
-  'Como faço para redefinir a senha de um cliente?',
-  'Quais categorias e assuntos existem na base hoje?',
+  'Como emito um CT-e no ActiveTrans?',
+  'Quais documentos temos sobre o processo de um cliente?',
+  'Como validar um arquivo EDI?',
+  'O que você sabe fazer?',
 ];
 
 const DOC_SUGGESTIONS = [
@@ -70,6 +70,18 @@ export const chat = {
     notify();
   },
 
+  /** Abre no chat uma conversa iniciada pela resposta da busca, mantendo a mesma sessão no agente. */
+  continueWith({ question, answer, sources = [], sessionId }) {
+    state.controller?.abort();
+    state.messages = [
+      { role: 'user', content: question },
+      { role: 'assistant', content: answer, sources },
+    ];
+    state.sessionId = sessionId || newSessionId();
+    persist();
+    notify();
+  },
+
   stop() {
     state.controller?.abort();
   },
@@ -94,6 +106,8 @@ export const chat = {
         messages: history,
         contextItemId: state.context?.id,
         sessionId: state.sessionId,
+        // Conversa livre: o agente usa o conhecimento próprio (RAG do GPTMaker) e o MCP da base.
+        mode: 'livre',
         signal: state.controller.signal,
         onEvent(event) {
           switch (event.type) {
@@ -172,7 +186,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
         <div class="ia-avatar">AI</div>
         <div class="spacer">
           <h2>Active IA</h2>
-          <small>Assistente da Base de Conhecimento</small>
+          <small>Assistente interna — processos e sistemas</small>
         </div>
         <button class="icon-btn" data-action="reset" type="button" title="Nova conversa">${icon('refresh')}</button>
         ${variant === 'drawer' ? `<button class="icon-btn" data-action="expand" type="button" title="Abrir em tela cheia">${icon('expand')}</button>` : ''}
@@ -183,10 +197,10 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
       <div class="ia-messages" aria-live="polite"></div>
       <div class="ia-composer">
         <form>
-          <textarea rows="1" placeholder="Pergunte algo sobre a base de conhecimento…" aria-label="Mensagem para o Active IA"></textarea>
+          <textarea rows="1" placeholder="Pergunte qualquer coisa ao Active IA…" aria-label="Mensagem para o Active IA"></textarea>
           <button class="send" type="submit" title="Enviar">${icon('send')}</button>
         </form>
-        <div class="hint">O Active IA consulta os documentos da base. Confira as informações importantes nos documentos citados.</div>
+        <div class="hint">O Active IA pode cometer erros. Confirme informações críticas nos documentos citados.</div>
       </div>
     </section>`;
 
@@ -218,7 +232,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
         <div class="ia-welcome">
           <div class="ia-avatar">AI</div>
           <h3>Olá! Eu sou o Active IA.</h3>
-          <p>Tenho acesso a todos os documentos da base de conhecimento do Suporte. Posso encontrar arquivos, responder dúvidas e explicar procedimentos.</p>
+          <p>Pergunte o que quiser sobre processos, sistemas e clientes da Active. Respondo com o meu conhecimento e consulto a Base de Conhecimento quando preciso.</p>
           <div class="suggestions">${suggestions.map((s) => `<button type="button" data-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
     } else {

@@ -28,7 +28,7 @@ export const api = {
   deleteCategory: (id) => request('DELETE', `/api/categories/${id}`),
 
   items: (params = {}) => request('GET', `/api/items${qs(params)}`),
-  item: (id) => request('GET', `/api/items/${id}`),
+  item: (id, { view = false } = {}) => request('GET', `/api/items/${id}${view ? '?view' : ''}`),
   createArticle: (data) => request('POST', '/api/articles', data),
   updateItem: (id, data) => request('PUT', `/api/items/${id}`, data),
   deleteItem: (id) => request('DELETE', `/api/items/${id}`),
@@ -55,11 +55,11 @@ export const api = {
   },
 
   /** Conversa com o Active IA; `onEvent` recebe cada evento do stream SSE. */
-  async chat({ messages, contextItemId, sessionId, signal, onEvent }) {
+  async chat({ messages, contextItemId, sessionId, mode, signal, onEvent }) {
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId }),
+      body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId, mode }),
       signal,
     });
     if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com o Active IA.`);

@@ -161,13 +161,17 @@ i[data-icon] svg { width: 100%; height: 100%; }
   border-bottom: 1px solid var(--border);
 }
 .topbar-search {
-  flex: 1; max-width: 640px;
+  flex: 1; max-width: 520px;
   display: flex; align-items: center; gap: 10px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
-  padding: 0 16px; color: var(--text-muted);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px;
+  padding: 9px 12px; color: var(--text-muted); cursor: pointer; text-align: left; font-size: 14px;
 }
-.topbar-search:focus-within { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--primary-soft); }
-.topbar-search input { flex: 1; border: 0; background: none; outline: none; padding: 10px 0; color: var(--text); }
+.topbar-search:hover { border-color: var(--brand-primary); }
+.topbar-search span { flex: 1; }
+kbd {
+  font-family: var(--font); font-size: 11px; font-weight: 600; color: var(--text-muted);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px; background: var(--surface-2);
+}
 
 /* ---------- Botões ---------- */
 .btn {
@@ -515,4 +519,76 @@ dialog h3 { margin-bottom: 14px; }
   .hero-search .btn { width: 100%; }
   .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
   .page-header h1 { font-size: 22px; }
+}
+
+/* ---------- Início (foco na busca) ---------- */
+.home { max-width: 860px; margin: 0 auto; }
+.home-hero { text-align: center; padding: 48px 0 28px; }
+.home-hero h1 { font-size: 30px; margin-bottom: 22px; letter-spacing: -.01em; }
+.home-search {
+  display: flex; align-items: center; gap: 10px; max-width: 680px; margin: 0 auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px 6px 6px 16px; color: var(--text-muted);
+}
+.home-search:focus-within { border-color: var(--brand-primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.home-search input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font-size: 16px; padding: 10px 0; color: var(--text); }
+.home-hint { color: var(--text-muted); font-size: 13px; margin: 12px 0 22px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px;
+}
+.chip:hover { border-color: var(--brand-primary); text-decoration: none; }
+.chip i[data-icon] { width: 14px; height: 14px; color: var(--brand-accent); }
+.chip span { color: var(--text-muted); font-size: 12px; }
+.home-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; margin-top: 12px; }
+.home-columns h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px; }
+.quick-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.quick-item, .palette-option {
+  display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; color: var(--text); min-width: 0;
+}
+.quick-item:hover, .palette-option:hover, .palette-option.active { background: var(--surface-2); text-decoration: none; }
+.quick-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  background: var(--primary-soft); color: var(--brand-accent);
+}
+.quick-icon.file { background: var(--surface-2); color: var(--text-muted); }
+.quick-icon.ai { background: var(--brand-gradient); color: #fff; font-weight: 700; font-size: 12px; }
+.quick-icon i[data-icon] { width: 16px; height: 16px; }
+.quick-text { display: flex; flex-direction: column; min-width: 0; }
+.quick-text strong { font-weight: 500; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-text small { color: var(--text-muted); font-size: 12px; }
+
+/* ---------- Busca rápida (Ctrl+K) ---------- */
+.palette-overlay { position: fixed; inset: 0; z-index: 90; background: rgba(0, 0, 0, .55); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+.palette { width: min(640px, 100%); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.palette-input { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
+.palette-input input { flex: 1; border: 0; outline: none; background: none; font-size: 16px; color: var(--text); }
+.palette-results { max-height: 52vh; overflow-y: auto; padding: 6px; }
+.palette-empty { padding: 18px; color: var(--text-muted); font-size: 14px; text-align: center; }
+
+/* ---------- Resposta do Active IA na busca ---------- */
+.answer-card {
+  border: 1px solid var(--border); border-left: 3px solid var(--brand-primary); border-radius: var(--radius);
+  background: var(--surface); padding: 16px 18px; margin-bottom: 22px;
+}
+.answer-card header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.answer-card header .ia-avatar { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; box-shadow: none; }
+.answer-status { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
+.answer-status .spinner { width: 13px; height: 13px; }
+.answer-body { font-size: 14.5px; }
+.answer-body > :last-child { margin-bottom: 0; }
+.answer-card footer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.answer-skeleton { display: flex; flex-direction: column; gap: 8px; }
+.answer-skeleton span { height: 12px; border-radius: 6px; background: var(--surface-2); animation: pulse 1.4s ease-in-out infinite; }
+.answer-skeleton span:nth-child(2) { width: 85%; }
+.answer-skeleton span:nth-child(3) { width: 60%; }
+@keyframes pulse { 50% { opacity: .45; } }
+
+@media (max-width: 860px) {
+  .home-hero { padding: 20px 0 16px; }
+  .home-hero h1 { font-size: 22px; }
+  .home-columns { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .home-hint .kbd-hint { display: none; }
+  .topbar-search kbd { display: none; }
+  .home-hint kbd { display: none; }
 }
