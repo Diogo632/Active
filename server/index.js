@@ -334,7 +334,8 @@ export function createApp({
  * está definido; caso contrário, a API da Anthropic.
  */
 function createAssistant({ repo, uploadsDir, model }) {
-  const provider = (process.env.ACTIVE_IA_PROVIDER || (process.env.N8N_WEBHOOK_URL ? 'n8n' : 'anthropic')).toLowerCase();
+  const fallback = process.env.N8N_WEBHOOK_URL || !process.env.ANTHROPIC_API_KEY ? 'n8n' : 'anthropic';
+  const provider = (process.env.ACTIVE_IA_PROVIDER || fallback).toLowerCase();
   if (provider === 'n8n') {
     return createN8nActiveIA({
       repo,
