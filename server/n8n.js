@@ -72,6 +72,28 @@ export function extractReply(body) {
   return '';
 }
 
+/** Opções de resposta (botões) enviadas pelo workflow em um campo próprio, se houver. */
+export function extractOptions(body) {
+  if (!body || typeof body !== 'object') return [];
+  if (Array.isArray(body)) return body.flatMap(extractOptions);
+  for (const key of ['options', 'opcoes', 'opções', 'buttons', 'botoes', 'quick_replies', 'quickReplies', 'sugestoes', 'suggestions']) {
+    if (Array.isArray(body[key])) {
+      return body[key]
+        .map((o) => (typeof o === 'string' ? o : o?.label || o?.text || o?.title || o?.value || ''))
+        .map((o) => String(o).trim())
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+  }
+  for (const key of ['json', 'data', 'output', 'response']) {
+    if (body[key] && typeof body[key] === 'object') {
+      const nested = extractOptions(body[key]);
+      if (nested.length) return nested;
+    }
+  }
+  return [];
+}
+
 function catalog(repo) {
   const cats = repo.listCategories();
   const stats = repo.stats();
@@ -239,6 +261,8 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
         return;
       }
       emit({ type: 'text', text: reply });
+      const options = extractOptions(body);
+      if (options.length) emit({ type: 'options', items: options });
       if (documents.length) {
         emit({ type: 'sources', items: documents.map((d) => ({ id: d.id, title: d.titulo, kind: d.kind, read: true })) });
       }

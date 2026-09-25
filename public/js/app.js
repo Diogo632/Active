@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { setupPalette } from './palette.js';
+import { pageEnter, setupRipples, popIn } from './motion.js';
 import { chat, mountChat } from './chat.js';
 import { esc, icon, hydrateIcons, toast } from './util.js';
 import {
@@ -80,6 +81,7 @@ async function router() {
   }
   hydrateIcons(viewEl);
   window.scrollTo(0, 0);
+  pageEnter(viewEl);
 }
 
 // ---------- Painel lateral do Active IA ----------
@@ -148,11 +150,19 @@ themeBtn.addEventListener('click', () => {
     /* sem armazenamento local */
   }
   renderThemeButton();
+  // Troca de tema com uma transição suave de cores e o ícone girando.
+  document.documentElement.classList.add('theme-transition');
+  setTimeout(() => document.documentElement.classList.remove('theme-transition'), 450);
+  themeBtn.querySelector('svg')?.animate([{ transform: 'rotate(-90deg) scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }], {
+    duration: 420,
+    easing: 'cubic-bezier(.34, 1.56, .64, 1)',
+  });
 });
 
 // ---------- Inicialização ----------
 async function init() {
   hydrateIcons(document);
+  setupRipples();
   renderThemeButton();
   try {
     await shared.refreshCategories();
@@ -163,7 +173,8 @@ async function init() {
     toast(`Falha ao conectar ao servidor: ${err.message}`, 'error');
   }
   window.addEventListener('hashchange', router);
-  router();
+  await router();
+  popIn(document.querySelectorAll('.nav a, .nav-actions .btn, .nav-categories a'), { stagger: 30 });
 }
 
 init();

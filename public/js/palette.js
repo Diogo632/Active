@@ -1,5 +1,6 @@
 import { api } from './api.js';
 import { esc, icon, fileIcon, hydrateIcons } from './util.js';
+import { dialogIn, fadeUp } from './motion.js';
 
 /**
  * Busca rápida (Ctrl+K ou "/"): resultados enquanto digita, navegação pelo teclado
@@ -26,6 +27,7 @@ export function setupPalette() {
   let active = 0;
   let timer = 0;
   let requestId = 0;
+  let animateNext = false;
 
   const askOption = (q) => ({
     href: `#/docs?q=${encodeURIComponent(q)}`,
@@ -40,6 +42,10 @@ export function setupPalette() {
       : `<div class="palette-empty">Digite para buscar em toda a base.</div>`;
     hydrateIcons(list);
     list.querySelector('.active')?.scrollIntoView({ block: 'nearest' });
+    if (animateNext) {
+      fadeUp(list.querySelectorAll('.palette-option'), { y: 6, duration: 260, stagger: 30 });
+      animateNext = false;
+    }
   }
 
   async function search() {
@@ -59,6 +65,7 @@ export function setupPalette() {
       askOption(q),
     ];
     active = 0;
+    animateNext = true;
     render();
   }
 
@@ -68,6 +75,7 @@ export function setupPalette() {
     options = [];
     render();
     input.focus();
+    dialogIn(overlay.querySelector('.palette'), overlay);
   }
 
   function close() {

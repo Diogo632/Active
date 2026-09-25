@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openDatabase, createRepository } from '../server/db.js';
-import { createN8nActiveIA, extractReply, keywords, bestExcerpts } from '../server/n8n.js';
+import { createN8nActiveIA, extractReply, extractOptions, keywords, bestExcerpts } from '../server/n8n.js';
 
 let dataDir;
 let repo;
@@ -144,4 +144,10 @@ test('modo livre com documento em foco envia o documento', async () => {
   await ask('Resuma', { mode: 'livre', contextItemId: 1 });
   assert.equal(received.body.documentos[0].id, 1);
   assert.match(received.body.prompt, /Manual impressora fiscal/);
+});
+
+test('extractOptions lê botões enviados pelo workflow', () => {
+  assert.deepEqual(extractOptions({ message: 'x', options: ['A', { label: 'B' }] }), ['A', 'B']);
+  assert.deepEqual(extractOptions([{ json: { botoes: [{ text: 'C' }] } }]), ['C']);
+  assert.deepEqual(extractOptions({ message: 'sem opções' }), []);
 });

@@ -592,3 +592,51 @@ dialog h3 { margin-bottom: 14px; }
   .topbar-search kbd { display: none; }
   .home-hint kbd { display: none; }
 }
+
+/* ---------- Opções de resposta do Active IA (botões) ---------- */
+.ia-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.ia-option {
+  position: relative; overflow: hidden;
+  padding: 9px 18px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+  font-size: 14px; font-weight: 500; line-height: 1.2;
+  transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), border-color .18s, background .18s, box-shadow .18s, color .18s;
+}
+.ia-option:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--brand-primary);
+  background: var(--primary-soft);
+  box-shadow: 0 6px 18px -6px var(--brand-glow);
+}
+.ia-option:active:not(:disabled) { transform: translateY(0) scale(.97); }
+.ia-option:focus-visible { outline: 2px solid var(--brand-accent); outline-offset: 2px; }
+.ia-option.chosen { background: var(--brand-primary); border-color: var(--brand-primary); color: #fff; }
+.ia-option:disabled { opacity: .5; cursor: default; }
+.answer-card .ia-options { margin: 4px 0 12px; }
+
+/* ---------- Microinterações ---------- */
+.ripple { position: absolute; border-radius: 50%; background: currentColor; pointer-events: none; transform: scale(0); }
+.btn { position: relative; overflow: hidden; }
+.btn:hover:not(:disabled) { transform: translateY(-1px); }
+.btn-primary:hover:not(:disabled), .btn-ia:hover:not(:disabled) { box-shadow: 0 8px 22px -8px var(--brand-glow); }
+.doc-item, .category-card, .quick-item, .chip, .suggestions button, .ia-sources a {
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), border-color .2s, background .2s, box-shadow .2s;
+}
+.doc-item:hover { transform: translateY(-2px); box-shadow: 0 10px 28px -14px var(--brand-glow); }
+.quick-item:hover { transform: translateX(3px); }
+.chip:hover { transform: translateY(-2px); }
+.suggestions button:hover { transform: translateY(-1px); }
+.ia-sources a:hover { transform: translateY(-1px); }
+.quick-item:hover .quick-icon, .doc-item:hover .doc-icon { transform: scale(1.08) rotate(-3deg); }
+.quick-icon, .doc-icon { transition: transform .25s cubic-bezier(.34, 1.56, .64, 1); }
+.home-search { transition: border-color .2s, box-shadow .3s; }
+.home-search:focus-within { box-shadow: 0 0 0 4px var(--primary-soft), 0 12px 40px -18px var(--brand-glow); }
+.ia-avatar { transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.ia-header .ia-avatar:hover, .brand:hover .brand-mark { transform: rotate(-8deg) scale(1.06); }
+.brand-mark { transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.ia-drawer { transition: transform .38s cubic-bezier(.2, .9, .25, 1); }
+.theme-transition, .theme-transition * { transition: background-color .4s ease, border-color .4s ease, color .4s ease !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}

@@ -1,6 +1,8 @@
 import { api } from './api.js';
 import { chat } from './chat.js';
 import { esc, icon, renderMarkdown, hydrateIcons } from './util.js';
+import { parseOptions, normalizeOptions } from './options.js';
+import { fadeUp, popIn, revealProse, pulse } from './motion.js';
 
 // Respostas já geradas nesta visita, para não chamar o agente de novo ao voltar à mesma busca.
 const cache = new Map();
@@ -16,8 +18,9 @@ export function mountAnswer(container, question) {
   let state = cache.get(key);
   let controller = null;
 
+  let animated = false;
   const render = () => {
-    const { status, text, sources, error, done } = state;
+    const { status, text, sources, error, done, options = [] } = state;
     container.innerHTML = `
       <section class="answer-card">
         <header>
@@ -27,6 +30,13 @@ export function mountAnswer(container, question) {
         </header>
         ${error ? `<div class="msg-error">${esc(error)}</div>` : ''}
         ${text ? `<div class="prose answer-body">${renderMarkdown(text)}</div>` : done || error ? '' : '<div class="answer-skeleton"><span></span><span></span><span></span></div>'}
+        ${
+          done && options.length
+            ? `<div class="ia-options" role="group" aria-label="Opções de resposta">${options
+                .map((o) => `<button type="button" class="ia-option" data-option="${esc(o)}">${esc(o)}</button>`)
+                .join('')}</div>`
+            : ''
+        }
         ${
           sources.length
             ? `<div class="ia-sources"><span>Baseado em:</span>${sources
@@ -42,12 +52,27 @@ export function mountAnswer(container, question) {
         }
       </section>`;
     hydrateIcons(container);
+    const card = container.querySelector('.answer-card');
+    if (!animated) {
+      fadeUp([card], { y: 10, duration: 380 });
+      animated = true;
+    }
+    if (done && text && !state.revealed) {
+      revealProse(card.querySelector('.answer-body'));
+      popIn(card.querySelectorAll('.ia-option'), { delay: 200, stagger: 70 });
+      popIn(card.querySelectorAll('.ia-sources a, footer > *'), { delay: 300, stagger: 50 });
+      state.revealed = true;
+    }
   };
 
   container.addEventListener('click', (e) => {
-    if (!e.target.closest('[data-continue]')) return;
-    chat.continueWith({ question, answer: state.text, sources: state.sources, sessionId: state.sessionId });
+    const option = e.target.closest('[data-option]');
+    if (!option && !e.target.closest('[data-continue]')) return;
+    if (option) pulse(option);
+    // Continua no chat, na mesma sessão do agente; ao escolher uma opção, ela já é enviada.
+    chat.continueWith({ question, answer: state.text, sources: state.sources, options: state.options, sessionId: state.sessionId });
     document.dispatchEvent(new CustomEvent('open-ia'));
+    if (option) setTimeout(() => chat.send(option.dataset.option), 160);
   });
 
   if (state) {
@@ -67,6 +92,7 @@ export function mountAnswer(container, question) {
           if (event.type === 'status') state.status = event.label;
           else if (event.type === 'text') state.text += event.text;
           else if (event.type === 'sources') state.sources = event.items;
+          else if (event.type === 'options') state.options = normalizeOptions(event.items);
           else if (event.type === 'error') state.error = event.message;
           render();
         },
@@ -75,7 +101,9 @@ export function mountAnswer(container, question) {
         if (err.name !== 'AbortError') state.error = err.message;
       })
       .finally(() => {
-        state.text = state.text.trim();
+        const parsed = parseOptions(state.text);
+        state.text = parsed.text;
+        state.options = normalizeOptions([...(state.options || []), ...parsed.options]);
         state.done = true;
         // Uma resposta interrompida (usuário saiu da página) não fica no cache.
         if (controller?.signal.aborted && !state.text) cache.delete(key);

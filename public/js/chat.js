@@ -1,5 +1,7 @@
 import { api } from './api.js';
 import { esc, icon, renderMarkdown, storage, hydrateIcons } from './util.js';
+import { parseOptions, normalizeOptions } from './options.js';
+import { messageIn, revealProse, popIn, pulse } from './motion.js';
 
 const STORAGE_KEY = 'kb-ia-conversation';
 const SESSION_KEY = 'kb-ia-session';
@@ -45,7 +47,7 @@ function persist() {
   storage.set(SESSION_KEY, state.sessionId);
   storage.set(
     STORAGE_KEY,
-    state.messages.slice(-40).map(({ role, content, sources }) => ({ role, content, sources })),
+    state.messages.slice(-40).map(({ role, content, sources, options }) => ({ role, content, sources, options })),
   );
 }
 
@@ -71,11 +73,11 @@ export const chat = {
   },
 
   /** Abre no chat uma conversa iniciada pela resposta da busca, mantendo a mesma sessão no agente. */
-  continueWith({ question, answer, sources = [], sessionId }) {
+  continueWith({ question, answer, sources = [], options = [], sessionId }) {
     state.controller?.abort();
     state.messages = [
       { role: 'user', content: question },
-      { role: 'assistant', content: answer, sources },
+      { role: 'assistant', content: answer, sources, options },
     ];
     state.sessionId = sessionId || newSessionId();
     persist();
@@ -122,6 +124,9 @@ export const chat = {
             case 'sources':
               reply.sources = event.items;
               break;
+            case 'options':
+              reply.options = normalizeOptions(event.items);
+              break;
             case 'error':
               reply.error = event.message;
               break;
@@ -133,7 +138,10 @@ export const chat = {
       if (err.name !== 'AbortError') reply.error = err.message || 'Falha ao falar com o Active IA.';
     }
 
-    reply.content = reply.content.trim();
+    // Opções de resposta vindas no texto (lista curta após uma pergunta) viram botões.
+    const parsed = parseOptions(reply.content);
+    reply.content = parsed.text;
+    reply.options = normalizeOptions([...(reply.options || []), ...parsed.options]);
     reply.pending = false;
     reply.status.forEach((s) => (s.done = true));
     if (!reply.content && !reply.error) {
@@ -147,7 +155,13 @@ export const chat = {
   },
 };
 
-function renderMessage(msg) {
+function renderOptions(options, disabled) {
+  return `<div class="ia-options" role="group" aria-label="Opções de resposta">${options
+    .map((o) => `<button type="button" class="ia-option" data-option="${esc(o)}"${disabled ? ' disabled' : ''}>${esc(o)}</button>`)
+    .join('')}</div>`;
+}
+
+function renderMessage(msg, isLast) {
   if (msg.role === 'user') {
     return `<div class="msg msg-user"><div class="bubble">${esc(msg.content)}</div></div>`;
   }
@@ -170,7 +184,9 @@ function renderMessage(msg) {
   return `
     <div class="msg msg-ai">
       <div class="ia-avatar">AI</div>
-      <div class="bubble">${status}${body}${error}${sources}</div>
+      <div class="bubble">${status}${body}${error}${
+        msg.options?.length && isLast && !msg.pending ? renderOptions(msg.options, state.streaming) : ''
+      }${sources}</div>
     </div>`;
 }
 
@@ -216,6 +232,45 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
   };
 
+  // Animações: cada mensagem entra uma vez e cada resposta é revelada uma vez, por instância do chat.
+  const seen = new WeakSet();
+  const revealed = new WeakSet();
+  let firstRender = true;
+  let welcomeAnimated = false;
+
+  function animate() {
+    if (!state.messages.length) {
+      if (!welcomeAnimated) {
+        popIn(messagesEl.querySelectorAll('.ia-welcome > *, .suggestions button'), { stagger: 55 });
+        welcomeAnimated = true;
+      }
+      firstRender = false;
+      return;
+    }
+    welcomeAnimated = false;
+    const elements = messagesEl.querySelectorAll(':scope > .msg');
+    state.messages.forEach((msg, i) => {
+      const el = elements[i];
+      if (!el) return;
+      if (firstRender) {
+        seen.add(msg);
+        revealed.add(msg);
+        return;
+      }
+      if (!seen.has(msg)) {
+        messageIn(el, msg.role === 'user');
+        seen.add(msg);
+      }
+      if (msg.role === 'assistant' && !msg.pending && !revealed.has(msg)) {
+        revealProse(el.querySelector('.prose'));
+        popIn(el.querySelectorAll('.ia-option'), { delay: 220, stagger: 70 });
+        popIn(el.querySelectorAll('.ia-sources a'), { delay: 320, stagger: 50 });
+        revealed.add(msg);
+      }
+    });
+    firstRender = false;
+  }
+
   function render() {
     const nearBottom = messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 80;
 
@@ -236,8 +291,9 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
           <div class="suggestions">${suggestions.map((s) => `<button type="button" data-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
     } else {
-      messagesEl.innerHTML = state.messages.map(renderMessage).join('');
+      messagesEl.innerHTML = state.messages.map((m, i) => renderMessage(m, i === state.messages.length - 1)).join('');
     }
+    animate();
 
     sendBtn.innerHTML = state.streaming ? icon('stop') : icon('send');
     sendBtn.title = state.streaming ? 'Parar resposta' : 'Enviar';
@@ -263,9 +319,14 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
   });
 
   container.addEventListener('click', (e) => {
-    const target = e.target.closest('[data-action], [data-suggestion], a[href^="#/"]');
+    const target = e.target.closest('[data-action], [data-suggestion], [data-option], a[href^="#/"]');
     if (!target) return;
-    if (target.dataset.suggestion) chat.send(target.dataset.suggestion);
+    if (target.dataset.option !== undefined) {
+      if (target.disabled) return;
+      pulse(target);
+      target.classList.add('chosen');
+      setTimeout(() => chat.send(target.dataset.option), 140);
+    } else if (target.dataset.suggestion) chat.send(target.dataset.suggestion);
     else if (target.dataset.action === 'reset') chat.reset();
     else if (target.dataset.action === 'close') onClose?.();
     else if (target.dataset.action === 'expand') onExpand?.();

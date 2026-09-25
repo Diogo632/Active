@@ -1,3 +1,5 @@
+import { toastIn, fadeOutAndRemove, dialogIn } from './motion.js';
+
 // Ícones SVG (traço de 2px, estilo "outline").
 const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
@@ -135,7 +137,8 @@ export function toast(message, type = 'info') {
   el.className = `toast ${type === 'error' ? 'error' : ''}`;
   el.textContent = message;
   document.getElementById('toasts').appendChild(el);
-  setTimeout(() => el.remove(), 3800);
+  toastIn(el);
+  setTimeout(() => fadeOutAndRemove(el, 250), 3600);
 }
 
 export function confirmDialog({ title, message, confirmLabel = 'Confirmar', danger = false }) {
@@ -151,6 +154,7 @@ export function confirmDialog({ title, message, confirmLabel = 'Confirmar', dang
         </div>
       </form>`;
     document.body.appendChild(dialog);
+    requestAnimationFrame(() => dialogIn(dialog));
     dialog.addEventListener('close', () => {
       resolve(dialog.returnValue === 'ok');
       dialog.remove();
