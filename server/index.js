@@ -79,7 +79,14 @@ export function createApp({
   app.use(express.json({ limit: '5mb' }));
 
   // ---------- Arquivos estáticos ----------
-  app.use(express.static(path.join(rootDir, 'public')));
+  // Sem cache para HTML/JS/CSS: depois de um "git pull", o navegador sempre recebe a versão nova.
+  app.use(
+    express.static(path.join(rootDir, 'public'), {
+      setHeaders: (res, file) => {
+        if (/\.(html|js|css)$/.test(file)) res.set('Cache-Control', 'no-store');
+      },
+    }),
+  );
   app.use('/vendor/marked', express.static(path.join(rootDir, 'node_modules/marked/lib')));
   app.use('/vendor/dompurify', express.static(path.join(rootDir, 'node_modules/dompurify/dist')));
 
