@@ -8,7 +8,9 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "mcp:testar": "node scripts/testar-mcp.js",
+    "gerar-token": "node -e \"console.log(require('crypto').randomBytes(24).toString('hex'))\""
   },
   "engines": {
     "node": ">=20"

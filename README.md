@@ -85,6 +85,19 @@ Ferramentas disponíveis, todas somente leitura:
 | `listar_documentos` | Lista os documentos mais recentes, opcionalmente de uma categoria |
 | `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
 
+### Testar o MCP antes de hospedar (Codespace)
+
+1. Gere um token com `npm run gerar-token`. No `.env`, defina:
+   - `INTEGRATION_TOKEN=<token gerado>`;
+   - `BASIC_AUTH_USER` e `BASIC_AUTH_PASSWORD`, para proteger as telas enquanto a porta estiver pública.
+2. Inicie a plataforma com `PORT=3001 npm start`.
+3. Em outro terminal, rode `npm run mcp:testar -- "" "" palavra`. Ele testa o MCP localmente, com busca e leitura de um documento.
+4. Na aba **Portas**, clique com o botão direito na 3001 e escolha **Visibilidade da Porta → Pública**. Copie o endereço (`https://…-3001.app.github.dev`), coloque-o em `PUBLIC_URL` no `.env` e reinicie.
+5. Teste pelo endereço público: `npm run mcp:testar -- https://…-3001.app.github.dev/mcp`.
+6. Configure o GPTMaker com esse endereço (passos abaixo) e faça perguntas à Active AI.
+
+O `/mcp` e o `/api/integracao` exigem o token, mesmo com a porta pública. O usuário e a senha protegem só as telas da plataforma.
+
 ### Conectar a Active AI (GPTMaker) ao MCP
 
 1. Hospede a plataforma num endereço público (HTTPS) e defina no `.env`:
