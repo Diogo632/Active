@@ -79,7 +79,7 @@ test('envia pergunta, sessão e documentos relevantes ao webhook', async () => {
   assert.equal(received.body.documentos[0].titulo, 'Manual impressora fiscal');
   assert.match(received.body.documentos[0].conteudo, /papel ausente/);
   assert.match(received.body.prompt, /#\/item\/1/);
-  assert.match(received.body.prompt, /Erros conhecidos \(1\)/);
+  assert.match(received.body.prompt, /ler_documento/);
   // Compatível com o Chat Trigger do n8n e com webhooks próprios.
   assert.equal(received.body.action, 'sendMessage');
   assert.equal(received.body.contextId, 'sessao-1');
@@ -120,15 +120,27 @@ test('com includeContext=false envia só a pergunta como mensagem', async () => 
   assert.deepEqual(received.body.documentos, []);
 });
 
-test('documento aberto vai inteiro, mesmo sendo longo', async () => {
+test('documento aberto longo não é enviado inteiro: vai a referência para o agente ler pelo MCP', async () => {
   const longo = `Início do processo. ${'Detalhe do cálculo. '.repeat(1500)} Quilometragem utilizada no cálculo. Passo final: faturar.`;
   const doc = repo.createItem({ kind: 'article', title: 'Processo longo', content: longo });
   replyWith = { payload: { message: 'ok' } };
   await ask('Resuma este documento', { contextItemId: doc.id });
+  const prompt = received.body.prompt;
+  assert.ok(prompt.length <= 3500, `prompt com ${prompt.length} caracteres`);
+  assert.match(prompt, new RegExp(`Documento aberto na tela: #${doc.id}`));
+  assert.match(prompt, /ler_documento/);
+  assert.match(prompt, /Pergunta: Resuma este documento$/);
   const enviado = received.body.documentos.find((d) => d.id === doc.id);
-  assert.equal(enviado.parcial, false);
-  assert.match(enviado.conteudo, /Passo final: faturar\./);
-  assert.match(received.body.prompt, /documento completo/);
+  assert.equal(enviado.parcial, true);
+  assert.equal(enviado.total_caracteres, longo.length);
+});
+
+test('mensagem respeita o limite mesmo com muitos documentos encontrados', async () => {
+  for (let i = 0; i < 8; i++) repo.createItem({ kind: 'article', title: `Manual zebra ${i}`, content: `zebra ${'texto longo '.repeat(400)}` });
+  replyWith = { payload: { message: 'ok' } };
+  await ask('Como funciona a zebra?');
+  assert.ok(received.body.prompt.length <= 3500);
+  assert.match(received.body.prompt, /Manual zebra/);
 });
 
 test('modo livre envia só a pergunta, sem documentos', async () => {

@@ -203,3 +203,15 @@ test('servidor MCP: lista ferramentas, busca e lê documentos (com token)', asyn
   assert.match(read.conteudo, /recalcule a tabela/);
   await client.close();
 });
+
+test('servidor MCP também funciona pelo transporte SSE (token na URL)', async () => {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { SSEClientTransport } = await import('@modelcontextprotocol/sdk/client/sse.js');
+  const client = new Client({ name: 'teste-sse', version: '1.0.0' });
+  await client.connect(new SSEClientTransport(new URL(`${base}/mcp/sse?token=tok-teste`)));
+  const { tools } = await client.listTools();
+  assert.ok(tools.some((t) => t.name === 'ler_documento'));
+  const found = JSON.parse((await client.callTool({ name: 'buscar_documentos', arguments: { consulta: 'ADEME' } })).content[0].text);
+  assert.equal(found[0].titulo, 'Cadastro de ADEME');
+  await client.close();
+});

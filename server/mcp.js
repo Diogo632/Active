@@ -1,5 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 
 const READ_CHUNK_CHARS = 30_000;
@@ -116,7 +117,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
   }
 
   // Modo sem estado: um servidor e um transporte por requisição.
-  return async function handleMcp(req, res) {
+  async function handleMcp(req, res) {
     if (req.method !== 'POST') {
       res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Use POST.' }, id: null });
       return;
@@ -134,5 +135,34 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       console.error('[mcp] Erro:', err);
       if (!res.headersSent) res.status(500).json({ jsonrpc: '2.0', error: { code: -32603, message: 'Erro interno' }, id: null });
     }
-  };
+  }
+
+  // Transporte SSE (versão anterior do protocolo), para clientes MCP que ainda não usam Streamable HTTP:
+  // GET /mcp/sse abre o canal; o cliente envia as mensagens por POST em /mcp/messages?sessionId=…
+  const sessions = new Map();
+
+  async function handleSse(req, res) {
+    const token = req.query.token ? `?token=${encodeURIComponent(req.query.token)}` : '';
+    const transport = new SSEServerTransport(`/mcp/messages${token}`, res);
+    const server = buildServer();
+    sessions.set(transport.sessionId, transport);
+    res.on('close', () => {
+      sessions.delete(transport.sessionId);
+      server.close();
+    });
+    await server.connect(transport);
+  }
+
+  async function handleSseMessage(req, res) {
+    const transport = sessions.get(String(req.query.sessionId || ''));
+    if (!transport) {
+      res.status(404).json({ error: 'Sessão MCP não encontrada. Conecte-se novamente em /mcp/sse.' });
+      return;
+    }
+    await transport.handlePostMessage(req, res, req.body);
+  }
+
+  handleMcp.sse = handleSse;
+  handleMcp.sseMessage = handleSseMessage;
+  return handleMcp;
 }

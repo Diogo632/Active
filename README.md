@@ -65,14 +65,16 @@ Configurações do `.env`:
 | Onde | O que é enviado ao agente | Para quê |
 | --- | --- | --- |
 | **Chat** (botão *Perguntar à Active AI*) | Só a pergunta (**conversa livre**) | O agente responde com o próprio conhecimento (RAG do GPTMaker) e consulta a base pelo **MCP** quando precisa |
-| **Busca** (resultados e Ctrl+K) | Pergunta + documentos encontrados | O cartão *Resposta da Active AI* resume e responde a busca com base nos documentos, com links |
-| **Documento em foco** (*Perguntar à Active AI* dentro de um documento) | Pergunta + documento inteiro | Resumos e dúvidas sobre aquele documento |
+| **Busca** (resultados e Ctrl+K) | Pergunta + referências curtas aos documentos encontrados (id, título, trecho) | O cartão *Resposta da Active AI* responde a busca; o agente lê os documentos completos pelo **MCP** |
+| **Documento em foco** (*Perguntar à Active AI* dentro de um documento) | Pergunta + id e título do documento aberto | O agente lê o documento pelo **MCP** (`ler_documento`) para resumir ou tirar dúvidas |
+
+A mensagem enviada ao agente tem **no máximo 3.500 caracteres** (`N8N_MAX_PROMPT_CHARS`), porque o GPTMaker só enxerga cerca de 4.000 caracteres por mensagem. O conteúdo completo dos documentos nunca vai na mensagem: o agente busca pelo MCP.
 
 O botão **Continuar a conversa** leva a resposta da busca para o chat e mantém a mesma sessão no agente.
 
 ## Servidor MCP da Base de Conhecimento
 
-A plataforma expõe um servidor **MCP**, usando o transporte *Streamable HTTP*, em `https://SEU_ENDERECO/mcp`. Para ativar, defina `INTEGRATION_TOKEN` no `.env`. A autenticação é pelo header `Authorization: Bearer <INTEGRATION_TOKEN>`. Para clientes que não enviam headers, também dá para usar `https://SEU_ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
+A plataforma expõe um servidor **MCP** em dois formatos. O principal é o *Streamable HTTP*, em `https://SEU_ENDERECO/mcp`. Para clientes mais antigos, há também o *SSE*, em `https://SEU_ENDERECO/mcp/sse`. Para ativar, defina `INTEGRATION_TOKEN` no `.env`. A autenticação é pelo header `Authorization: Bearer <INTEGRATION_TOKEN>`. Para clientes que não enviam headers, também dá para usar `https://SEU_ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
 
 Ferramentas disponíveis, todas somente leitura:
 
@@ -83,8 +85,20 @@ Ferramentas disponíveis, todas somente leitura:
 | `listar_documentos` | Lista os documentos mais recentes, opcionalmente de uma categoria |
 | `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
 
+### Conectar a Active AI (GPTMaker) ao MCP
+
+1. Hospede a plataforma num endereço público (HTTPS) e defina no `.env`:
+   - `INTEGRATION_TOKEN`: uma senha longa e aleatória;
+   - `PUBLIC_URL`: o endereço público.
+2. No GPTMaker, abra o agente da Active AI e adicione uma integração **MCP**:
+   - **URL:** `https://SEU_ENDERECO/mcp`. Se o GPTMaker pedir SSE, use `https://SEU_ENDERECO/mcp/sse`.
+   - **Autenticação:** header `Authorization: Bearer <INTEGRATION_TOKEN>`. Se não houver campo de header, coloque `?token=<INTEGRATION_TOKEN>` no fim da URL.
+3. Nas instruções do agente, acrescente algo como:
+
+   > Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento por id (ex.: "Documento aberto na tela: #12"), leia-o com `ler_documento`. Cite os documentos usados como [Título](#/item/ID).
+
 Formas de conectar:
-- **GPTMaker:** se o seu plano oferecer integração MCP, cadastre a URL `/mcp` com o token. Se não oferecer, use as mesmas funções pela API REST (`/api/integracao/*`), por exemplo em uma intenção ou webhook.
+- **GPTMaker:** integração MCP nativa (passos acima). A alternativa é a API REST (`/api/integracao/*`) numa intenção ou webhook.
 - **n8n:** no workflow, adicione o nó **MCP Client Tool** apontando para `/mcp`, com *Header Auth*, e ligue-o a um nó **AI Agent**.
 - **Outros clientes MCP** (Claude, ChatGPT, Cursor etc.): use a mesma URL e o mesmo token.
 
