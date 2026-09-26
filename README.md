@@ -1,26 +1,26 @@
 # Base de Conhecimento · Suporte Active Corp
 
-Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, com o assistente **Active IA** integrado.
+Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, com a assistente **Active AI** integrada.
 
 ## Funcionalidades
 
 - **Textos**: escreva procedimentos, soluções e comunicados direto na plataforma. O editor usa Markdown e tem barra de formatação, visualização lado a lado e atalhos (Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+S).
-- **Documentos de qualquer tipo**: envie vários arquivos de uma vez, arrastando para a tela. O conteúdo é lido automaticamente para a pesquisa e para o Active IA nestes formatos:
+- **Documentos de qualquer tipo**: envie vários arquivos de uma vez, arrastando para a tela. O conteúdo é lido automaticamente para a pesquisa e para a Active AI nestes formatos:
   - PDF, Word (`.docx`), Excel (`.xlsx`), PowerPoint (`.pptx`), LibreOffice (`.odt`, `.ods`, `.odp`), RTF e EPUB
   - Textos, Markdown, CSV, JSON, XML, HTML, logs e código-fonte
-  - Imagens (PNG, JPG, GIF, WebP): o Active IA consegue analisá-las visualmente
+  - Imagens (PNG, JPG, GIF, WebP): a Active AI consegue analisá-las visualmente
 
-  Outros formatos (`.zip`, `.exe`, `.doc` antigo etc.) também podem ser guardados e baixados. Nesses casos o Active IA vê só o título, a descrição e as tags.
+  Outros formatos (`.zip`, `.exe`, `.doc` antigo etc.) também podem ser guardados e baixados. Nesses casos a Active AI vê só o título, a descrição e as tags.
 - **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
 - **Organização**: categorias com ícone, tags e descrição curta.
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
-- **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta do Active IA** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
-- **Active IA** (agente do GPTMaker, via n8n):
+- **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta da Active AI** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
+- **Active AI** (agente do GPTMaker, via n8n):
   - **conversa livre** no chat, usando o conhecimento próprio do agente;
   - resumos e dúvidas sobre o documento aberto;
   - **servidor MCP** para o agente pesquisar e ler a base sozinho.
 - **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
-- **Opções de resposta em botões**, iguais às do Active AI. A plataforma usa a mesma regra da página do Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
+- **Opções de resposta em botões**, iguais às da Active AI. A plataforma usa a mesma regra da página da Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
 - **Animações** em JavaScript (Web Animations API): entrada das telas em cascata, mensagens do chat, revelação das respostas, botões com onda ao clicar e busca rápida animada. Tudo respeita a opção "reduzir movimento" do sistema.
 - Tema claro/escuro e layout responsivo (funciona no celular).
 
@@ -34,7 +34,7 @@ Dá para rodar a plataforma na nuvem do GitHub, sem instalar nada no computador:
 
 Para atualizar depois de novas versões: pare a plataforma (Ctrl+C) e rode `git pull`, `npm ci` e `npm start`.
 
-Para usar o Active IA, cadastre o secret `N8N_WEBHOOK_URL` em **GitHub → Settings → Codespaces → Secrets**, liberado para este repositório. Depois recrie ou reinicie o Codespace.
+Para usar a Active AI, cadastre o secret `N8N_WEBHOOK_URL` em **GitHub → Settings → Codespaces → Secrets**, liberado para este repositório. Depois recrie ou reinicie o Codespace.
 
 ## Como rodar
 
@@ -50,7 +50,7 @@ Configurações do `.env`:
 
 | Variável | Descrição |
 | --- | --- |
-| `N8N_WEBHOOK_URL` | URL de produção do webhook do n8n que responde como Active IA (ex.: fluxo com o agente do GPTMaker). Sem ela, a base funciona normalmente e só o Active IA fica indisponível. |
+| `N8N_WEBHOOK_URL` | URL de produção do webhook do n8n que responde como Active AI (ex.: fluxo com o agente do GPTMaker). Sem ela, a base funciona normalmente e só a Active AI fica indisponível. |
 | `N8N_WEBHOOK_TOKEN` | Opcional: enviado como `Authorization: Bearer <token>` (configure *Header Auth* no webhook). |
 | `N8N_TIMEOUT_SECONDS` | Tempo máximo de espera pela resposta (padrão `120`). |
 | `INTEGRATION_TOKEN` | Opcional: libera a API de integração para o n8n consultar a base (veja abaixo). |
@@ -60,13 +60,13 @@ Configurações do `.env`:
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
 
-## Como o Active IA funciona na plataforma
+## Como a Active AI funciona na plataforma
 
 | Onde | O que é enviado ao agente | Para quê |
 | --- | --- | --- |
-| **Chat** (botão *Perguntar ao Active IA*) | Só a pergunta (**conversa livre**) | O agente responde com o próprio conhecimento (RAG do GPTMaker) e consulta a base pelo **MCP** quando precisa |
-| **Busca** (resultados e Ctrl+K) | Pergunta + documentos encontrados | O cartão *Resposta do Active IA* resume e responde a busca com base nos documentos, com links |
-| **Documento em foco** (*Perguntar ao Active IA* dentro de um documento) | Pergunta + documento inteiro | Resumos e dúvidas sobre aquele documento |
+| **Chat** (botão *Perguntar à Active AI*) | Só a pergunta (**conversa livre**) | O agente responde com o próprio conhecimento (RAG do GPTMaker) e consulta a base pelo **MCP** quando precisa |
+| **Busca** (resultados e Ctrl+K) | Pergunta + documentos encontrados | O cartão *Resposta da Active AI* resume e responde a busca com base nos documentos, com links |
+| **Documento em foco** (*Perguntar à Active AI* dentro de um documento) | Pergunta + documento inteiro | Resumos e dúvidas sobre aquele documento |
 
 O botão **Continuar a conversa** leva a resposta da busca para o chat e mantém a mesma sessão no agente.
 
@@ -90,7 +90,7 @@ Formas de conectar:
 
 A plataforma precisa estar num endereço que o agente consiga acessar pela internet. Defina `PUBLIC_URL` com esse endereço para que os links devolvidos abram direto na plataforma.
 
-## Active IA com n8n + GPTMaker
+## Active AI com n8n + GPTMaker
 
 A cada pergunta, a plataforma:
 
@@ -112,13 +112,13 @@ A cada pergunta, a plataforma:
 
 O `sessionId` muda a cada **Nova conversa**. Use-o como `contextId` no GPTMaker para ele manter o histórico da conversa.
 
-### Usar o workflow do Active IA que já existe
+### Usar o workflow da Active AI que já existe
 
 Para o workflow **Active IA — Chat hospedado no n8n**, use `N8N_WEBHOOK_URL=https://n8n.activecorp.com.br/webhook/active-ia-msg`. O nó **GPT Maker — Texto** lê `body.prompt` e `body.contextId`, e o nó **Responder ao chat** devolve `{ "message": ... }`. A plataforma envia e lê exatamente esses campos, então o workflow não precisa de nenhuma alteração.
 
 O corpo enviado ao webhook inclui os campos que workflows prontos costumam ler: `action: "sendMessage"`, `chatInput`, `message`, `mensagem`, `text` e `sessionId`. É o mesmo formato do **Chat Trigger** do n8n. Por padrão, esses campos levam a pergunta junto com os documentos relevantes da base. Assim, o agente atual responde usando a base sem nenhuma mudança no workflow.
 
-- `N8N_WEBHOOK_URL`: use o endereço que recebe as mensagens do chat do Active IA. Esse é o `POST` que a página chama, não necessariamente o endereço que abre a página.
+- `N8N_WEBHOOK_URL`: use o endereço que recebe as mensagens do chat da Active AI. Esse é o `POST` que a página chama, não necessariamente o endereço que abre a página.
 - `N8N_INCLUDE_CONTEXT=false`: envia só a pergunta. Use quando o próprio agente consultar a base pela API de integração.
 
 ### Fluxo pronto para importar
@@ -136,9 +136,9 @@ Com `INTEGRATION_TOKEN` definido, o n8n pode consultar a base diretamente, por e
 - `GET /api/integracao/buscar?q=palavras&limite=8`: pesquisa documentos.
 - `GET /api/integracao/documentos/{id}`: devolve o conteúdo completo de um documento.
 
-## Cores (identidade visual do Active AI)
+## Cores (identidade visual da Active AI)
 
-A plataforma usa a mesma paleta do Active AI: tema escuro por padrão, fundo `#0a0a0a`, painéis `#121212`, bordas `#242424` e verde `#15803d` nos destaques. Também há um tema claro com o mesmo verde. Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css).
+A plataforma usa a mesma paleta da Active AI: tema escuro por padrão, fundo `#0a0a0a`, painéis `#121212`, bordas `#242424` e verde `#15803d` nos destaques. Também há um tema claro com o mesmo verde. Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css).
 
 ## Estrutura
 
@@ -147,9 +147,9 @@ server/
   index.js    API REST (Express), upload e streaming do chat
   db.js       SQLite + índice de busca FTS5
   extract.js  Extração de texto dos arquivos
-  n8n.js      Active IA via webhook do n8n (conversa livre e respostas da busca)
+  n8n.js      Active AI via webhook do n8n (conversa livre e respostas da busca)
   mcp.js      Servidor MCP da base (ferramentas para o agente)
-  ai.js       Alternativa: Active IA pela API da Anthropic
+  ai.js       Alternativa: Active AI pela API da Anthropic
 n8n/          Fluxo de exemplo para importar no n8n
 public/
   index.html, css/styles.css, js/*.js   Interface (SPA sem etapa de build)
@@ -162,4 +162,4 @@ test/         Testes automatizados (npm test)
 npm test
 ```
 
-Os testes cobrem a API, a pesquisa, o upload e a extração. Também cobrem o ciclo de ferramentas do Active IA, usando um servidor que imita a API da Anthropic, então não é preciso ter uma chave.
+Os testes cobrem a API, a pesquisa, o upload e a extração. Também cobrem o ciclo de ferramentas da Active AI, usando um servidor que imita a API da Anthropic, então não é preciso ter uma chave.

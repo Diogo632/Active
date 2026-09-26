@@ -58,7 +58,7 @@ async function router() {
   renderNavCategories();
 
 
-  // Na página do Active IA o painel lateral fica redundante.
+  // Na página da Active AI o painel lateral fica redundante.
   if (route?.nav === 'ia') closeDrawer();
   document.getElementById('open-ia').hidden = route?.nav === 'ia';
 
@@ -84,7 +84,7 @@ async function router() {
   pageEnter(viewEl);
 }
 
-// ---------- Painel lateral do Active IA ----------
+// ---------- Painel lateral da Active AI ----------
 const drawerChat = mountChat(document.getElementById('ia-drawer-inner'), {
   variant: 'drawer',
   onClose: closeDrawer,
@@ -134,7 +134,7 @@ document.getElementById('menu-btn').addEventListener('click', () => {
 // ---------- Tema claro/escuro ----------
 const themeBtn = document.getElementById('theme-toggle');
 function currentTheme() {
-  // O tema escuro é o padrão, igual ao Active AI.
+  // O tema escuro é o padrão, igual à Active AI.
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
 }
 function renderThemeButton() {

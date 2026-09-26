@@ -94,7 +94,7 @@ export async function homeView(view) {
           <input name="q" placeholder="Busque um processo, cliente, erro ou sistema…" autocomplete="off" aria-label="Buscar na base" autofocus />
           <button class="btn btn-primary" type="submit">Buscar</button>
         </form>
-        <p class="home-hint">O Active IA responde junto com os resultados<span class="kbd-hint"> · <kbd>Ctrl</kbd> <kbd>K</kbd> busca de qualquer tela</span></p>
+        <p class="home-hint">A Active AI responde junto com os resultados<span class="kbd-hint"> · <kbd>Ctrl</kbd> <kbd>K</kbd> busca de qualquer tela</span></p>
         ${
           cats.length
             ? `<nav class="chips" aria-label="Categorias">${cats
@@ -169,7 +169,7 @@ export async function docsView(view, { query }) {
     <div id="answer"></div>
     <div id="results">${loading()}</div>`;
 
-  // Na busca, o Active IA responde no topo usando os documentos encontrados.
+  // Na busca, a Active AI responde no topo usando os documentos encontrados.
   const stopAnswer = q && shared.aiConfigured ? mountAnswer(view.querySelector('#answer'), q) : null;
 
   const form = view.querySelector('#filters');
@@ -188,7 +188,7 @@ export async function docsView(view, { query }) {
   const results = view.querySelector('#results');
   if (!data.items.length) {
     results.innerHTML = q
-      ? emptyState('search', 'Nada encontrado', `Nenhum documento corresponde a “${q}”. O Active IA pode ajudar a procurar com outras palavras.`, `<button class="btn btn-ia" id="ask-ia">${icon('sparkles')}Perguntar ao Active IA</button>`)
+      ? emptyState('search', 'Nada encontrado', `Nenhum documento corresponde a “${q}”. A Active AI pode ajudar a procurar com outras palavras.`, `<button class="btn btn-ia" id="ask-ia">${icon('sparkles')}Perguntar à Active AI</button>`)
       : emptyState('library', 'Nenhum documento aqui', 'Envie arquivos ou escreva um texto para começar.');
     results.querySelector('#ask-ia')?.addEventListener('click', () => openIa(`Estou procurando informações sobre: ${q}`));
     hydrateIcons(results);
@@ -219,8 +219,8 @@ export async function itemView(view, { params }) {
 
   const preview = item.kind === 'file' ? filePreview(item) : '';
   const extractNote = {
-    unsupported: 'O conteúdo deste tipo de arquivo não pode ser lido automaticamente. O Active IA conhece apenas o título, a descrição e as tags.',
-    error: 'Não foi possível ler o conteúdo deste arquivo. O Active IA conhece apenas o título, a descrição e as tags.',
+    unsupported: 'O conteúdo deste tipo de arquivo não pode ser lido automaticamente. A Active AI conhece apenas o título, a descrição e as tags.',
+    error: 'Não foi possível ler o conteúdo deste arquivo. A Active AI conhece apenas o título, a descrição e as tags.',
     empty: 'Nenhum texto foi encontrado neste arquivo (pode ser um documento digitalizado).',
   }[item.extract_status];
 
@@ -230,7 +230,7 @@ export async function itemView(view, { params }) {
   } else {
     const text = item.text_preview
       ? `<details class="card card-pad extracted-box"${preview ? '' : ' open'}>
-           <summary>Conteúdo do arquivo (texto lido pelo Active IA)</summary>
+           <summary>Conteúdo do arquivo (texto lido pela Active AI)</summary>
            <pre class="extracted">${esc(item.text_preview)}${item.text_length > item.text_preview.length ? '\n\n[…]' : ''}</pre>
          </details>`
       : '';
@@ -252,7 +252,7 @@ export async function itemView(view, { params }) {
       ${item.summary ? `<p class="muted" style="margin:12px 0 0">${esc(item.summary)}</p>` : ''}
     </header>
     <div class="doc-actions">
-      <button class="btn btn-ia" id="ask">${icon('sparkles')}Perguntar ao Active IA</button>
+      <button class="btn btn-ia" id="ask">${icon('sparkles')}Perguntar à Active AI</button>
       <a class="btn" href="#/edit/${item.id}">${icon('edit')}Editar${item.kind === 'file' ? ' informações' : ''}</a>
       ${item.kind === 'file' ? `<a class="btn" href="/api/items/${item.id}/file?download">${icon('download')}Baixar</a>` : ''}
       ${item.kind === 'file' ? `<label class="btn">${icon('upload')}Nova versão<input type="file" id="replace" hidden /></label>` : ''}
@@ -263,8 +263,8 @@ export async function itemView(view, { params }) {
       <aside class="doc-side">
         <div class="card card-pad ask-card">
           <strong>Dúvidas sobre este documento?</strong>
-          <p>O Active IA pode resumir, explicar ou encontrar documentos relacionados.</p>
-          <button class="btn btn-sm" id="ask-summary">${icon('sparkles')}Resumir com o Active IA</button>
+          <p>A Active AI pode resumir, explicar ou encontrar documentos relacionados.</p>
+          <button class="btn btn-sm" id="ask-summary">${icon('sparkles')}Resumir com a Active AI</button>
         </div>
         <div class="card card-pad">
           <dl>
@@ -520,7 +520,7 @@ export async function uploadView(view, { query }) {
     <div class="page-header">
       <div>
         <h1>Enviar arquivos</h1>
-        <p>Qualquer tipo de arquivo pode ser incluído. PDF, Word, Excel, PowerPoint, LibreOffice, textos, HTML e imagens têm o conteúdo lido para pesquisa e para o Active IA.</p>
+        <p>Qualquer tipo de arquivo pode ser incluído. PDF, Word, Excel, PowerPoint, LibreOffice, textos, HTML e imagens têm o conteúdo lido para pesquisa e para a Active AI.</p>
       </div>
     </div>
     <form class="form" id="upload-form">
@@ -745,7 +745,7 @@ export async function categoriesView(view) {
 }
 
 // ======================================================================
-// Active IA em tela cheia
+// Active AI em tela cheia
 // ======================================================================
 export async function iaView(view) {
   view.innerHTML = '<div class="ia-page"></div>';

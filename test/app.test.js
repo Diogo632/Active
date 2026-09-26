@@ -116,7 +116,7 @@ test('sanitizeHistory mantém alternância e começa pelo usuário', () => {
   assert.deepEqual(out, [{ role: 'user', content: 'a\n\nb' }]);
 });
 
-test('Active IA pesquisa na base com ferramentas e cita as fontes', async () => {
+test('Active AI pesquisa na base com ferramentas e cita as fontes', async () => {
   const article = repo.createItem({ kind: 'article', title: 'Troca de bobina', content: 'Para o erro 105 troque a bobina.', tags: 'bobina' });
   const fake = await startFakeAnthropic((body, n) => {
     if (n === 1) return toolUseTurn(body.model, 'buscar_documentos', { consulta: 'erro 105' });
@@ -158,7 +158,7 @@ test('Active IA pesquisa na base com ferramentas e cita as fontes', async () => 
   }
 });
 
-test('Active IA sem chave informa que não está configurado', async () => {
+test('Active AI sem chave informa que não está configurada', async () => {
   const saved = { key: process.env.ANTHROPIC_API_KEY, token: process.env.ANTHROPIC_AUTH_TOKEN };
   delete process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_AUTH_TOKEN;

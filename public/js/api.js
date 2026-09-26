@@ -54,7 +54,7 @@ export const api = {
     });
   },
 
-  /** Conversa com o Active IA; `onEvent` recebe cada evento do stream SSE. */
+  /** Conversa com a Active AI; `onEvent` recebe cada evento do stream SSE. */
   async chat({ messages, contextItemId, sessionId, mode, signal, onEvent }) {
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
@@ -62,7 +62,7 @@ export const api = {
       body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId, mode }),
       signal,
     });
-    if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com o Active IA.`);
+    if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com a Active AI.`);
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
     for (;;) {

@@ -1,5 +1,5 @@
 // Servidor HTTP que imita o endpoint /v1/messages (streaming) da API da Anthropic,
-// usado para testar o loop de ferramentas do Active IA sem chave real.
+// usado para testar o loop de ferramentas da Active AI sem chave real.
 import http from 'node:http';
 
 function sse(res, events) {

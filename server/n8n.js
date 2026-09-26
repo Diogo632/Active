@@ -5,7 +5,7 @@ const STOPWORDS = new Set(`
 a o as os um uma uns umas de do da dos das no na nos nas em por para pra pro com sem sob sobre
 e ou mas que se como qual quais quando onde porque porquê quem cujo isso isto esse essa este esta
 aquele aquela eu tu ele ela nós vós eles elas me te lhe nos vos meu minha seu sua nosso nossa
-ao aos à às pelo pela pelos pelas até após entre também já não sim muito mais menos
+ao aos às pelo pela pelos pelas até após entre também já não sim muito mais menos
 é são foi ser estar está estão tem têm ter há faço fazer faz pode posso podemos consigo preciso
 algum alguma alguns algumas todo toda todos todas outro outra outros outras mesmo mesma
 temos existe existem sei saber quero gostaria favor ajuda ajudar me explique explica diga
@@ -125,7 +125,7 @@ function buildPrompt({ question, catalogText, documents, contextItem }) {
         .join('\n\n')
     : 'Nenhum documento da base corresponde a esta pergunta.';
 
-  return `Você está respondendo como Active IA dentro da Base de Conhecimento do Suporte da Active Corp.
+  return `Você está respondendo como Active AI dentro da Base de Conhecimento do Suporte da Active Corp.
 
 Regras:
 - Use os documentos abaixo, encontrados na base para esta pergunta, como fonte principal da resposta.
@@ -145,7 +145,7 @@ ${question}`;
 }
 
 /**
- * Active IA via webhook do n8n (por exemplo, um fluxo que chama um agente do GPTMaker).
+ * Active AI via webhook do n8n (por exemplo, um fluxo que chama um agente do GPTMaker).
  * A plataforma pesquisa a base, monta o contexto com os trechos relevantes e envia tudo ao webhook.
  */
 export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
@@ -188,13 +188,13 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
    */
   async function chat({ history, contextItemId, sessionId, mode = 'base', emit, signal }) {
     if (!webhookUrl) {
-      emit({ type: 'error', message: 'O Active IA ainda não foi configurado. Defina N8N_WEBHOOK_URL no arquivo .env do servidor.' });
+      emit({ type: 'error', message: 'A Active AI ainda não foi configurada. Defina N8N_WEBHOOK_URL no arquivo .env do servidor.' });
       return;
     }
     const messages = sanitizeHistory(history);
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'user') {
-      emit({ type: 'error', message: 'Envie uma pergunta para o Active IA.' });
+      emit({ type: 'error', message: 'Envie uma pergunta para a Active AI.' });
       return;
     }
 
@@ -212,7 +212,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
     }
     const message = prompt;
 
-    emit({ type: 'status', label: 'Consultando o Active IA' });
+    emit({ type: 'status', label: 'Consultando a Active AI' });
     const timeout = AbortSignal.timeout(cfg.timeoutMs);
     try {
       const res = await fetch(webhookUrl, {
@@ -234,7 +234,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
           text: message,
           origem: 'base-de-conhecimento',
           pergunta: last.content,
-          // Campo lido pelo workflow do Active IA (GPT Maker — Texto: { contextId, prompt }).
+          // Campo lido pelo workflow da Active AI (GPT Maker — Texto: { contextId, prompt }).
           prompt: message,
           historico: messages.slice(0, -1),
           documento_aberto: contextItem ? { id: contextItem.id, titulo: contextItem.title } : null,
@@ -244,7 +244,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       });
       const raw = await res.text();
       if (!res.ok) {
-        console.error(`[active-ia/n8n] HTTP ${res.status}: ${raw.slice(0, 500)}`);
+        console.error(`[active-ai/n8n] HTTP ${res.status}: ${raw.slice(0, 500)}`);
         emit({ type: 'error', message: `O fluxo do n8n retornou erro ${res.status}. Verifique se o workflow está ativo.` });
         return;
       }
@@ -256,7 +256,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       }
       const reply = extractReply(body);
       if (!reply) {
-        console.error('[active-ia/n8n] Resposta sem texto reconhecível:', raw.slice(0, 500));
+        console.error('[active-ai/n8n] Resposta sem texto reconhecível:', raw.slice(0, 500));
         emit({ type: 'error', message: 'O n8n respondeu, mas sem texto. Confira o nó "Respond to Webhook" do fluxo.' });
         return;
       }
@@ -268,12 +268,12 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      console.error('[active-ia/n8n] Erro:', err);
+      console.error('[active-ai/n8n] Erro:', err);
       emit({
         type: 'error',
         message:
           err.name === 'TimeoutError'
-            ? 'O Active IA demorou demais para responder. Tente novamente.'
+            ? 'A Active AI demorou demais para responder. Tente novamente.'
             : 'Não foi possível conectar ao n8n. Verifique N8N_WEBHOOK_URL e se o servidor tem acesso a ele.',
       });
     }

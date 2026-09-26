@@ -4,7 +4,7 @@ import { dialogIn, fadeUp } from './motion.js';
 
 /**
  * Busca rápida (Ctrl+K ou "/"): resultados enquanto digita, navegação pelo teclado
- * e atalho para ver a resposta do Active IA com todos os resultados.
+ * e atalho para ver a resposta da Active AI com todos os resultados.
  */
 export function setupPalette() {
   const overlay = document.createElement('div');
@@ -31,7 +31,7 @@ export function setupPalette() {
 
   const askOption = (q) => ({
     href: `#/docs?q=${encodeURIComponent(q)}`,
-    html: `<span class="quick-icon ai">AI</span><span class="quick-text"><strong>Buscar “${esc(q)}”</strong><small>Ver todos os resultados com a resposta do Active IA</small></span>`,
+    html: `<span class="quick-icon ai">AI</span><span class="quick-text"><strong>Buscar “${esc(q)}”</strong><small>Ver todos os resultados com a resposta da Active AI</small></span>`,
   });
 
   function render() {

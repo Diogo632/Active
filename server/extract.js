@@ -45,7 +45,7 @@ function normalize(text) {
 }
 
 /**
- * Extrai o texto de um arquivo para que ele seja pesquisável e lido pelo Active IA.
+ * Extrai o texto de um arquivo para que ele seja pesquisável e lido pela Active AI.
  * Retorna { text, status } onde status é 'ok', 'empty', 'unsupported' ou 'error'.
  */
 export async function extractText(filePath, originalName) {

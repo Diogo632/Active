@@ -10,7 +10,7 @@ const cache = new Map();
 const newSession = () => `kb-busca-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
 /**
- * Cartão "Resposta do Active IA" exibido no topo dos resultados de uma busca.
+ * Cartão "Resposta da Active AI" exibido no topo dos resultados de uma busca.
  * A plataforma pesquisa a base e envia os documentos encontrados ao agente junto com a pergunta.
  */
 export function mountAnswer(container, question) {
@@ -25,7 +25,7 @@ export function mountAnswer(container, question) {
       <section class="answer-card">
         <header>
           <div class="ia-avatar">AI</div>
-          <strong>Resposta do Active IA</strong>
+          <strong>Resposta da Active AI</strong>
           ${done ? '' : `<span class="answer-status"><span class="spinner"></span>${esc(status || 'Pensando…')}</span>`}
         </header>
         ${error ? `<div class="msg-error">${esc(error)}</div>` : ''}
@@ -107,7 +107,7 @@ export function mountAnswer(container, question) {
         state.done = true;
         // Uma resposta interrompida (usuário saiu da página) não fica no cache.
         if (controller?.signal.aborted && !state.text) cache.delete(key);
-        if (!state.text && !state.error && !controller?.signal.aborted) state.error = 'O Active IA não retornou uma resposta.';
+        if (!state.text && !state.error && !controller?.signal.aborted) state.error = 'A Active AI não retornou uma resposta.';
         render();
       });
   }

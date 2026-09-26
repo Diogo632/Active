@@ -1,6 +1,6 @@
 // Extrai "opções de resposta" (botões) do texto enviado pelo agente.
 //
-// Formatos reconhecidos (os mesmos da página do Active AI no n8n, mais alguns extras):
+// Formatos reconhecidos (os mesmos da página da Active AI no n8n, mais alguns extras):
 //  0. Linha "[OPCOES] Opção A | Opção B | Opção C" (também [OPÇÕES], [OPTIONS]; separador | ou ;) —
 //     é o formato que o agente do GPTMaker usa hoje.
 //  0b. Sem marcação: última linha é uma pergunta com as alternativas em **negrito** ou depois de ":"
@@ -35,10 +35,10 @@ function uniq(list) {
   });
 }
 
-// Mesma expressão da página do Active AI.
+// Mesma expressão da página da Active AI.
 const OPT_RE = /^[ \t]*\[(?:OP[ÇC][ÕO]ES|OPTIONS)\][ \t]*:?[ \t]*(.+)$/im;
 
-// Dedução a partir da última pergunta, igual à página do Active AI.
+// Dedução a partir da última pergunta, igual à página da Active AI.
 function inferFromLastQuestion(text) {
   const lines = text.split('\n').filter((l) => l.trim());
   const last = lines.length ? lines[lines.length - 1].trim() : '';

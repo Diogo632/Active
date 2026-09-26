@@ -76,7 +76,7 @@ function joinTags(tags) {
 }
 
 /**
- * Turns free text typed by a person (or by the Active IA) into a safe FTS5
+ * Turns free text typed by a person (or by the Active AI) into a safe FTS5
  * query: every word becomes a quoted prefix term, so punctuation typed by the
  * user can never break the FTS5 syntax.
  */

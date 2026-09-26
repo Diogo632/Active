@@ -297,7 +297,7 @@ export function createApp({
     });
   });
 
-  // ---------- Active IA (streaming via Server-Sent Events) ----------
+  // ---------- Active AI (streaming via Server-Sent Events) ----------
   app.post('/api/ai/chat', async (req, res) => {
     res.set({
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -347,7 +347,7 @@ export function createApp({
 }
 
 /**
- * Escolhe o motor do Active IA: webhook do n8n (ex.: agente do GPTMaker) quando N8N_WEBHOOK_URL
+ * Escolhe o motor da Active AI: webhook do n8n (ex.: agente do GPTMaker) quando N8N_WEBHOOK_URL
  * está definido; caso contrário, a API da Anthropic.
  */
 function createAssistant({ repo, uploadsDir, model }) {
@@ -392,8 +392,8 @@ if (isMain) {
     }
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
     const { ai } = createdInfo;
-    if (ai.provider === 'n8n') console.log(`Active IA: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
-    else if (ai.configured) console.log('Active IA: API da Anthropic');
-    if (!ai.configured) console.log('Aviso: Active IA não configurado — defina N8N_WEBHOOK_URL no arquivo .env.');
+    if (ai.provider === 'n8n') console.log(`Active AI: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
+    else if (ai.configured) console.log('Active AI: API da Anthropic');
+    if (!ai.configured) console.log('Aviso: Active AI não configurada — defina N8N_WEBHOOK_URL no arquivo .env.');
   });
 }

@@ -6,7 +6,7 @@ const READ_CHUNK_CHARS = 30_000;
 
 /**
  * Servidor MCP da Base de Conhecimento (transporte Streamable HTTP, sem estado).
- * Permite que agentes externos — como o Active IA no GPTMaker ou no n8n — pesquisem e leiam os documentos.
+ * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
  */
 export function createMcpHandler({ repo, publicUrl = '' }) {
   const link = (id) => `${publicUrl.replace(/\/$/, '')}/#/item/${id}`;

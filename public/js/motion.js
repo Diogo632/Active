@@ -46,7 +46,7 @@ export function pageEnter(view) {
   popIn(view.querySelectorAll('.chip'), { stagger: 35, delay: 160 });
 }
 
-/** Revela o conteúdo de uma resposta do Active IA bloco a bloco (parágrafos, listas, tabelas). */
+/** Revela o conteúdo de uma resposta da Active AI bloco a bloco (parágrafos, listas, tabelas). */
 export function revealProse(container) {
   if (!container) return;
   const blocks = container.querySelectorAll(':scope > *');

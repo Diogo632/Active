@@ -9,7 +9,7 @@ const MAX_MESSAGE_CHARS = 20_000;
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-const SYSTEM_PROMPT = `Você é o **Active IA**, o assistente de inteligência artificial da Base de Conhecimento do setor de Suporte da Active Corp.
+const SYSTEM_PROMPT = `Você é a **Active AI**, a assistente de inteligência artificial da Base de Conhecimento do setor de Suporte da Active Corp.
 
 Seu trabalho é ajudar os analistas de suporte a:
 - encontrar documentos, procedimentos, manuais e textos guardados na base;
@@ -132,21 +132,21 @@ function describeItem(item) {
 
 function friendlyError(err) {
   if (err instanceof Anthropic.AuthenticationError) {
-    return 'A chave da API do Active IA é inválida. Verifique ANTHROPIC_API_KEY no servidor.';
+    return 'A chave da API da Active AI é inválida. Verifique ANTHROPIC_API_KEY no servidor.';
   }
   if (err instanceof Anthropic.RateLimitError) {
-    return 'O Active IA está recebendo muitas solicitações agora. Tente novamente em alguns instantes.';
+    return 'A Active AI está recebendo muitas solicitações agora. Tente novamente em alguns instantes.';
   }
   if (err instanceof Anthropic.BadRequestError) {
-    return `O Active IA não conseguiu processar a solicitação (${err.message}).`;
+    return `A Active AI não conseguiu processar a solicitação (${err.message}).`;
   }
   if (err instanceof Anthropic.APIConnectionError) {
-    return 'Não foi possível conectar ao serviço do Active IA. Verifique a conexão do servidor.';
+    return 'Não foi possível conectar ao serviço da Active AI. Verifique a conexão do servidor.';
   }
   if (err instanceof Anthropic.APIError) {
-    return `O serviço do Active IA retornou um erro (${err.status ?? 'desconhecido'}). Tente novamente.`;
+    return `O serviço da Active AI retornou um erro (${err.status ?? 'desconhecido'}). Tente novamente.`;
   }
-  return 'Ocorreu um erro inesperado no Active IA.';
+  return 'Ocorreu um erro inesperado na Active AI.';
 }
 
 /** Mantém apenas turnos de texto válidos, alternando usuário/assistente e começando pelo usuário. */
@@ -267,21 +267,21 @@ export function createActiveIA({ repo, uploadsDir, model, apiKey }) {
   }
 
   /**
-   * Executa uma conversa com o Active IA. Os eventos são enviados para `emit`:
+   * Executa uma conversa com a Active AI. Os eventos são enviados para `emit`:
    *  { type: 'text', text } | { type: 'status', label } | { type: 'sources', items } | { type: 'error', message }
    */
   async function chat({ history, contextItemId, emit, signal }) {
     if (!client) {
       emit({
         type: 'error',
-        message: 'O Active IA ainda não foi configurado. Defina ANTHROPIC_API_KEY no arquivo .env do servidor.',
+        message: 'A Active AI ainda não foi configurada. Defina ANTHROPIC_API_KEY no arquivo .env do servidor.',
       });
       return;
     }
 
     const messages = sanitizeHistory(history);
     if (!messages.length || messages[messages.length - 1].role !== 'user') {
-      emit({ type: 'error', message: 'Envie uma pergunta para o Active IA.' });
+      emit({ type: 'error', message: 'Envie uma pergunta para a Active AI.' });
       return;
     }
 
@@ -364,7 +364,7 @@ export function createActiveIA({ repo, uploadsDir, model, apiKey }) {
               }
               return { type: 'tool_result', tool_use_id: tool.id, content: output };
             } catch (err) {
-              console.error(`[active-ia] Falha na ferramenta ${tool.name}:`, err);
+              console.error(`[active-ai] Falha na ferramenta ${tool.name}:`, err);
               return { type: 'tool_result', tool_use_id: tool.id, is_error: true, content: 'Falha ao executar a ferramenta.' };
             }
           }),
@@ -379,7 +379,7 @@ export function createActiveIA({ repo, uploadsDir, model, apiKey }) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      console.error('[active-ia] Erro:', err);
+      console.error('[active-ai] Erro:', err);
       emit({ type: 'error', message: friendlyError(err) });
     }
 

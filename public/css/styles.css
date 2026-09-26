@@ -1,7 +1,7 @@
 /* ==========================================================================
-   IDENTIDADE VISUAL — mesmas cores do Active AI
+   IDENTIDADE VISUAL — mesmas cores da Active AI
    Todas as cores da plataforma saem destes tokens. O tema escuro (padrão)
-   reproduz a interface do Active AI; o tema claro usa o mesmo verde.
+   reproduz a interface da Active AI; o tema claro usa o mesmo verde.
    ========================================================================== */
 :root {
   --brand-primary: #15803d;        /* verde principal (botões, envio, destaques) */
@@ -399,7 +399,7 @@ details.extracted-box summary { cursor: pointer; font-weight: 600; margin-bottom
 .cat-table th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
 .cat-table tr:last-child td { border-bottom: 0; }
 
-/* ---------- Active IA (chat) ---------- */
+/* ---------- Active AI (chat) ---------- */
 .ia { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); }
 .ia-header {
   display: flex; align-items: center; gap: 12px; padding: 14px 16px;
@@ -566,7 +566,7 @@ dialog h3 { margin-bottom: 14px; }
 .palette-results { max-height: 52vh; overflow-y: auto; padding: 6px; }
 .palette-empty { padding: 18px; color: var(--text-muted); font-size: 14px; text-align: center; }
 
-/* ---------- Resposta do Active IA na busca ---------- */
+/* ---------- Resposta da Active AI na busca ---------- */
 .answer-card {
   border: 1px solid var(--border); border-left: 3px solid var(--brand-primary); border-radius: var(--radius);
   background: var(--surface); padding: 16px 18px; margin-bottom: 22px;
@@ -593,7 +593,7 @@ dialog h3 { margin-bottom: 14px; }
   .home-hint kbd { display: none; }
 }
 
-/* ---------- Opções de resposta do Active IA (mesmo estilo da página do Active AI) ---------- */
+/* ---------- Opções de resposta da Active AI (mesmo estilo da página da Active AI) ---------- */
 .ia-options { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .75rem; }
 .ia-option {
   position: relative; overflow: hidden;
@@ -647,7 +647,7 @@ dialog h3 { margin-bottom: 14px; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
 
-/* ---------- Animações trazidas da página do Active AI ---------- */
+/* ---------- Animações trazidas da página da Active AI ---------- */
 /* Brilho atravessando botões principais */
 .btn-primary::after, .btn-ia::after {
   content: ''; position: absolute; top: 0; left: -80%; width: 50%; height: 100%;

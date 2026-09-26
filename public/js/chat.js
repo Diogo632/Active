@@ -22,7 +22,7 @@ const DOC_SUGGESTIONS = [
   'Existe algum outro documento na base relacionado a este?',
 ];
 
-/** Estado único da conversa, compartilhado pelo painel lateral e pela página do Active IA. */
+/** Estado único da conversa, compartilhado pelo painel lateral e pela página da Active AI. */
 const state = {
   messages: storage.get(STORAGE_KEY, []).filter((m) => m && m.content),
   // Identifica a conversa no n8n/GPTMaker, que guarda o histórico por sessão.
@@ -135,7 +135,7 @@ export const chat = {
         },
       });
     } catch (err) {
-      if (err.name !== 'AbortError') reply.error = err.message || 'Falha ao falar com o Active IA.';
+      if (err.name !== 'AbortError') reply.error = err.message || 'Falha ao falar com a Active AI.';
     }
 
     // Opções de resposta vindas no texto (lista curta após uma pergunta) viram botões.
@@ -146,7 +146,7 @@ export const chat = {
     reply.status.forEach((s) => (s.done = true));
     if (!reply.content && !reply.error) {
       if (state.controller.signal.aborted) reply.content = '_Resposta interrompida._';
-      else reply.error = 'O Active IA não retornou uma resposta.';
+      else reply.error = 'A Active AI não retornou uma resposta.';
     }
     state.streaming = false;
     state.controller = null;
@@ -201,7 +201,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
       <header class="ia-header">
         <div class="ia-avatar">AI</div>
         <div class="spacer">
-          <h2>Active IA</h2>
+          <h2>Active AI</h2>
           <small>Assistente interna — processos e sistemas</small>
         </div>
         <button class="icon-btn" data-action="reset" type="button" title="Nova conversa">${icon('refresh')}</button>
@@ -209,14 +209,14 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
         ${variant === 'drawer' ? `<button class="icon-btn" data-action="close" type="button" title="Fechar">${icon('close')}</button>` : ''}
       </header>
       <div class="ia-context" hidden></div>
-      <div class="ia-unconfigured" hidden>O Active IA ainda não foi configurado no servidor (defina <code>N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>).</div>
+      <div class="ia-unconfigured" hidden>A Active AI ainda não foi configurada no servidor (defina <code>N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>).</div>
       <div class="ia-messages" aria-live="polite"></div>
       <div class="ia-composer">
         <form>
-          <textarea rows="1" placeholder="Pergunte qualquer coisa ao Active IA…" aria-label="Mensagem para o Active IA"></textarea>
+          <textarea rows="1" placeholder="Pergunte qualquer coisa à Active AI…" aria-label="Mensagem para a Active AI"></textarea>
           <button class="send" type="submit" title="Enviar">${icon('send')}</button>
         </form>
-        <div class="hint">O Active IA pode cometer erros. Confirme informações críticas nos documentos citados.</div>
+        <div class="hint">A Active AI pode cometer erros. Confirme informações críticas nos documentos citados.</div>
       </div>
     </section>`;
 
@@ -286,7 +286,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
       messagesEl.innerHTML = `
         <div class="ia-welcome">
           <div class="ia-avatar">AI</div>
-          <h3>Olá! Eu sou o Active IA.</h3>
+          <h3>Olá! Eu sou a Active AI.</h3>
           <p>Pergunte o que quiser sobre processos, sistemas e clientes da Active. Respondo com o meu conhecimento e consulto a Base de Conhecimento quando preciso.</p>
           <div class="suggestions">${suggestions.map((s) => `<button type="button" data-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
