@@ -1,6 +1,10 @@
 // Extrai "opções de resposta" (botões) do texto enviado pelo agente.
 //
-// Formatos reconhecidos:
+// Formatos reconhecidos (os mesmos da página do Active AI no n8n, mais alguns extras):
+//  0. Linha "[OPCOES] Opção A | Opção B | Opção C" (também [OPÇÕES], [OPTIONS]; separador | ou ;) —
+//     é o formato que o agente do GPTMaker usa hoje.
+//  0b. Sem marcação: última linha é uma pergunta com as alternativas em **negrito** ou depois de ":"
+//     separadas por vírgula/"ou" (ex.: "Qual você usa: Tela 619, Tela 405 ou Tela 299?").
 //  1. Marcação explícita: linhas "[[Opção]]" ou "[[Opção A | Opção B]]", ou um bloco <opcoes>A | B</opcoes>.
 //  2. Lista curta no fim da mensagem, logo após um parágrafo com uma pergunta, por exemplo:
 //       Qual identificador você vai usar?
@@ -16,6 +20,8 @@ const LIST_ITEM = /^\s*(?:[-*•]|\d{1,2}[.)])\s+(.+?)\s*$/;
 const clean = (s) =>
   s
     .replace(/\*\*|__|`/g, '')
+    .replace(/^[-•\s]+/, '')
+    .replace(/[.;]+$/, '')
     .replace(/^\[(.+)\]\(.+\)$/, '$1')
     .trim();
 
@@ -29,9 +35,37 @@ function uniq(list) {
   });
 }
 
+// Mesma expressão da página do Active AI.
+const OPT_RE = /^[ \t]*\[(?:OP[ÇC][ÕO]ES|OPTIONS)\][ \t]*:?[ \t]*(.+)$/im;
+
+// Dedução a partir da última pergunta, igual à página do Active AI.
+function inferFromLastQuestion(text) {
+  const lines = text.split('\n').filter((l) => l.trim());
+  const last = lines.length ? lines[lines.length - 1].trim() : '';
+  if (!/\?\s*$/.test(last) || !/,|\bou\b/i.test(last)) return [];
+  const bold = last.match(/\*\*([^*\n]{1,40})\*\*/g);
+  if (bold && bold.length >= 2) return bold.map((b) => b.replace(/\*\*/g, ''));
+  const tail = last.replace(/\?+\s*$/, '');
+  const i = tail.lastIndexOf(':');
+  if (i < 0) return [];
+  const parts = tail
+    .slice(i + 1)
+    .split(/\s*,\s*|\s+ou\s+/i)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return parts.length >= 2 && parts.length <= 6 && parts.every((x) => x.length <= 40) ? parts : [];
+}
+
 export function parseOptions(text) {
   let body = String(text || '');
   let options = [];
+
+  // 0. [OPCOES] A | B | C
+  const marked = body.match(OPT_RE);
+  if (marked) {
+    options.push(...marked[1].split(/\s*[|;]\s*/).map(clean));
+    body = body.replace(OPT_RE, '');
+  }
 
   // 1a. Bloco <opcoes>…</opcoes> ou <botoes>…</botoes>
   body = body.replace(/<(opc[oõ]es|botoes|options)>([\s\S]*?)<\/\1>/gi, (_, _tag, inner) => {
@@ -44,6 +78,9 @@ export function parseOptions(text) {
     options.push(...inner.split('|').map(clean));
     return '';
   });
+
+  // 0b. Alternativas na última pergunta (negrito ou depois de ":").
+  if (!options.length) options = inferFromLastQuestion(body).map(clean);
 
   // 2. Lista curta no final, logo depois de uma pergunta.
   if (!options.length) {

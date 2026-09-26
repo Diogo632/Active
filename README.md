@@ -20,7 +20,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - resumos e dúvidas sobre o documento aberto;
   - **servidor MCP** para o agente pesquisar e ler a base sozinho.
 - **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
-- **Opções de resposta em botões**: quando o agente termina uma pergunta com uma lista curta de opções, elas viram botões clicáveis, como no Active AI. Também dá para mandar as opções explicitamente, com `[[A | B]]` no texto ou num campo `options` na resposta do n8n.
+- **Opções de resposta em botões**, iguais às do Active AI. A plataforma usa a mesma regra da página do Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
 - **Animações** em JavaScript (Web Animations API): entrada das telas em cascata, mensagens do chat, revelação das respostas, botões com onda ao clicar e busca rápida animada. Tudo respeita a opção "reduzir movimento" do sistema.
 - Tema claro/escuro e layout responsivo (funciona no celular).
 
