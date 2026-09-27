@@ -11,6 +11,8 @@ const READ_CHUNK_CHARS = 30_000;
  */
 export function createMcpHandler({ repo, publicUrl = '' }) {
   const link = (id) => `${publicUrl.replace(/\/$/, '')}/#/item/${id}`;
+  // Registro no terminal de cada uso das ferramentas, para acompanhar o que o agente consulta.
+  const log = (msg) => console.log(`[mcp ${new Date().toLocaleTimeString('pt-BR')}] ${msg}`);
   const text = (value) => ({ content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value, null, 1) }] });
 
   function buildServer() {
@@ -31,6 +33,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       },
       async ({ consulta, limite }) => {
         const results = repo.search(consulta, { limit: limite || 8 });
+        log(`buscar_documentos "${consulta}" → ${results.length} resultado(s)${results.length ? `: ${results.slice(0, 3).map((r) => `#${r.id} ${r.title}`).join(' | ')}` : ''}`);
         if (!results.length) return text(`Nenhum documento encontrado para "${consulta}".`);
         return text(
           results.map((r) => ({
@@ -62,6 +65,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       },
       async ({ id, inicio = 0 }) => {
         const item = repo.getItem(id, { full: true });
+        log(item ? `ler_documento #${id} "${item.title}" (a partir do caractere ${inicio})` : `ler_documento #${id} → não encontrado`);
         if (!item) return { ...text(`Documento ${id} não encontrado.`), isError: true };
         const body = (item.kind === 'article' ? item.content : item.text) || '';
         const chunk = body.slice(inicio, inicio + READ_CHUNK_CHARS);
@@ -94,6 +98,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       },
       async ({ categoria_id, limite }) => {
         const { items, total } = repo.listItems({ categoryId: categoria_id, limit: limite || 30 });
+        log(`listar_documentos${categoria_id ? ` categoria ${categoria_id}` : ''} → ${items.length} de ${total}`);
         return text({
           total,
           documentos: items.map((i) => ({ id: i.id, titulo: i.title, categoria: i.category_name || 'Sem categoria', atualizado_em: i.updated_at, link: link(i.id) })),
@@ -109,8 +114,10 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
         inputSchema: {},
         annotations: { readOnlyHint: true },
       },
-      async () =>
-        text(repo.listCategories().map((c) => ({ id: c.id, nome: c.name, descricao: c.description, documentos: c.item_count }))),
+      async () => {
+        log('listar_categorias');
+        return text(repo.listCategories().map((c) => ({ id: c.id, nome: c.name, descricao: c.description, documentos: c.item_count })));
+      },
     );
 
     return server;
