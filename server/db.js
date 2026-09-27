@@ -48,6 +48,15 @@ export function openDatabase(dataDir) {
   // Migração: contador de acessos (bancos criados antes desta coluna existir).
   const columns = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   if (!columns.includes('views')) db.exec('ALTER TABLE items ADD COLUMN views INTEGER NOT NULL DEFAULT 0');
+  // Vídeos e áudios: estado da transcrição (pendente, processando, concluida, manual, erro, indisponivel).
+  if (!columns.includes('media_status')) {
+    db.exec(`
+      ALTER TABLE items ADD COLUMN media_status TEXT;
+      ALTER TABLE items ADD COLUMN media_progress INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE items ADD COLUMN media_error TEXT;
+      ALTER TABLE items ADD COLUMN duration REAL;
+    `);
+  }
 
   return db;
 }
@@ -55,6 +64,7 @@ export function openDatabase(dataDir) {
 const ITEM_COLUMNS = `
   i.id, i.kind, i.title, i.summary, i.tags, i.category_id, i.author,
   i.file_name, i.mime_type, i.size, i.extract_status, i.views, i.created_at, i.updated_at,
+  i.media_status, i.media_progress, i.media_error, i.duration,
   c.name AS category_name
 `;
 
@@ -273,6 +283,35 @@ export function createRepository(db) {
       ).run(file.file_name, file.stored_name, file.mime_type, file.size, file.text, file.extract_status, id);
       syncFts(id);
       return repo.getItem(id);
+    },
+
+    /** Atualiza o estado da transcrição de um vídeo/áudio. */
+    setMedia(id, { status, progress, error, duration } = {}) {
+      const sets = [];
+      const params = [];
+      if (status !== undefined) sets.push('media_status = ?') && params.push(status);
+      if (progress !== undefined) sets.push('media_progress = ?') && params.push(Math.round(progress));
+      if (error !== undefined) sets.push('media_error = ?') && params.push(error);
+      if (duration !== undefined) sets.push('duration = ?') && params.push(duration);
+      if (!sets.length) return;
+      db.prepare(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`).run(...params, id);
+    },
+
+    /** Grava a transcrição como conteúdo pesquisável do item. */
+    setTranscript(id, text, status = 'concluida') {
+      db.prepare(
+        `UPDATE items SET text = ?, extract_status = ?, media_status = ?, media_progress = 100, media_error = NULL,
+                          updated_at = datetime('now') WHERE id = ?`,
+      ).run(text, text ? 'ok' : 'empty', status, id);
+      syncFts(id);
+    },
+
+    /** Itens com transcrição a fazer (usado para retomar a fila quando o servidor reinicia). */
+    pendingTranscriptions() {
+      return db
+        .prepare("SELECT id FROM items WHERE media_status IN ('pendente', 'processando') ORDER BY id")
+        .all()
+        .map((r) => r.id);
     },
 
     registerView(id) {

@@ -11,6 +11,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - Imagens (PNG, JPG, GIF, WebP): a Active AI consegue analisá-las visualmente
 
   Outros formatos (`.zip`, `.exe`, `.doc` antigo etc.) também podem ser guardados e baixados. Nesses casos a Active AI vê só o título, a descrição e as tags.
+- **Vídeos e áudios (treinamentos com clientes, reuniões)**: são **transcritos automaticamente** no próprio servidor, em segundo plano. A transcrição vira o conteúdo do item, com marcações de tempo (`[00:12:34] …`). Assim, ela entra na pesquisa, e a Active AI a lê pelo MCP para resumir o treinamento, explicar trechos e dizer em que momento cada assunto aparece. Na tela do vídeo, clicar no horário leva o player até o trecho. Também é possível enviar uma transcrição pronta (`.vtt`/`.srt` do Teams, Meet ou Zoom, `.txt` ou `.docx`), que substitui a automática.
 - **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
 - **Organização**: categorias com ícone, tags e descrição curta.
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
@@ -56,7 +57,11 @@ Configurações do `.env`:
 | `INTEGRATION_TOKEN` | Opcional: libera a API de integração para o n8n consultar a base (veja abaixo). |
 | `PORT` | Porta HTTP (padrão `3000`). |
 | `DATA_DIR` | Pasta do banco SQLite e dos arquivos enviados (padrão `./data`). **Faça backup desta pasta.** |
-| `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão `100`). |
+| `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão `2048`, para caber vídeos de treinamento). |
+| `TRANSCRIPTION` | `local` (padrão) transcreve vídeos e áudios no servidor com o Whisper; `off` desliga (aí só vale a transcrição enviada manualmente). |
+| `TRANSCRIPTION_MODEL` | Modelo do Whisper (padrão `Xenova/whisper-small`). `Xenova/whisper-base` é mais rápido e menos preciso; `Xenova/whisper-medium` é mais preciso e mais lento. |
+| `TRANSCRIPTION_DTYPE` | Precisão do modelo (padrão `q8`, mais leve). |
+| `FFMPEG_PATH` | Opcional: caminho de um ffmpeg já instalado (por padrão usa o que vem com o `npm ci`). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
 
@@ -162,6 +167,19 @@ Com `INTEGRATION_TOKEN` definido, o n8n pode consultar a base diretamente, por e
 
 - `GET /api/integracao/buscar?q=palavras&limite=8`: pesquisa documentos.
 - `GET /api/integracao/documentos/{id}`: devolve o conteúdo completo de um documento.
+
+## Vídeos e transcrição
+
+1. Envie o vídeo ou áudio em **Enviar arquivos**, como qualquer outro arquivo (MP4, MOV, MKV, WebM, AVI, MP3, WAV, M4A e outros).
+2. Ele entra na fila de transcrição. Um vídeo por vez é processado, em partes de 5 minutos, e o progresso aparece na tela e no terminal (`[transcrição] … 40%`). Pode fechar a página; se o servidor reiniciar, a transcrição recomeça sozinha.
+3. Quando termina, a transcrição aparece abaixo do player, com busca e horários clicáveis. A Active AI passa a encontrar o vídeo em `buscar_documentos` e lê a transcrição inteira em `ler_documento` (em partes, se for longa).
+
+Como funciona:
+
+- A transcrição roda **no próprio servidor**, com o [Whisper](https://github.com/openai/whisper) via `@huggingface/transformers` e o ffmpeg que vem com o `npm ci`. O áudio não é enviado para fora e não há custo por minuto.
+- Na **primeira transcrição**, o modelo é baixado (~250 MB no `whisper-small`) e fica em cache.
+- A transcrição leva mais ou menos o tempo do vídeo em um servidor comum (varia com a CPU). Um treinamento de 1 hora leva perto de 1 hora.
+- Se o Teams, Meet ou Zoom já gerou a transcrição da reunião, envie o `.vtt` em **Enviar transcrição**, na tela do vídeo. É instantâneo e mantém o nome de quem fala.
 
 ## Cores (identidade visual da Active AI)
 

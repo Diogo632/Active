@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { OfficeParser } from 'officeparser';
+import { isMediaFile } from './transcribe.js';
 
 // Formatos lidos pelo officeparser (Word, Excel, PowerPoint, LibreOffice, PDF, RTF, EPUB).
 const OFFICE_EXTENSIONS = new Set([
@@ -63,6 +64,9 @@ export async function extractText(filePath, originalName) {
         textConfig: { preserveLayout: false },
       });
       text = value;
+    } else if (isMediaFile(originalName || filePath)) {
+      // Vídeos e áudios: o conteúdo vem da transcrição, feita depois em segundo plano.
+      return { text: '', status: 'media' };
     } else {
       return { text: '', status: 'unsupported' };
     }

@@ -28,7 +28,9 @@ export const api = {
   deleteCategory: (id) => request('DELETE', `/api/categories/${id}`),
 
   items: (params = {}) => request('GET', `/api/items${qs(params)}`),
-  item: (id, { view = false } = {}) => request('GET', `/api/items/${id}${view ? '?view' : ''}`),
+  item: (id, { view = false, full = false } = {}) =>
+    request('GET', `/api/items/${id}${qs({ ...(view && { view: 1 }), ...(full && { full: 1 }) })}`),
+  retranscribe: (id) => request('POST', `/api/items/${id}/transcribe`),
   createArticle: (data) => request('POST', '/api/articles', data),
   updateItem: (id, data) => request('PUT', `/api/items/${id}`, data),
   deleteItem: (id) => request('DELETE', `/api/items/${id}`),

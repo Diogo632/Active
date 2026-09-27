@@ -169,6 +169,7 @@ async function init() {
     const stats = await api.stats();
     chat.setConfigured(stats.ai.configured);
     shared.aiConfigured = stats.ai.configured;
+    shared.transcriptionEnabled = stats.transcription?.enabled !== false;
   } catch (err) {
     toast(`Falha ao conectar ao servidor: ${err.message}`, 'error');
   }

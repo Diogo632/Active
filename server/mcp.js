@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
+import { isMediaFile, formatTime } from './transcribe.js';
 
 const READ_CHUNK_CHARS = 30_000;
 
@@ -19,6 +20,7 @@ function ensureHeader(req, name, isOk, value) {
  * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
  */
 export function createMcpHandler({ repo, publicUrl = '' }) {
+  const kindOf = (i) => (i.kind === 'article' ? 'texto' : isMediaFile(i.file_name, i.mime_type) ? 'vídeo/áudio (transcrição)' : 'arquivo');
   const link = (id) => `${publicUrl.replace(/\/$/, '')}/#/item/${id}`;
   // Registro no terminal de cada uso das ferramentas, para acompanhar o que o agente consulta.
   const log = (msg) => console.log(`[mcp ${new Date().toLocaleTimeString('pt-BR')}] ${msg}`);
@@ -32,7 +34,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       {
         title: 'Buscar documentos na Base de Conhecimento',
         description:
-          'Pesquisa em texto completo nos documentos da Base de Conhecimento do Suporte da Active Corp (títulos, tags, descrições e conteúdo de textos e arquivos). ' +
+          'Pesquisa em texto completo nos documentos da Base de Conhecimento do Suporte da Active Corp (títulos, tags, descrições, conteúdo de textos e arquivos e transcrições de vídeos de treinamentos e reuniões). ' +
           'Retorna os documentos mais relevantes com id, título, categoria, trecho encontrado e link. Use palavras-chave; tente sinônimos se não encontrar.',
         inputSchema: {
           consulta: z.string().min(1).describe('Palavras-chave da busca'),
@@ -48,7 +50,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
           results.map((r) => ({
             id: r.id,
             titulo: r.title,
-            tipo: r.kind === 'article' ? 'texto' : 'arquivo',
+            tipo: kindOf(r),
             categoria: r.category_name || 'Sem categoria',
             tags: r.tags,
             resumo: r.summary || undefined,
@@ -65,6 +67,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
         title: 'Ler documento',
         description:
           `Lê o conteúdo completo de um documento pelo id. Textos longos vêm em partes de ${READ_CHUNK_CHARS} caracteres; ` +
+          'para vídeos e áudios (treinamentos, reuniões), o conteúdo é a transcrição com marcações de tempo [hh:mm:ss] — cite o minuto ao responder; ' +
           'se houver continuação, a resposta informa o próximo valor de "inicio".',
         inputSchema: {
           id: z.number().int().describe('Id do documento'),
@@ -82,10 +85,15 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
         return text({
           id: item.id,
           titulo: item.title,
+          tipo: kindOf(item),
           categoria: item.category_name || 'Sem categoria',
           tags: item.tags,
           resumo: item.summary || undefined,
           arquivo: item.file_name || undefined,
+          ...(item.duration ? { duracao: formatTime(item.duration) } : {}),
+          ...(item.media_status && !['concluida', 'manual'].includes(item.media_status)
+            ? { observacao: `Transcrição ainda não disponível (situação: ${item.media_status}).` }
+            : {}),
           link: link(item.id),
           total_caracteres: body.length,
           conteudo: chunk || '(documento sem texto legível)',

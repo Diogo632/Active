@@ -10,15 +10,17 @@ import { extractText } from './extract.js';
 import { createActiveIA } from './ai.js';
 import { createN8nActiveIA } from './n8n.js';
 import { createMcpHandler } from './mcp.js';
+import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTranscript } from './transcribe.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
 
 export function createApp({
   dataDir = path.resolve(rootDir, process.env.DATA_DIR || 'data'),
-  maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 100),
+  maxUploadMb = Number(process.env.MAX_UPLOAD_MB || 2048),
   model = process.env.ACTIVE_IA_MODEL || 'claude-opus-5',
   ai: aiOverride,
+  transcriptionEngine,
 } = {}) {
   const uploadsDir = path.join(dataDir, 'uploads');
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -26,6 +28,19 @@ export function createApp({
   const db = openDatabase(dataDir);
   const repo = createRepository(db);
   const ai = aiOverride || createAssistant({ repo, uploadsDir, model });
+
+  // Transcrição de vídeos/áudios (Whisper local por padrão; TRANSCRIPTION=off desliga).
+  const transcriptionEnabled = (process.env.TRANSCRIPTION || 'local').toLowerCase() !== 'off';
+  const transcriptionModel = process.env.TRANSCRIPTION_MODEL || 'Xenova/whisper-small';
+  const transcription = createTranscriptionQueue({
+    repo,
+    uploadsDir,
+    enabled: transcriptionEnabled,
+    engine:
+      transcriptionEngine ||
+      createWhisperEngine({ model: transcriptionModel, dtype: process.env.TRANSCRIPTION_DTYPE || 'q8' }),
+  });
+  transcription.resume();
 
   const app = express();
   app.disable('x-powered-by');
@@ -174,7 +189,9 @@ export function createApp({
   });
 
   // ---------- Itens ----------
-  app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, provider: ai.provider, model: ai.model } }));
+  app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, provider: ai.provider, model: ai.model },
+    transcription: { enabled: transcriptionEnabled, model: transcriptionModel },
+  }));
 
   app.get('/api/tags', (req, res) => res.json(repo.allTags()));
 
@@ -207,6 +224,8 @@ export function createApp({
     // O texto extraído de arquivos pode ser grande; a interface mostra só uma prévia.
     rest.text_preview = rest.text.slice(0, 20000);
     rest.text_length = rest.text.length;
+    // ?full devolve o texto inteiro (usado pela transcrição de vídeos, que pode passar do limite da prévia).
+    if (req.query.full !== undefined) rest.text_full = rest.text;
     delete rest.text;
     res.json(rest);
   });
@@ -241,8 +260,7 @@ export function createApp({
       const name = originalName(file);
       const { text, status } = await extractText(file.path, name);
       const title = files.length === 1 && req.body.title?.trim() ? req.body.title.trim() : path.parse(name).name;
-      created.push(
-        repo.createItem({
+      const item = repo.createItem({
           kind: 'file',
           title,
           summary: String(req.body.summary || ''),
@@ -255,8 +273,9 @@ export function createApp({
           size: file.size,
           text,
           extract_status: status,
-        }),
-      );
+      });
+      if (isMediaFile(name, file.mimetype)) transcription.enqueue(item.id);
+      created.push(repo.getItem(item.id));
     }
     res.status(201).json(created);
   });
@@ -288,7 +307,41 @@ export function createApp({
       extract_status: status,
     });
     removeStored(current.stored_name);
-    res.json(item);
+    if (isMediaFile(name, req.file.mimetype)) transcription.enqueue(id);
+    res.json(repo.getItem(id) || item);
+  });
+
+  // ---------- Vídeos e áudios: transcrição ----------
+  // Transcreve (de novo) um vídeo/áudio.
+  app.post('/api/items/:id/transcribe', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item || item.kind !== 'file' || !isMediaFile(item.file_name, item.mime_type)) throw httpError(404, 'Vídeo ou áudio não encontrado.');
+    if (!transcriptionEnabled) throw httpError(400, 'A transcrição automática está desligada neste servidor. Envie a transcrição manualmente.');
+    transcription.enqueue(item.id);
+    res.json(repo.getItem(item.id));
+  });
+
+  // Recebe uma transcrição pronta (.vtt/.srt do Teams, Meet, Zoom; .txt; .docx) ou texto no corpo.
+  app.put('/api/items/:id/transcript', upload.single('file'), async (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item || item.kind !== 'file') {
+      if (req.file) removeStored(req.file.filename);
+      throw httpError(404, 'Documento não encontrado.');
+    }
+    let raw = String(req.body?.text || '');
+    let name = '';
+    if (req.file) {
+      name = originalName(req.file);
+      const ext = path.extname(name).toLowerCase();
+      raw = ['.vtt', '.srt', '.txt'].includes(ext)
+        ? await fs.promises.readFile(req.file.path, 'utf8')
+        : (await extractText(req.file.path, name)).text;
+      removeStored(req.file.filename);
+    }
+    const text = normalizeTranscript(raw, name);
+    if (!text) throw httpError(400, 'A transcrição está vazia.');
+    repo.setTranscript(item.id, text, 'manual');
+    res.json(repo.getItem(item.id));
   });
 
   app.delete('/api/items/:id', (req, res) => {
@@ -361,7 +414,7 @@ export function createApp({
     res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message });
   });
 
-  return { app, db, repo, ai };
+  return { app, db, repo, ai, transcription };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { api } from './api.js';
 import { chat, mountChat } from './chat.js';
 import { mountAnswer } from './answer.js';
+import { isMediaItem, mediaPlayer, mountTranscript, transcriptBadge, formatDuration } from './media.js';
 import {
   esc, icon, hydrateIcons, formatDate, relativeDate, formatBytes, fileIcon, fileTypeLabel,
   renderMarkdown, toast, confirmDialog, storage, CATEGORY_ICONS,
@@ -10,6 +11,7 @@ import {
 export const shared = {
   categories: [],
   aiConfigured: false,
+  transcriptionEnabled: true,
   async refreshCategories() {
     shared.categories = await api.categories();
     document.dispatchEvent(new CustomEvent('categories-changed'));
@@ -40,7 +42,9 @@ function docItem(item) {
     `<span class="badge ${item.kind === 'article' ? 'badge-article' : 'badge-file'}">${esc(fileTypeLabel(item))}</span>`,
     item.category_name ? `<span>${esc(item.category_name)}</span>` : '',
     `<span>Atualizado ${esc(relativeDate(item.updated_at))}</span>`,
+    item.duration ? `<span>${esc(formatDuration(item.duration))}</span>` : '',
     item.size ? `<span>${formatBytes(item.size)}</span>` : '',
+    transcriptBadge(item),
     ...item.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`),
   ].filter(Boolean);
   const snippet = item.snippet?.trim() || item.summary;
@@ -80,7 +84,7 @@ export async function homeView(view) {
         (i) => `
         <a class="quick-item" href="#/item/${i.id}">
           <span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>
-          <span class="quick-text"><strong>${esc(i.title)}</strong><small>${esc(i.category_name || 'Sem categoria')} · ${esc(relativeDate(i.updated_at))}</small></span>
+          <span class="quick-text"><strong>${esc(i.title)}</strong><small>${esc(i.category_name || 'Sem categoria')} · ${esc(i.duration ? formatDuration(i.duration) : relativeDate(i.updated_at))}</small></span>
         </a>`,
       )
       .join('');
@@ -108,7 +112,7 @@ export async function homeView(view) {
           ? emptyState(
               'library',
               'A base ainda está vazia',
-              'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens e qualquer outro tipo).',
+              'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens, vídeos de treinamento e qualquer outro tipo).',
               '<div class="row" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
             )
           : `<div class="home-columns">
@@ -217,7 +221,8 @@ export async function itemView(view, { params }) {
   view.innerHTML = loading();
   const item = await api.item(params.id, { view: true });
 
-  const preview = item.kind === 'file' ? filePreview(item) : '';
+  const media = isMediaItem(item);
+  const preview = item.kind === 'file' && !media ? filePreview(item) : '';
   const extractNote = {
     unsupported: 'O conteúdo deste tipo de arquivo não pode ser lido automaticamente. A Active AI conhece apenas o título, a descrição e as tags.',
     error: 'Não foi possível ler o conteúdo deste arquivo. A Active AI conhece apenas o título, a descrição e as tags.',
@@ -225,7 +230,9 @@ export async function itemView(view, { params }) {
   }[item.extract_status];
 
   let body;
-  if (item.kind === 'article') {
+  if (media) {
+    body = `${mediaPlayer(item)}<div id="transcript"></div>`;
+  } else if (item.kind === 'article') {
     body = `<article class="card card-pad prose">${item.content.trim() ? renderMarkdown(item.content) : '<p class="muted">Este texto está vazio.</p>'}</article>`;
   } else {
     const text = item.text_preview
@@ -262,8 +269,8 @@ export async function itemView(view, { params }) {
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${body}</div>
       <aside class="doc-side">
         <div class="card card-pad ask-card">
-          <strong>Dúvidas sobre este documento?</strong>
-          <p>A Active AI pode resumir, explicar ou encontrar documentos relacionados.</p>
+          <strong>Dúvidas sobre este ${media ? 'vídeo' : 'documento'}?</strong>
+          <p>${media ? 'A Active AI lê a transcrição e pode resumir o treinamento, explicar trechos e dizer em que momento cada assunto aparece.' : 'A Active AI pode resumir, explicar ou encontrar documentos relacionados.'}</p>
           <button class="btn btn-sm" id="ask-summary">${icon('sparkles')}Resumir com a Active AI</button>
         </div>
         <div class="card card-pad">
@@ -271,6 +278,7 @@ export async function itemView(view, { params }) {
             <dt>Categoria</dt><dd>${esc(item.category_name || 'Sem categoria')}</dd>
             ${item.author ? `<dt>Autor</dt><dd>${esc(item.author)}</dd>` : ''}
             ${item.file_name ? `<dt>Arquivo</dt><dd>${esc(item.file_name)}</dd>` : ''}
+            ${item.duration ? `<dt>Duração</dt><dd>${esc(formatDuration(item.duration))}</dd>` : ''}
             ${item.size != null ? `<dt>Tamanho</dt><dd>${formatBytes(item.size)}</dd>` : ''}
             <dt>Criado</dt><dd>${formatDate(item.created_at, true)}</dd>
             <dt>Atualizado</dt><dd>${formatDate(item.updated_at, true)}</dd>
@@ -286,7 +294,11 @@ export async function itemView(view, { params }) {
     openIa(prompt);
   };
   view.querySelector('#ask').addEventListener('click', () => askAbout());
-  view.querySelector('#ask-summary').addEventListener('click', () => askAbout('Resuma este documento em tópicos, destacando os pontos mais importantes.'));
+  view.querySelector('#ask-summary').addEventListener('click', () => askAbout(
+      media
+        ? 'Resuma este treinamento em tópicos, com os horários em que cada assunto é tratado.'
+        : 'Resuma este documento em tópicos, destacando os pontos mais importantes.',
+    ));
 
   view.querySelector('#delete').addEventListener('click', async () => {
     const ok = await confirmDialog({
@@ -321,7 +333,14 @@ export async function itemView(view, { params }) {
     }
   });
 
-  return () => chat.setContext(null);
+  const stopTranscript = media
+    ? mountTranscript(view.querySelector('#transcript'), item, { transcriptionEnabled: shared.transcriptionEnabled })
+    : null;
+
+  return () => {
+    stopTranscript?.();
+    chat.setContext(null);
+  };
 }
 
 // ======================================================================
@@ -520,7 +539,7 @@ export async function uploadView(view, { query }) {
     <div class="page-header">
       <div>
         <h1>Enviar arquivos</h1>
-        <p>Qualquer tipo de arquivo pode ser incluído. PDF, Word, Excel, PowerPoint, LibreOffice, textos, HTML e imagens têm o conteúdo lido para pesquisa e para a Active AI.</p>
+        <p>Qualquer tipo de arquivo pode ser incluído. PDF, Word, Excel, PowerPoint, LibreOffice, textos, HTML e imagens têm o conteúdo lido para pesquisa e para a Active AI. Vídeos e áudios (treinamentos, reuniões) são transcritos automaticamente, e a Active AI conversa com base na transcrição.</p>
       </div>
     </div>
     <form class="form" id="upload-form">
