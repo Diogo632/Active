@@ -215,3 +215,20 @@ test('servidor MCP também funciona pelo transporte SSE (token na URL)', async (
   assert.equal(found[0].titulo, 'Cadastro de ADEME');
   await client.close();
 });
+
+test('MCP aceita clientes que não enviam o Accept exigido pelo protocolo', async () => {
+  const res = await fetch(`${base}/mcp`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer tok-teste', 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'x', version: '1' } } }),
+  });
+  assert.equal(res.status, 200);
+  const list = await fetch(`${base}/mcp`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer tok-teste' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'listar_categorias', arguments: {} } }),
+  });
+  assert.equal(list.status, 200);
+  const body = await list.json();
+  assert.ok(Array.isArray(JSON.parse(body.result.content[0].text)));
+});

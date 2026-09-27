@@ -5,6 +5,15 @@ import { z } from 'zod';
 
 const READ_CHUNK_CHARS = 30_000;
 
+/** Garante um header (em headers e rawHeaders, que é o que o transporte lê). */
+function ensureHeader(req, name, isOk, value) {
+  if (isOk(String(req.headers[name] || '').toLowerCase())) return;
+  req.headers[name] = value;
+  const raw = req.rawHeaders || [];
+  for (let i = raw.length - 2; i >= 0; i -= 2) if (raw[i].toLowerCase() === name) raw.splice(i, 2);
+  raw.push(name, value);
+}
+
 /**
  * Servidor MCP da Base de Conhecimento (transporte Streamable HTTP, sem estado).
  * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
@@ -129,6 +138,10 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Use POST.' }, id: null });
       return;
     }
+    // Alguns clientes (inclusive durante a conversa no GPTMaker) não enviam o Accept exigido pelo
+    // protocolo ("application/json, text/event-stream") nem o Content-Type. Completa antes de processar.
+    ensureHeader(req, 'accept', (v) => v.includes('application/json') && v.includes('text/event-stream'), 'application/json, text/event-stream');
+    ensureHeader(req, 'content-type', (v) => v.includes('application/json'), 'application/json');
     const server = buildServer();
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
     res.on('close', () => {

@@ -61,6 +61,20 @@ export function createApp({
 
   // Servidor MCP: o agente (GPTMaker, n8n ou outro cliente MCP) pesquisa e lê a base por aqui.
   const mcp = createMcpHandler({ repo, publicUrl: process.env.PUBLIC_URL || '' });
+  // Registro de todas as chamadas ao MCP (inclusive recusadas), para diagnosticar a conexão do agente.
+  app.use('/mcp', (req, res, next) => {
+    const started = Date.now();
+    const accept = req.headers.accept || '-';
+    res.on('finish', () => {
+      const auth = req.headers.authorization ? 'header' : req.query.token ? 'url' : 'sem token';
+      const rpc = req.body?.method ? ` ${req.body.method}${req.body.params?.name ? ` ${req.body.params.name}` : ''}` : '';
+      console.log(
+        `[mcp http] ${req.method} ${req.baseUrl}${req.path === '/' ? '' : req.path}${rpc} → ${res.statusCode} ` +
+          `(${Date.now() - started} ms · token: ${auth} · accept: ${accept} · ${String(req.headers['user-agent'] || '-').slice(0, 40)})`,
+      );
+    });
+    next();
+  });
   app.all('/mcp', requireIntegrationToken, express.json({ limit: '1mb' }), mcp);
   // Transporte SSE, para clientes MCP mais antigos.
   app.get('/mcp/sse', requireIntegrationToken, mcp.sse);
