@@ -22,7 +22,8 @@ async function findLocal() {
   console.error(`✖ A plataforma não está rodando nas portas ${ports.join(', ')}. Inicie com "PORT=3001 npm start" em outro terminal.`);
   process.exit(1);
 }
-const base = (urlArg || (await findLocal())).replace(/\/$/, '');
+// Aceita o endereço da plataforma com ou sem "/mcp" no final.
+const base = (urlArg || (await findLocal())).replace(/\/+$/, '').replace(/(\/mcp)?$/, '/mcp');
 const query = queryArg || 'processo';
 
 if (!token) {
