@@ -1,6 +1,6 @@
 // Testa o servidor MCP da Base de Conhecimento como um agente faria.
 // Uso:  npm run mcp:testar -- [URL] [TOKEN] [palavra para buscar]
-// Sem argumentos, usa http://localhost:$PORT/mcp e o INTEGRATION_TOKEN do .env.
+// Sem URL, encontra a plataforma rodando localmente e usa o INTEGRATION_TOKEN do .env.
 import 'dotenv/config';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -8,7 +8,21 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 
 const [urlArg, tokenArg, queryArg] = process.argv.slice(2);
 const token = tokenArg || process.env.INTEGRATION_TOKEN;
-const base = (urlArg || `http://localhost:${process.env.PORT || 3000}/mcp`).replace(/\/$/, '');
+// Sem URL, procura a plataforma nas portas mais usadas (a do .env, 3001 e 3000).
+async function findLocal() {
+  const ports = [...new Set([process.env.PORT, '3001', '3000'].filter(Boolean))];
+  for (const port of ports) {
+    try {
+      const res = await fetch(`http://localhost:${port}/api/stats`, { signal: AbortSignal.timeout(1500) });
+      if (res.ok || res.status === 401) return `http://localhost:${port}/mcp`;
+    } catch {
+      /* porta sem resposta: tenta a próxima */
+    }
+  }
+  console.error(`✖ A plataforma não está rodando nas portas ${ports.join(', ')}. Inicie com "PORT=3001 npm start" em outro terminal.`);
+  process.exit(1);
+}
+const base = (urlArg || (await findLocal())).replace(/\/$/, '');
 const query = queryArg || 'processo';
 
 if (!token) {
