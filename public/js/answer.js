@@ -3,7 +3,7 @@ import { chat } from './chat.js';
 import { esc, icon, renderMarkdown, hydrateIcons } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { fadeUp, popIn, revealProse, pulse } from './motion.js';
-import { answerActionsHtml, voteAnswer, saveAnswerAsDocument } from './feedback.js';
+import { answerActionsHtml, voteAnswer } from './feedback.js';
 
 // Respostas já geradas nesta visita, para não chamar o agente de novo ao voltar à mesma busca.
 const cache = new Map();
@@ -48,7 +48,7 @@ export function mountAnswer(container, question) {
         ${
           done && text
             ? `<footer><button class="btn btn-sm" type="button" data-continue>${icon('chat')}Continuar a conversa</button>
-               ${answerActionsHtml({ vote: state.vote })}</footer>
+               ${answerActionsHtml({ vote: state.vote, content: text })}</footer>
                <p class="muted small answer-note">Confira as informações importantes nos documentos citados.</p>`
             : ''
         }
@@ -68,7 +68,6 @@ export function mountAnswer(container, question) {
   };
 
   container.addEventListener('click', async (e) => {
-    if (e.target.closest('[data-save-doc]')) return saveAnswerAsDocument({ question, answer: state.text });
     const vote = e.target.closest('[data-vote]');
     if (vote) {
       if (state.vote) return;

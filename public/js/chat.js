@@ -1,8 +1,8 @@
 import { api } from './api.js';
-import { esc, icon, renderMarkdown, storage, hydrateIcons } from './util.js';
+import { esc, icon, renderMarkdown, storage, hydrateIcons, formatBytes, toast } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { messageIn, revealProse, popIn, pulse } from './motion.js';
-import { answerActionsHtml, voteAnswer, saveAnswerAsDocument } from './feedback.js';
+import { answerActionsHtml, voteAnswer } from './feedback.js';
 
 const STORAGE_KEY = 'kb-ia-conversation';
 const SESSION_KEY = 'kb-ia-session';
@@ -31,6 +31,8 @@ const state = {
   context: null, // { id, title } do documento aberto
   streaming: false,
   controller: null,
+  // Arquivos anexados à próxima mensagem: { uid, name, size, progress, id?, error? }
+  attachments: [],
   configured: true,
 };
 
@@ -48,7 +50,9 @@ function persist() {
   storage.set(SESSION_KEY, state.sessionId);
   storage.set(
     STORAGE_KEY,
-    state.messages.slice(-40).map(({ role, content, sources, options, vote }) => ({ role, content, sources, options, vote })),
+    state.messages
+      .slice(-40)
+      .map(({ role, content, sources, options, vote, attachments }) => ({ role, content, sources, options, vote, attachments })),
   );
 }
 
@@ -89,11 +93,51 @@ export const chat = {
     state.controller?.abort();
   },
 
+  /**
+   * Anexa arquivos à próxima mensagem. Cada arquivo fica guardado temporariamente na plataforma e o
+   * agente recebe só o id, lendo o conteúdo inteiro pelo MCP (sem o limite de texto da mensagem).
+   */
+  attach(files) {
+    for (const file of files) {
+      const entry = { uid: Math.random().toString(36).slice(2), name: file.name, size: file.size, progress: 0 };
+      state.attachments.push(entry);
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      api
+        .upload('/api/chat/anexos', fd, (p) => {
+          entry.progress = p;
+          notify();
+        })
+        .then((item) => {
+          entry.id = item.id;
+          entry.chars = item.text_length;
+          entry.unreadable = item.extract_status !== 'ok' && item.extract_status !== 'media';
+        })
+        .catch((err) => {
+          entry.error = err.message;
+        })
+        .finally(notify);
+    }
+    notify();
+  },
+
+  removeAttachment(uid) {
+    state.attachments = state.attachments.filter((a) => a.uid !== uid);
+    notify();
+  },
+
   async send(text) {
-    const content = text.trim();
+    const ready = state.attachments.filter((a) => a.id);
+    if (state.attachments.some((a) => !a.id && !a.error)) {
+      toast('Aguarde o envio do arquivo terminar.');
+      return;
+    }
+    const content = text.trim() || (ready.length ? `Analise ${ready.length > 1 ? 'os arquivos anexados' : 'o arquivo anexado'}.` : '');
     if (!content || state.streaming) return;
 
-    state.messages.push({ role: 'user', content });
+    const attachments = ready.map(({ id, name }) => ({ id, name }));
+    state.attachments = [];
+    state.messages.push({ role: 'user', content, ...(attachments.length ? { attachments } : {}) });
     const reply = { role: 'assistant', content: '', status: [], sources: [], error: null, pending: true };
     state.messages.push(reply);
     state.streaming = true;
@@ -109,6 +153,7 @@ export const chat = {
         messages: history,
         contextItemId: state.context?.id,
         sessionId: state.sessionId,
+        attachments: attachments.map((a) => a.id),
         // Conversa livre: o agente usa o conhecimento próprio (RAG do GPTMaker) e o MCP da base.
         mode: 'livre',
         signal: state.controller.signal,
@@ -170,7 +215,12 @@ function questionFor(index) {
 
 function renderMessage(msg, isLast, index) {
   if (msg.role === 'user') {
-    return `<div class="msg msg-user"><div class="bubble">${esc(msg.content)}</div></div>`;
+    const files = msg.attachments?.length
+      ? `<div class="msg-files">${msg.attachments
+          .map((a) => `<a class="file-chip" href="#/item/${a.id}" title="Abrir o arquivo">${icon('file')}<span>${esc(a.name)}</span></a>`)
+          .join('')}</div>`
+      : '';
+    return `<div class="msg msg-user">${files}<div class="bubble">${esc(msg.content)}</div></div>`;
   }
   const status = msg.status?.length
     ? `<div class="ia-status">${msg.status
@@ -188,7 +238,7 @@ function renderMessage(msg, isLast, index) {
         .map((s) => `<a href="#/item/${s.id}" title="${esc(s.title)}">${icon(s.kind === 'article' ? 'article' : 'file')}<span>${esc(s.title)}</span></a>`)
         .join('')}</div>`
     : '';
-  const actions = !msg.pending && msg.content && !msg.error ? answerActionsHtml({ vote: msg.vote }) : '';
+  const actions = !msg.pending && msg.content && !msg.error ? answerActionsHtml({ vote: msg.vote, content: msg.content }) : '';
   return `
     <div class="msg msg-ai" data-index="${index}">
       <div class="ia-avatar">AI</div>
@@ -220,7 +270,10 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
       <div class="ia-unconfigured" hidden>A Active AI ainda não foi configurada no servidor (defina <code>N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>).</div>
       <div class="ia-messages" aria-live="polite"></div>
       <div class="ia-composer">
+        <div class="ia-attachments" hidden></div>
         <form>
+          <button class="attach" type="button" data-action="attach" title="Anexar arquivo (a Active AI lê o conteúdo inteiro)">${icon('paperclip')}</button>
+          <input type="file" multiple hidden class="attach-input" />
           <textarea rows="1" placeholder="Pergunte qualquer coisa à Active AI…" aria-label="Mensagem para a Active AI"></textarea>
           <button class="send" type="submit" title="Enviar">${icon('send')}</button>
         </form>
@@ -234,6 +287,47 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
   const form = container.querySelector('form');
   const textarea = container.querySelector('textarea');
   const sendBtn = container.querySelector('.send');
+  const attachmentsEl = container.querySelector('.ia-attachments');
+  const fileInput = container.querySelector('.attach-input');
+
+  fileInput.addEventListener('change', () => {
+    chat.attach([...fileInput.files]);
+    fileInput.value = '';
+    textarea.focus();
+  });
+  // Arrastar arquivos para o chat também anexa.
+  const section = container.querySelector('.ia');
+  section.addEventListener('dragover', (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+    e.preventDefault();
+    section.classList.add('drag');
+  });
+  section.addEventListener('dragleave', (e) => {
+    if (!section.contains(e.relatedTarget)) section.classList.remove('drag');
+  });
+  section.addEventListener('drop', (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    section.classList.remove('drag');
+    chat.attach([...e.dataTransfer.files]);
+  });
+
+  function renderAttachments() {
+    attachmentsEl.hidden = !state.attachments.length;
+    attachmentsEl.innerHTML = state.attachments
+      .map((a) => {
+        const status = a.error
+          ? `<span class="attach-error">${esc(a.error)}</span>`
+          : !a.id
+            ? `<span class="muted">${Math.round((a.progress || 0) * 100)}%</span><span class="spinner"></span>`
+            : a.unreadable
+              ? '<span class="attach-warn" title="Sem texto legível: a Active AI verá só o nome do arquivo">sem texto</span>'
+              : `<span class="muted">${a.chars ? `${a.chars.toLocaleString('pt-BR')} caracteres` : formatBytes(a.size)}</span>`;
+        return `<div class="attach-chip${a.error ? ' error' : ''}">${icon('file')}<span class="name" title="${esc(a.name)}">${esc(a.name)}</span>${status}
+          <button type="button" data-remove-attachment="${a.uid}" title="Remover">${icon('close')}</button></div>`;
+      })
+      .join('');
+  }
 
   const autosize = () => {
     textarea.style.height = 'auto';
@@ -303,6 +397,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
     }
     animate();
 
+    renderAttachments();
     sendBtn.innerHTML = state.streaming ? icon('stop') : icon('send');
     sendBtn.title = state.streaming ? 'Parar resposta' : 'Enviar';
     if (nearBottom || state.streaming) messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -312,7 +407,8 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
     e.preventDefault();
     if (state.streaming) return chat.stop();
     const text = textarea.value;
-    if (!text.trim()) return;
+    if (!text.trim() && !state.attachments.length) return;
+    if (state.attachments.some((a) => !a.id && !a.error)) return toast('Aguarde o envio do arquivo terminar.');
     textarea.value = '';
     autosize();
     chat.send(text);
@@ -327,16 +423,16 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
   });
 
   container.addEventListener('click', async (e) => {
-    const answerAction = e.target.closest('[data-vote], [data-save-doc]');
+    const removeAttachment = e.target.closest('[data-remove-attachment]');
+    if (removeAttachment) return chat.removeAttachment(removeAttachment.dataset.removeAttachment);
+    if (e.target.closest('[data-action="attach"]')) return fileInput.click();
+    const answerAction = e.target.closest('[data-vote]');
     if (answerAction) {
       const index = Number(answerAction.closest('[data-index]')?.dataset.index);
       const msg = state.messages[index];
       if (!msg) return;
       const question = questionFor(index);
-      if (answerAction.dataset.saveDoc !== undefined) {
-        if (variant === 'drawer') onClose?.();
-        saveAnswerAsDocument({ question, answer: msg.content });
-      } else if (!msg.vote) {
+      if (!msg.vote) {
         pulse(answerAction);
         const vote = answerAction.dataset.vote;
         if (await voteAnswer({ question, answer: msg.content, helpful: vote === 'up' })) {

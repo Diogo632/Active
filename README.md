@@ -18,11 +18,11 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - **Lacunas**: buscas sem resultado, perguntas que a Active AI não soube responder, respostas avaliadas com 👎 e avisos do próprio agente (ferramenta MCP `registrar_lacuna`). As perguntas iguais são agrupadas, das mais frequentes para as menos. **Escrever documento** abre o editor já no modelo, e ao publicar a lacuna sai da lista.
   - **Para revisar**: documentos que passaram do prazo de revisão.
   - **Avaliações**: documentos com 👎 e os comentários, e as respostas da Active AI que não ajudaram.
-- **"Isso ajudou? 👍 👎"** no fim de cada documento e em cada resposta da Active AI (chat e busca). No 👎, a pessoa pode dizer o que faltou.
+- **"Isso ajudou? 👍 👎"** no fim de cada documento e nas respostas longas da Active AI (chat e busca; saudações e respostas curtas não têm). No 👎, a pessoa pode dizer o que faltou.
+- **Anexar arquivos na conversa com a Active AI** (📎 ou arrastando para o chat): o arquivo fica guardado **temporariamente** na plataforma (fora das listas e da busca, apagado depois de 72 horas) e o agente recebe só o id. Ele lê o conteúdo **inteiro** pelo MCP (`ler_documento`), sem o limite de texto da mensagem do GPTMaker. Se o arquivo for útil para a equipe, *Manter na base* o transforma num documento normal.
 - **Histórico de versões**: cada edição de um texto guarda a versão anterior. Em *Histórico*, dá para ver qualquer versão e restaurá-la; a versão atual também fica guardada.
 - **Data de revisão**: cada documento pode ter um prazo de revisão (padrão de 6 meses para textos novos). Passado esse prazo sem atualização, o documento mostra um aviso com *Continua válido* e *Atualizar*, e a Active AI avisa quem pergunta que o conteúdo pode estar desatualizado.
 - **Modelos de texto**: *Problema → Causa → Solução*, *Passo a passo* e *Comunicado*, escolhidos ao escrever um texto novo.
-- **Salvar resposta como documento**: em qualquer resposta da Active AI, o botão abre o editor com a pergunta e a resposta já no modelo *Problema → Causa → Solução*, para revisar e publicar.
 - **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
 - **Organização**: categorias com ícone, tags e descrição curta.
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
@@ -75,6 +75,7 @@ Configurações do `.env`:
 | `FFMPEG_PATH` | Opcional: caminho de um ffmpeg já instalado (por padrão usa o que vem com o `npm ci`). |
 | `CHAPTERS` | `auto` (padrão) pede à Active AI o resumo e os capítulos de cada vídeo transcrito; `off` desliga. |
 | `YTDLP_PATH` | Opcional: caminho do [yt-dlp](https://github.com/yt-dlp/yt-dlp). Com ele instalado, vídeos do YouTube sem legendas têm o áudio baixado e transcrito pelo Whisper. |
+| `CHAT_ATTACHMENT_HOURS` | Por quantas horas os arquivos anexados na conversa com a Active AI ficam guardados (padrão `72`). |
 | `REVIEW_MONTHS_DEFAULT` | Prazo de revisão padrão dos textos novos, em meses (padrão `6`; `0` desliga). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |

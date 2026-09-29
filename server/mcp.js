@@ -112,6 +112,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
           ...(item.media_status && !TRANSCRIPT_READY.includes(item.media_status)
             ? { observacao: `Transcrição ainda não disponível (situação: ${item.media_status}).` }
             : {}),
+          ...(item.temporary ? { anexo_da_conversa: 'Arquivo enviado pelo usuário na conversa (não faz parte da base de conhecimento).' } : {}),
           ...(item.kind === 'youtube' ? { video_youtube: item.source_url } : {}),
           ...(item.ai_summary ? { resumo_do_video: item.ai_summary } : {}),
           ...(item.chapters?.length ? { capitulos: item.chapters.map((c) => `${formatTime(c.start)} ${c.title}`) } : {}),

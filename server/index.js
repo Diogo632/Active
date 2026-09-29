@@ -25,6 +25,8 @@ export function createApp({
   ai: aiOverride,
   transcriptionEngine,
   youtubeClient,
+  // Por quanto tempo os arquivos anexados na conversa com a Active AI ficam guardados (horas).
+  attachmentHours = Number(process.env.CHAT_ATTACHMENT_HOURS || 72),
   // Período padrão de revisão dos textos novos, em meses (0 desliga).
   reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
 } = {}) {
@@ -52,6 +54,16 @@ export function createApp({
       createWhisperEngine({ model: transcriptionModel, dtype: process.env.TRANSCRIPTION_DTYPE || 'q8' }),
   });
   transcription.resume();
+  // Apaga os anexos temporários da conversa que já venceram (na inicialização e a cada hora).
+  const cleanupAttachments = () => {
+    for (const id of repo.expiredTemporary()) {
+      const item = repo.deleteItem(id);
+      if (item?.stored_name) fs.promises.unlink(path.join(uploadsDir, item.stored_name)).catch(() => {});
+    }
+  };
+  cleanupAttachments();
+  setInterval(cleanupAttachments, 60 * 60 * 1000).unref();
+
   // Retoma capítulos que ficaram pela metade (servidor reiniciado).
   for (const { id } of db.prepare("SELECT id FROM items WHERE chapters_status IN ('pendente', 'gerando')").all()) chapters.enqueue(id);
 
@@ -420,6 +432,36 @@ export function createApp({
     res.json(repo.getItem(id) || item);
   });
 
+  // ---------- Anexos da conversa com a Active AI ----------
+  // O arquivo fica guardado temporariamente na plataforma (fora das listas e da busca). O agente recebe
+  // só o id e lê o conteúdo inteiro pelo MCP (ler_documento), sem o limite de texto da mensagem.
+  app.post('/api/chat/anexos', upload.single('file'), async (req, res) => {
+    if (!req.file) throw httpError(400, 'Selecione um arquivo.');
+    const name = originalName(req.file);
+    const { text, status } = await extractText(req.file.path, name);
+    const item = repo.createItem({
+      kind: 'file',
+      title: name,
+      file_name: name,
+      stored_name: req.file.filename,
+      mime_type: req.file.mimetype,
+      size: req.file.size,
+      text,
+      extract_status: status,
+      temporary: true,
+      expires_hours: attachmentHours,
+    });
+    if (isMediaFile(name, req.file.mimetype)) transcription.enqueue(item.id);
+    res.status(201).json({ ...repo.getItem(item.id), text_length: text.length });
+  });
+
+  // Anexo da conversa que vale a pena manter: passa a fazer parte da base.
+  app.post('/api/items/:id/keep', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item) throw httpError(404, 'Documento não encontrado.');
+    res.json(repo.keepItem(item.id));
+  });
+
   // ---------- Vídeos e áudios: transcrição ----------
   // Transcreve (de novo) um vídeo/áudio.
   app.post('/api/items/:id/transcribe', (req, res) => {
@@ -510,8 +552,17 @@ export function createApp({
       if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
+    // Arquivos anexados nesta mensagem: o agente recebe só a referência (id) e lê pelo MCP.
+    const history = Array.isArray(req.body.messages) ? req.body.messages.map((m) => ({ ...m })) : [];
+    const attachments = (Array.isArray(req.body.attachments) ? req.body.attachments : [])
+      .map((id) => repo.getItem(parseId(id), { full: true }))
+      .filter(Boolean)
+      .slice(0, 10);
+    const lastUser = [...history].reverse().find((m) => m?.role === 'user');
+    if (attachments.length && lastUser) lastUser.content = `${attachmentNote(attachments)}\n\n${lastUser.content}`;
+
     await ai.chat({
-      history: req.body.messages,
+      history,
       contextItemId: parseId(req.body.context_item_id),
       sessionId: String(req.body.session_id || '').slice(0, 100),
       mode: req.body.mode === 'livre' ? 'livre' : 'base',
@@ -565,6 +616,24 @@ function createAssistant({ repo, uploadsDir, model }) {
     });
   }
   return { ...createActiveIA({ repo, uploadsDir, model }), provider: 'anthropic' };
+}
+
+/** Referência curta aos arquivos anexados na conversa, para o agente ler pelo MCP. */
+export function attachmentNote(items) {
+  const lines = items.map((i) => {
+    const size = i.text?.length || 0;
+    const media = i.media_status && !['concluida', 'manual', 'legendas'].includes(i.media_status);
+    const info = media
+      ? 'vídeo/áudio: a transcrição está sendo feita; se ler_documento avisar que não está pronta, peça para o usuário aguardar'
+      : size
+        ? `${size.toLocaleString('pt-BR')} caracteres`
+        : 'sem texto legível (arquivo digitalizado, imagem ou formato não suportado)';
+    return `- #${i.id} “${i.file_name || i.title}” (${info})`;
+  });
+  return [
+    `[Arquivo${items.length > 1 ? 's' : ''} anexado${items.length > 1 ? 's' : ''} pelo usuário nesta conversa. Leia o conteúdo completo com a ferramenta ler_documento da Base de Conhecimento (use o id; se a resposta disser "continua", leia as próximas partes com "inicio") antes de responder.]`,
+    ...lines,
+  ].join('\n');
 }
 
 function httpError(status, message) {

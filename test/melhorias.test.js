@@ -287,3 +287,52 @@ test('vídeo do YouTube sem legendas: pede a transcrição colada', async () => 
   assert.equal(pasted.body.media_status, 'manual');
   assert.equal(repo.getItem(body.id, { full: true }).text, '[00:00:00] Olá\n[00:00:31] Tela 619');
 });
+
+test('anexo na conversa: fica temporário na plataforma e o agente recebe só o id para ler pelo MCP', async () => {
+  const conteudo = `Contrato de prestação de serviços Selmi.\n${'Cláusula de SLA e multas. '.repeat(600)}\nFim do contrato.`;
+  const fd = new FormData();
+  fd.append('file', new Blob([conteudo], { type: 'text/plain' }), 'contrato-selmi.txt');
+  const up = await fetch(`${base}/api/chat/anexos`, { method: 'POST', body: fd });
+  assert.equal(up.status, 201);
+  const anexo = await up.json();
+  assert.equal(anexo.temporary, 1);
+  assert.ok(anexo.expires_at);
+  assert.ok(Math.abs(anexo.text_length - conteudo.length) <= 2);
+
+  // Fora das listas e da busca da base.
+  assert.ok(!(await json('GET', '/api/items?q=contrato%20selmi')).body.items.some((i) => i.id === anexo.id));
+  assert.ok(!(await json('GET', '/api/items?limit=200')).body.items.some((i) => i.id === anexo.id));
+
+  // A mensagem para o agente leva a referência curta, não o conteúdo.
+  prompts.length = 0;
+  aiReply = () => 'ok';
+  const res = await fetch(`${base}/api/ai/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: 'Qual a multa do SLA?' }], mode: 'livre', attachments: [anexo.id] }),
+  });
+  await res.text();
+  const sent = prompts.at(-1);
+  assert.match(sent, new RegExp(`#${anexo.id} “contrato-selmi\\.txt”`));
+  assert.match(sent, /ler_documento/);
+  assert.match(sent, /Qual a multa do SLA\?$/);
+  assert.ok(sent.length < 1000, 'o conteúdo do arquivo não vai na mensagem');
+
+  // O agente lê o arquivo inteiro pelo MCP.
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { StreamableHTTPClientTransport } = await import('@modelcontextprotocol/sdk/client/streamableHttp.js');
+  const client = new Client({ name: 'teste', version: '1.0.0' });
+  await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: 'Bearer tok-teste' } } }));
+  const read = JSON.parse((await client.callTool({ name: 'ler_documento', arguments: { id: anexo.id } })).content[0].text);
+  await client.close();
+  assert.equal(read.total_caracteres, anexo.text_length);
+  assert.ok(read.anexo_da_conversa);
+
+  // Vence e é apagado; ou pode ser mantido na base.
+  db.prepare("UPDATE items SET expires_at = datetime('now', '-1 minute') WHERE id = ?").run(anexo.id);
+  assert.deepEqual(repo.expiredTemporary(), [anexo.id]);
+  const { body: kept } = await json('POST', `/api/items/${anexo.id}/keep`);
+  assert.equal(kept.temporary, 0);
+  assert.deepEqual(repo.expiredTemporary(), []);
+  assert.ok((await json('GET', '/api/items?q=contrato%20selmi')).body.items.some((i) => i.id === anexo.id));
+});

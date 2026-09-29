@@ -67,6 +67,9 @@ export function openDatabase(dataDir) {
     chapters: 'TEXT',
     chapters_status: 'TEXT',
     chapters_error: 'TEXT',
+    // Anexos enviados na conversa com a Active AI: ficam fora das listas e da busca e expiram.
+    temporary: 'INTEGER NOT NULL DEFAULT 0',
+    expires_at: 'TEXT',
   };
   const present = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   for (const [name, type] of Object.entries(NEW_COLUMNS)) {
@@ -151,7 +154,7 @@ const ITEM_COLUMNS = `
   i.id, i.kind, i.title, i.summary, i.tags, i.category_id, i.author,
   i.file_name, i.mime_type, i.size, i.extract_status, i.views, i.created_at, i.updated_at,
   i.media_status, i.media_progress, i.media_error, i.duration,
-  i.source_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
+  i.temporary, i.expires_at, i.source_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
   CASE WHEN i.review_months > 0
        THEN date(max(COALESCE(i.reviewed_at, ''), i.updated_at), '+' || i.review_months || ' months') END AS review_due,
   c.name AS category_name
@@ -275,7 +278,7 @@ export function createRepository(db) {
     },
 
     listItems({ categoryId, kind, limit = 50, offset = 0, sort, reviewDue = false } = {}) {
-      const where = [];
+      const where = ['i.temporary = 0'];
       const params = [];
       if (categoryId === 'none') where.push('i.category_id IS NULL');
       else if (categoryId) {
@@ -305,7 +308,7 @@ export function createRepository(db) {
       const run = (mode) => {
         const query = toFtsQuery(text, mode);
         if (!query) return [];
-        const where = ['items_fts MATCH ?'];
+        const where = ['items_fts MATCH ?', 'i.temporary = 0'];
         const params = [query];
         if (categoryId === 'none') where.push('i.category_id IS NULL');
         else if (categoryId) {
@@ -340,9 +343,11 @@ export function createRepository(db) {
       const info = db
         .prepare(
           `INSERT INTO items (kind, title, summary, content, tags, category_id, author,
-                              file_name, stored_name, mime_type, size, text, extract_status, source_url, review_months)
+                              file_name, stored_name, mime_type, size, text, extract_status, source_url, review_months,
+                              temporary, expires_at)
            VALUES (@kind, @title, @summary, @content, @tags, @category_id, @author,
-                   @file_name, @stored_name, @mime_type, @size, @text, @extract_status, @source_url, @review_months)`,
+                   @file_name, @stored_name, @mime_type, @size, @text, @extract_status, @source_url, @review_months,
+                   @temporary, CASE WHEN @expires_offset IS NULL THEN NULL ELSE datetime('now', @expires_offset) END)`,
         )
         .run({
           kind: data.kind,
@@ -360,6 +365,8 @@ export function createRepository(db) {
           extract_status: data.extract_status || 'ok',
           source_url: data.source_url || null,
           review_months: data.review_months > 0 ? Math.round(data.review_months) : null,
+          temporary: data.temporary ? 1 : 0,
+          expires_offset: data.temporary ? `+${Math.max(1, Math.round(data.expires_hours || 72))} hours` : null,
         });
       syncFts(info.lastInsertRowid);
       return repo.getItem(info.lastInsertRowid);
@@ -445,6 +452,20 @@ export function createRepository(db) {
       if (!sets.length) return;
       db.prepare(`UPDATE items SET ${sets.join(', ')} WHERE id = ?`).run(...params, id);
       if (summary !== undefined || chapters !== undefined) syncFts(id);
+    },
+
+    /** Anexo da conversa passa a fazer parte da base (deixa de ser temporário). */
+    keepItem(id) {
+      db.prepare("UPDATE items SET temporary = 0, expires_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+      return repo.getItem(id);
+    },
+
+    /** Anexos temporários vencidos (para apagar). */
+    expiredTemporary() {
+      return db
+        .prepare("SELECT id FROM items WHERE temporary = 1 AND expires_at IS NOT NULL AND expires_at <= datetime('now')")
+        .all()
+        .map((r) => r.id);
     },
 
     findBySourceUrl(url) {
@@ -624,7 +645,7 @@ export function createRepository(db) {
                   SUM(kind = 'article') AS articles,
                   SUM(kind = 'file') AS files,
                   COALESCE(SUM(size), 0) AS bytes
-             FROM items`,
+             FROM items WHERE temporary = 0`,
         )
         .get();
       const { categories } = db.prepare('SELECT COUNT(*) AS categories FROM categories').get();

@@ -267,7 +267,15 @@ export async function itemView(view, { params }) {
       ${extractNote ? `<p class="muted small">${icon('alert')} ${esc(extractNote)}</p>` : ''}`;
   }
 
-  body = `${reviewBanner}${body}<div id="doc-feedback"></div>`;
+  // Arquivo anexado numa conversa com a Active AI: fica guardado só por um tempo, fora da base.
+  const tempBanner = item.temporary
+    ? `<div class="temp-banner">${icon('paperclip')}
+        <div><strong>Anexo de uma conversa com a Active AI</strong>
+        <span>Este arquivo não aparece nas listas nem na busca e será apagado em ${esc(formatDate(item.expires_at, true))}. Se ele for útil para a equipe, mantenha na base.</span></div>
+        <button class="btn btn-sm btn-primary" type="button" id="keep">${icon('check')}Manter na base</button>
+      </div>`
+    : '';
+  body = `${tempBanner}${reviewBanner}${body}${item.temporary ? '' : '<div id="doc-feedback"></div>'}`;
 
   view.innerHTML = `
     <a href="${item.category_id ? `#/docs?category=${item.category_id}` : '#/docs'}" class="small">${icon('back')} ${esc(item.category_name || 'Todos os documentos')}</a>
@@ -329,7 +337,18 @@ export async function itemView(view, { params }) {
         : 'Resuma este documento em tópicos, destacando os pontos mais importantes.',
     ));
 
-  mountDocFeedback(view.querySelector('#doc-feedback'), item);
+  if (!item.temporary) mountDocFeedback(view.querySelector('#doc-feedback'), item);
+
+  view.querySelector('#keep')?.addEventListener('click', async () => {
+    try {
+      await api.keepItem(item.id);
+      await shared.refreshCategories();
+      toast('Arquivo mantido na base. Edite as informações para dar título, categoria e tags.');
+      location.hash = `#/edit/${item.id}`;
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 
   view.querySelector('#mark-reviewed')?.addEventListener('click', async () => {
     try {

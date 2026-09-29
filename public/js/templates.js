@@ -77,42 +77,11 @@ _O aviso em uma ou duas frases._
   },
 ];
 
-/** Remove a linha de opções do agente ([OPCOES] …) e espaços sobrando. */
-const cleanAnswer = (text) =>
-  String(text || '')
-    .replace(/^\s*\[OP[CÇ][OÕ]ES\].*$/gim, '')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-
 const titleFrom = (question) => {
   const t = String(question || '').replace(/\s+/g, ' ').trim().replace(/[?.!]+$/, '');
   const short = t.length > 90 ? `${t.slice(0, 87).replace(/\s+\S*$/, '')}…` : t;
   return short.charAt(0).toUpperCase() + short.slice(1);
 };
-
-/** Rascunho de texto a partir de uma resposta da Active AI, já no modelo Problema → Causa → Solução. */
-export function draftFromAnswer({ question, answer }) {
-  const today = new Date().toLocaleDateString('pt-BR');
-  return {
-    title: titleFrom(question),
-    tags: 'active-ai',
-    template: 'problema',
-    content: `## Problema
-
-${String(question || '').trim()}
-
-## Causa
-
-_Preencha se souber._
-
-## Solução
-
-${cleanAnswer(answer)}
-
-> Texto criado a partir de uma resposta da Active AI em ${today}. Revise antes de publicar.
-`,
-  };
-}
 
 /** Rascunho para escrever o documento que falta, a partir de uma lacuna do relatório. */
 export function draftFromGap(query, templateId = 'problema') {

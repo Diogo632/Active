@@ -39,6 +39,7 @@ export const api = {
   version: (id, versionId) => request('GET', `/api/items/${id}/versions/${versionId}`),
   restoreVersion: (id, versionId, author) => request('POST', `/api/items/${id}/versions/${versionId}/restore`, { author }),
   markReviewed: (id) => request('POST', `/api/items/${id}/reviewed`),
+  keepItem: (id) => request('POST', `/api/items/${id}/keep`),
 
   feedback: (data) => request('POST', '/api/feedback', data),
   report: ({ resolved = false } = {}) => request('GET', `/api/relatorio${resolved ? '?resolvidas' : ''}`),
@@ -70,11 +71,11 @@ export const api = {
   },
 
   /** Conversa com a Active AI; `onEvent` recebe cada evento do stream SSE. */
-  async chat({ messages, contextItemId, sessionId, mode, signal, onEvent }) {
+  async chat({ messages, contextItemId, sessionId, mode, attachments, signal, onEvent }) {
     const res = await fetch('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId, mode }),
+      body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId, mode, attachments }),
       signal,
     });
     if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com a Active AI.`);

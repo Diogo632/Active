@@ -1,16 +1,19 @@
 import { api } from './api.js';
 import { icon, esc, promptDialog, toast } from './util.js';
-import { draftFromAnswer, openDraft } from './templates.js';
 
-/** Botões "Ajudou? 👍 👎" e "Salvar como documento" de uma resposta da Active AI. */
-export function answerActionsHtml({ vote = null } = {}) {
+// Só respostas longas (explicações, procedimentos) recebem "Ajudou?"; saudações e perguntas curtas não.
+const LONG_ANSWER_CHARS = 300;
+export const isLongAnswer = (text) => String(text || '').trim().length >= LONG_ANSWER_CHARS;
+
+/** Botões "Ajudou? 👍 👎" de uma resposta longa da Active AI (vazio para respostas curtas). */
+export function answerActionsHtml({ vote = null, content = '' } = {}) {
+  if (!isLongAnswer(content)) return '';
   const btn = (value, name, label) =>
     `<button type="button" class="vote${vote === value ? ' chosen' : ''}" data-vote="${value}" title="${label}" aria-label="${label}"${vote ? ' disabled' : ''}>${icon(name)}</button>`;
   return `
     <div class="answer-actions">
       ${vote ? `<span class="muted small">${vote === 'up' ? 'Obrigado!' : 'Obrigado, vamos melhorar.'}</span>` : '<span class="muted small">Ajudou?</span>'}
       ${btn('up', 'thumbsUp', 'Ajudou')}${btn('down', 'thumbsDown', 'Não ajudou')}
-      <button type="button" class="btn btn-sm" data-save-doc title="Transformar esta resposta em um texto da base">${icon('save')}Salvar como documento</button>
     </div>`;
 }
 
@@ -38,11 +41,6 @@ export async function voteAnswer({ question, answer, helpful }) {
     toast(err.message, 'error');
     return false;
   }
-}
-
-/** Abre o editor com a resposta já no modelo Problema → Causa → Solução. */
-export function saveAnswerAsDocument({ question, answer }) {
-  openDraft(draftFromAnswer({ question, answer }));
 }
 
 /** Bloco "Este documento ajudou?" da página de um documento. */
