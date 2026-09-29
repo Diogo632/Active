@@ -3,6 +3,7 @@ import { chat } from './chat.js';
 import { esc, icon, renderMarkdown, hydrateIcons } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { fadeUp, popIn, revealProse, pulse } from './motion.js';
+import { answerActionsHtml, voteAnswer, saveAnswerAsDocument } from './feedback.js';
 
 // Respostas já geradas nesta visita, para não chamar o agente de novo ao voltar à mesma busca.
 const cache = new Map();
@@ -47,7 +48,8 @@ export function mountAnswer(container, question) {
         ${
           done && text
             ? `<footer><button class="btn btn-sm" type="button" data-continue>${icon('chat')}Continuar a conversa</button>
-               <span class="muted small">Confira as informações importantes nos documentos citados.</span></footer>`
+               ${answerActionsHtml({ vote: state.vote })}</footer>
+               <p class="muted small answer-note">Confira as informações importantes nos documentos citados.</p>`
             : ''
         }
       </section>`;
@@ -65,7 +67,18 @@ export function mountAnswer(container, question) {
     }
   };
 
-  container.addEventListener('click', (e) => {
+  container.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-save-doc]')) return saveAnswerAsDocument({ question, answer: state.text });
+    const vote = e.target.closest('[data-vote]');
+    if (vote) {
+      if (state.vote) return;
+      pulse(vote);
+      if (await voteAnswer({ question, answer: state.text, helpful: vote.dataset.vote === 'up' })) {
+        state.vote = vote.dataset.vote;
+        render();
+      }
+      return;
+    }
     const option = e.target.closest('[data-option]');
     if (!option && !e.target.closest('[data-continue]')) return;
     if (option) pulse(option);

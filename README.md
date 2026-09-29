@@ -12,6 +12,17 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 
   Outros formatos (`.zip`, `.exe`, `.doc` antigo etc.) também podem ser guardados e baixados. Nesses casos a Active AI vê só o título, a descrição e as tags.
 - **Vídeos e áudios (treinamentos com clientes, reuniões)**: são **transcritos automaticamente** no próprio servidor, em segundo plano. A transcrição vira o conteúdo do item, com marcações de tempo (`[00:12:34] …`). Assim, ela entra na pesquisa, e a Active AI a lê pelo MCP para resumir o treinamento, explicar trechos e dizer em que momento cada assunto aparece. Na tela do vídeo, clicar no horário leva o player até o trecho. Também é possível enviar uma transcrição pronta (`.vtt`/`.srt` do Teams, Meet ou Zoom, `.txt` ou `.docx`), que substitui a automática.
+- **Vídeos do YouTube**: cole o link em *Enviar arquivos*. O vídeo toca dentro da plataforma, e a transcrição vem das legendas do próprio YouTube, então a Active AI conversa sobre ele como sobre qualquer outro vídeo. Se o vídeo não tiver legendas, cole a transcrição copiada do YouTube (*Mostrar transcrição*).
+- **Resumo e capítulos dos vídeos**: quando a transcrição termina, a Active AI cria um resumo e um índice de capítulos, por exemplo "0:40 Cadastro do cliente · 1:15 Transmissão para a SEFAZ". Clicar no capítulo leva o vídeo até o ponto.
+- **Relatório da base** (menu *Relatório*):
+  - **Lacunas**: buscas sem resultado, perguntas que a Active AI não soube responder, respostas avaliadas com 👎 e avisos do próprio agente (ferramenta MCP `registrar_lacuna`). As perguntas iguais são agrupadas, das mais frequentes para as menos. **Escrever documento** abre o editor já no modelo, e ao publicar a lacuna sai da lista.
+  - **Para revisar**: documentos que passaram do prazo de revisão.
+  - **Avaliações**: documentos com 👎 e os comentários, e as respostas da Active AI que não ajudaram.
+- **"Isso ajudou? 👍 👎"** no fim de cada documento e em cada resposta da Active AI (chat e busca). No 👎, a pessoa pode dizer o que faltou.
+- **Histórico de versões**: cada edição de um texto guarda a versão anterior. Em *Histórico*, dá para ver qualquer versão e restaurá-la; a versão atual também fica guardada.
+- **Data de revisão**: cada documento pode ter um prazo de revisão (padrão de 6 meses para textos novos). Passado esse prazo sem atualização, o documento mostra um aviso com *Continua válido* e *Atualizar*, e a Active AI avisa quem pergunta que o conteúdo pode estar desatualizado.
+- **Modelos de texto**: *Problema → Causa → Solução*, *Passo a passo* e *Comunicado*, escolhidos ao escrever um texto novo.
+- **Salvar resposta como documento**: em qualquer resposta da Active AI, o botão abre o editor com a pergunta e a resposta já no modelo *Problema → Causa → Solução*, para revisar e publicar.
 - **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
 - **Organização**: categorias com ícone, tags e descrição curta.
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
@@ -62,6 +73,9 @@ Configurações do `.env`:
 | `TRANSCRIPTION_MODEL` | Modelo do Whisper (padrão `Xenova/whisper-small`). `Xenova/whisper-base` é mais rápido e menos preciso; `Xenova/whisper-medium` é mais preciso e mais lento. |
 | `TRANSCRIPTION_DTYPE` | Precisão do modelo (padrão `q8`, mais leve). |
 | `FFMPEG_PATH` | Opcional: caminho de um ffmpeg já instalado (por padrão usa o que vem com o `npm ci`). |
+| `CHAPTERS` | `auto` (padrão) pede à Active AI o resumo e os capítulos de cada vídeo transcrito; `off` desliga. |
+| `YTDLP_PATH` | Opcional: caminho do [yt-dlp](https://github.com/yt-dlp/yt-dlp). Com ele instalado, vídeos do YouTube sem legendas têm o áudio baixado e transcrito pelo Whisper. |
+| `REVIEW_MONTHS_DEFAULT` | Prazo de revisão padrão dos textos novos, em meses (padrão `6`; `0` desliga). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
 
@@ -81,14 +95,15 @@ O botão **Continuar a conversa** leva a resposta da busca para o chat e mantém
 
 A plataforma expõe um servidor **MCP** em dois formatos. O principal é o *Streamable HTTP*, em `https://SEU_ENDERECO/mcp`. Para clientes mais antigos, há também o *SSE*, em `https://SEU_ENDERECO/mcp/sse`. Para ativar, defina `INTEGRATION_TOKEN` no `.env`. A autenticação é pelo header `Authorization: Bearer <INTEGRATION_TOKEN>`. Para clientes que não enviam headers, também dá para usar `https://SEU_ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
 
-Ferramentas disponíveis, todas somente leitura:
+Ferramentas disponíveis:
 
 | Ferramenta | O que faz |
 | --- | --- |
-| `buscar_documentos` | Pesquisa em texto completo; devolve id, título, categoria, trecho e link |
-| `ler_documento` | Lê o conteúdo completo de um documento (em partes de 30 mil caracteres) |
+| `buscar_documentos` | Pesquisa em texto completo; devolve id, título, categoria, trecho, link e um aviso quando a revisão do documento venceu |
+| `ler_documento` | Lê o conteúdo completo de um documento (em partes de 30 mil caracteres). Em vídeos, traz a transcrição, o resumo, os capítulos e o link do YouTube |
 | `listar_documentos` | Lista os documentos mais recentes, opcionalmente de uma categoria |
 | `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
+| `registrar_lacuna` | O agente avisa que a base não tem a resposta de uma pergunta; ela entra no relatório de lacunas |
 
 ### Testar o MCP antes de hospedar (Codespace)
 
@@ -113,7 +128,7 @@ O `/mcp` e o `/api/integracao` exigem o token, mesmo com a porta pública. O usu
    - **Autenticação:** header `Authorization: Bearer <INTEGRATION_TOKEN>`. Se não houver campo de header, coloque `?token=<INTEGRATION_TOKEN>` no fim da URL.
 3. Nas instruções do agente, acrescente algo como:
 
-   > Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento por id (ex.: "Documento aberto na tela: #12"), leia-o com `ler_documento`. Cite os documentos usados como [Título](#/item/ID).
+   > Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento por id (ex.: "Documento aberto na tela: #12"), leia-o com `ler_documento`. Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado.
 
 Formas de conectar:
 - **GPTMaker:** integração MCP nativa (passos acima). A alternativa é a API REST (`/api/integracao/*`) numa intenção ou webhook.
@@ -179,7 +194,16 @@ Como funciona:
 - A transcrição roda **no próprio servidor**, com o [Whisper](https://github.com/openai/whisper) via `@huggingface/transformers` e o ffmpeg que vem com o `npm ci`. O áudio não é enviado para fora e não há custo por minuto.
 - Na **primeira transcrição**, o modelo é baixado (~250 MB no `whisper-small`) e fica em cache.
 - A transcrição leva mais ou menos o tempo do vídeo em um servidor comum (varia com a CPU). Um treinamento de 1 hora leva perto de 1 hora.
-- Se o Teams, Meet ou Zoom já gerou a transcrição da reunião, envie o `.vtt` em **Enviar transcrição**, na tela do vídeo. É instantâneo e mantém o nome de quem fala.
+- Se o Teams, Meet ou Zoom já gerou a transcrição da reunião, envie o `.vtt` em **Enviar**, na tela do vídeo. É instantâneo e mantém o nome de quem fala. Também dá para **Colar** o texto.
+- Com a transcrição pronta, a plataforma pede à Active AI (pelo mesmo webhook do n8n) um **resumo e os capítulos** do vídeo. Transcrições curtas vão na própria mensagem; nas longas, o agente lê a transcrição pelo MCP (`ler_documento`), então **o MCP precisa estar conectado no GPTMaker**. Se algo falhar, a tela do vídeo mostra o erro e o botão *Tentar de novo*.
+
+### Vídeos do YouTube
+
+1. Em **Enviar arquivos**, cole o link do vídeo em *Vídeo do YouTube* e clique em **Adicionar vídeo**. Categoria, tags e descrição preenchidas abaixo também valem para o vídeo.
+2. A plataforma busca as legendas do vídeo (as feitas por pessoas têm preferência; se não houver, usa as automáticas do YouTube). Leva alguns segundos.
+3. Se o vídeo não tiver legendas, abra o vídeo no YouTube, clique em *…mais* na descrição → **Mostrar transcrição**, copie o texto e cole em **Colar**, na tela do vídeo. Os horários são mantidos.
+
+O vídeo precisa permitir incorporação (a maioria permite; vídeos "não listados" também funcionam).
 
 ## Cores (identidade visual da Active AI)
 
@@ -194,6 +218,10 @@ server/
   extract.js  Extração de texto dos arquivos
   n8n.js      Active AI via webhook do n8n (conversa livre e respostas da busca)
   mcp.js      Servidor MCP da base (ferramentas para o agente)
+  transcribe.js  Transcrição de vídeos e áudios (Whisper local + ffmpeg)
+  youtube.js  Vídeos do YouTube: link, título e legendas
+  chapters.js Resumo e capítulos dos vídeos gerados pela Active AI
+  gaps.js     Identifica respostas em que a Active AI não encontrou a informação
   ai.js       Alternativa: Active AI pela API da Anthropic
 n8n/          Fluxo de exemplo para importar no n8n
 public/
@@ -207,4 +235,4 @@ test/         Testes automatizados (npm test)
 npm test
 ```
 
-Os testes cobrem a API, a pesquisa, o upload e a extração. Também cobrem o ciclo de ferramentas da Active AI, usando um servidor que imita a API da Anthropic, então não é preciso ter uma chave.
+Os testes cobrem a API, a pesquisa, o upload e a extração, as transcrições, o YouTube (simulado), as lacunas, as avaliações, o histórico de versões e as revisões. Também cobrem o ciclo de ferramentas da Active AI, usando um servidor que imita a API da Anthropic, então não é preciso ter uma chave.

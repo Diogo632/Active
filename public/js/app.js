@@ -4,7 +4,7 @@ import { pageEnter, setupRipples, popIn } from './motion.js';
 import { chat, mountChat } from './chat.js';
 import { esc, icon, hydrateIcons, toast } from './util.js';
 import {
-  shared, homeView, docsView, itemView, editorView, uploadView, categoriesView, iaView,
+  shared, homeView, docsView, itemView, editorView, uploadView, categoriesView, iaView, reportView,
 } from './views.js';
 
 const routes = [
@@ -16,6 +16,7 @@ const routes = [
   { pattern: /^\/upload$/, view: uploadView },
   { pattern: /^\/categories$/, view: categoriesView },
   { pattern: /^\/ia$/, view: iaView, nav: 'ia' },
+  { pattern: /^\/relatorio$/, view: reportView, nav: 'report' },
 ];
 
 const viewEl = document.getElementById('view');
@@ -159,6 +160,21 @@ themeBtn.addEventListener('click', () => {
   });
 });
 
+// ---------- Contador do relatório (lacunas abertas + documentos para revisar) ----------
+async function refreshReportBadge(stats) {
+  try {
+    const s = stats || (await api.stats());
+    const badge = document.getElementById('nav-report-count');
+    const n = (s.gaps_open || 0) + (s.review_due || 0);
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.hidden = !n;
+    badge.title = `${s.gaps_open || 0} lacuna(s) aberta(s) · ${s.review_due || 0} documento(s) para revisar`;
+  } catch {
+    /* contador é só informativo */
+  }
+}
+document.addEventListener('report-changed', () => refreshReportBadge());
+
 // ---------- Inicialização ----------
 async function init() {
   hydrateIcons(document);
@@ -170,6 +186,9 @@ async function init() {
     chat.setConfigured(stats.ai.configured);
     shared.aiConfigured = stats.ai.configured;
     shared.transcriptionEnabled = stats.transcription?.enabled !== false;
+    shared.chaptersEnabled = stats.chapters?.enabled !== false;
+    shared.reviewMonthsDefault = stats.review_months_default ?? 6;
+    refreshReportBadge(stats);
   } catch (err) {
     toast(`Falha ao conectar ao servidor: ${err.message}`, 'error');
   }

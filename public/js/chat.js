@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { esc, icon, renderMarkdown, storage, hydrateIcons } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { messageIn, revealProse, popIn, pulse } from './motion.js';
+import { answerActionsHtml, voteAnswer, saveAnswerAsDocument } from './feedback.js';
 
 const STORAGE_KEY = 'kb-ia-conversation';
 const SESSION_KEY = 'kb-ia-session';
@@ -47,7 +48,7 @@ function persist() {
   storage.set(SESSION_KEY, state.sessionId);
   storage.set(
     STORAGE_KEY,
-    state.messages.slice(-40).map(({ role, content, sources, options }) => ({ role, content, sources, options })),
+    state.messages.slice(-40).map(({ role, content, sources, options, vote }) => ({ role, content, sources, options, vote })),
   );
 }
 
@@ -161,7 +162,13 @@ function renderOptions(options, disabled) {
     .join('')}</div>`;
 }
 
-function renderMessage(msg, isLast) {
+/** Pergunta que originou a resposta de índice `index` (a mensagem do usuário anterior). */
+function questionFor(index) {
+  for (let i = index - 1; i >= 0; i--) if (state.messages[i].role === 'user') return state.messages[i].content;
+  return '';
+}
+
+function renderMessage(msg, isLast, index) {
   if (msg.role === 'user') {
     return `<div class="msg msg-user"><div class="bubble">${esc(msg.content)}</div></div>`;
   }
@@ -181,12 +188,13 @@ function renderMessage(msg, isLast) {
         .map((s) => `<a href="#/item/${s.id}" title="${esc(s.title)}">${icon(s.kind === 'article' ? 'article' : 'file')}<span>${esc(s.title)}</span></a>`)
         .join('')}</div>`
     : '';
+  const actions = !msg.pending && msg.content && !msg.error ? answerActionsHtml({ vote: msg.vote }) : '';
   return `
-    <div class="msg msg-ai">
+    <div class="msg msg-ai" data-index="${index}">
       <div class="ia-avatar">AI</div>
       <div class="bubble">${status}${body}${error}${
         msg.options?.length && isLast && !msg.pending ? renderOptions(msg.options, state.streaming) : ''
-      }${sources}</div>
+      }${sources}${actions}</div>
     </div>`;
 }
 
@@ -291,7 +299,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
           <div class="suggestions">${suggestions.map((s) => `<button type="button" data-suggestion="${esc(s)}">${esc(s)}</button>`).join('')}</div>
         </div>`;
     } else {
-      messagesEl.innerHTML = state.messages.map((m, i) => renderMessage(m, i === state.messages.length - 1)).join('');
+      messagesEl.innerHTML = state.messages.map((m, i) => renderMessage(m, i === state.messages.length - 1, i)).join('');
     }
     animate();
 
@@ -318,7 +326,27 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
     }
   });
 
-  container.addEventListener('click', (e) => {
+  container.addEventListener('click', async (e) => {
+    const answerAction = e.target.closest('[data-vote], [data-save-doc]');
+    if (answerAction) {
+      const index = Number(answerAction.closest('[data-index]')?.dataset.index);
+      const msg = state.messages[index];
+      if (!msg) return;
+      const question = questionFor(index);
+      if (answerAction.dataset.saveDoc !== undefined) {
+        if (variant === 'drawer') onClose?.();
+        saveAnswerAsDocument({ question, answer: msg.content });
+      } else if (!msg.vote) {
+        pulse(answerAction);
+        const vote = answerAction.dataset.vote;
+        if (await voteAnswer({ question, answer: msg.content, helpful: vote === 'up' })) {
+          msg.vote = vote;
+          persist();
+          notify();
+        }
+      }
+      return;
+    }
     const target = e.target.closest('[data-action], [data-suggestion], [data-option], a[href^="#/"]');
     if (!target) return;
     if (target.dataset.option !== undefined) {

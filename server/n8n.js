@@ -102,7 +102,7 @@ export function buildPrompt({ question, documents, contextItem, maxChars = DEFAU
   const header = [
     '[Consulta feita pela Base de Conhecimento do Suporte]',
     'Para ler o conteúdo completo de um documento, use a ferramenta ler_documento (MCP da Base de Conhecimento) com o id indicado; para procurar outros, use buscar_documentos.',
-    'Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta, use seu conhecimento e deixe isso claro.',
+    'Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta, use seu conhecimento, deixe isso claro e chame registrar_lacuna.',
     contextItem ? `Documento aberto na tela: #${contextItem.id} “${contextItem.title}” — é a ele que “este documento” se refere.` : '',
   ]
     .filter(Boolean)
@@ -112,7 +112,7 @@ export function buildPrompt({ question, documents, contextItem, maxChars = DEFAU
   let budget = maxChars - header.length - tail.length - 40;
   const lines = [];
   for (const d of documents) {
-    const meta = `- #${d.id} [${d.titulo}](${d.link}) · ${d.categoria}${d.parcial ? ` · ${d.total_caracteres} caracteres (leia com ler_documento)` : ''}`;
+    const meta = `- #${d.id} [${d.titulo}](${d.link}) · ${d.categoria}${d.revisao_vencida ? ' · REVISÃO VENCIDA (pode estar desatualizado; avise o usuário)' : ''}${d.parcial ? ` · ${d.total_caracteres} caracteres (leia com ler_documento)` : ''}`;
     if (budget < meta.length + 1) break;
     budget -= meta.length + 1;
     let line = meta;
@@ -150,7 +150,8 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       return {
         id: item.id,
         titulo: item.title,
-        tipo: item.kind === 'article' ? 'texto' : `arquivo ${item.file_name || ''}`.trim(),
+        tipo: item.kind === 'article' ? 'texto' : item.kind === 'youtube' ? 'vídeo do YouTube' : `arquivo ${item.file_name || ''}`.trim(),
+        revisao_vencida: item.review_overdue,
         categoria: item.category_name || 'Sem categoria',
         tags: item.tags,
         resumo: item.summary || '',

@@ -63,13 +63,44 @@ export function parseSubtitles(raw) {
   return chunks;
 }
 
-/** Converte uma transcrição enviada pelo usuário (.vtt, .srt ou texto) para o formato da plataforma. */
+/**
+ * Lê texto com marcações de tempo, como a transcrição copiada do YouTube ("Mostrar transcrição"):
+ * "0:05" numa linha e o texto na seguinte, ou "0:05 texto" / "[00:00:05] texto" na mesma linha.
+ */
+export function parseTimestampedText(raw) {
+  const toSeconds = (t) => t.split(':').map(Number).reduce((acc, n) => acc * 60 + n, 0);
+  const chunks = [];
+  let current = null;
+  for (const line of String(raw || '').replace(/\r/g, '').split('\n')) {
+    const text = line.trim();
+    if (!text) continue;
+    const alone = text.match(/^[[(]?((?:\d{1,2}:)?\d{1,2}:\d{2})[\])]?$/);
+    const inline = text.match(/^[[(]?((?:\d{1,2}:)?\d{1,2}:\d{2})[\])]?\s*[-–—:]?\s+(.+)$/);
+    if (alone) {
+      current = { start: toSeconds(alone[1]), text: '' };
+      chunks.push(current);
+    } else if (inline) {
+      current = { start: toSeconds(inline[1]), text: inline[2] };
+      chunks.push(current);
+    } else if (current) {
+      current.text += ` ${text}`;
+    } else {
+      return [];
+    }
+  }
+  const valid = chunks.filter((c) => c.text.trim());
+  return valid.length >= 2 ? valid : [];
+}
+
+/** Converte uma transcrição enviada pelo usuário (.vtt, .srt, texto do YouTube ou texto livre) para o formato da plataforma. */
 export function normalizeTranscript(raw, fileName = '') {
   const ext = path.extname(fileName).toLowerCase();
   if (ext === '.vtt' || ext === '.srt' || /-->/.test(raw)) {
     const chunks = parseSubtitles(raw);
     if (chunks.length) return formatTranscript(chunks);
   }
+  const timed = parseTimestampedText(raw);
+  if (timed.length) return formatTranscript(timed);
   return String(raw || '').replace(/\r\n/g, '\n').trim();
 }
 
@@ -143,37 +174,83 @@ export function createWhisperEngine({ model, dtype, language = 'portuguese' }) {
   };
 }
 
+const YOUTUBE_NO_CAPTIONS =
+  'Este vídeo não tem legendas disponíveis no YouTube. Envie a transcrição: no YouTube, abra “Mostrar transcrição” (abaixo da descrição), copie o texto e cole em “Colar transcrição”.';
+
 /**
  * Fila de transcrição: processa um vídeo/áudio por vez, em segundo plano, em partes de 5 minutos,
  * atualizando o progresso no banco. A transcrição vira o conteúdo pesquisável do item.
+ * Vídeos do YouTube usam as legendas do próprio YouTube; sem legendas, o áudio é baixado com o yt-dlp
+ * (se instalado) e transcrito pelo Whisper.
+ * `onDone(id)` é chamado quando uma transcrição termina (usado para gerar os capítulos).
  */
-export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = true }) {
+export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = true, youtube = null, onDone = () => {} }) {
   const queue = [];
   let running = false;
 
+  /** Transcreve um arquivo de áudio/vídeo local com o motor (Whisper), em partes. */
+  async function transcribeFile(id, file, label) {
+    const duration = await probeDuration(file);
+    repo.setMedia(id, { duration });
+    console.log(`[transcrição] Iniciando ${label} (${formatTime(duration)})`);
+    const chunks = [];
+    for (let start = 0; start < duration; start += SEGMENT_SECONDS) {
+      const length = Math.min(SEGMENT_SECONDS, duration - start);
+      const samples = await readAudioSegment(file, start, length);
+      if (samples.length) {
+        for (const c of await engine(samples)) chunks.push({ ...c, start: c.start + start, end: c.end + start });
+      }
+      const progress = Math.min(99, ((start + length) / duration) * 100);
+      repo.setMedia(id, { progress });
+      console.log(`[transcrição] ${label}: ${Math.round(progress)}%`);
+    }
+    return formatTranscript(chunks);
+  }
+
+  async function processYouTube(item, label) {
+    const videoId = item.source_url?.match(/[?&]v=([\w-]{11})/)?.[1];
+    if (!videoId || !youtube) throw new Error('Link do YouTube inválido.');
+    console.log(`[transcrição] Buscando as legendas do YouTube de ${label}`);
+    const { chunks, duration } = await youtube.transcript(videoId).catch((err) => {
+      console.error(`[transcrição] Falha ao ler as legendas de ${label}:`, err.message);
+      return { chunks: [], duration: null };
+    });
+    if (duration) repo.setMedia(item.id, { duration });
+    if (chunks.length) {
+      repo.setTranscript(item.id, formatTranscript(chunks), 'legendas');
+      console.log(`[transcrição] Legendas do YouTube salvas para ${label}`);
+      return true;
+    }
+    // Sem legendas: tenta baixar o áudio (yt-dlp) e transcrever com o Whisper.
+    if (!enabled) throw new Error(YOUTUBE_NO_CAPTIONS);
+    const audio = await youtube.downloadAudio?.(videoId);
+    if (!audio) throw new Error(YOUTUBE_NO_CAPTIONS);
+    try {
+      repo.setTranscript(item.id, await transcribeFile(item.id, audio.file, label), 'concluida');
+      return true;
+    } finally {
+      await audio.cleanup();
+    }
+  }
+
   async function processItem(id) {
     const item = repo.getItem(id, { full: true });
-    if (!item || item.kind !== 'file') return;
-    const file = path.join(uploadsDir, item.stored_name);
+    if (!item || (item.kind !== 'file' && item.kind !== 'youtube')) return;
     const label = `#${id} "${item.title}"`;
     try {
       repo.setMedia(id, { status: 'processando', progress: 0, error: null });
-      const duration = await probeDuration(file);
-      repo.setMedia(id, { duration });
-      console.log(`[transcrição] Iniciando ${label} (${formatTime(duration)})`);
-      const chunks = [];
-      for (let start = 0; start < duration; start += SEGMENT_SECONDS) {
-        const length = Math.min(SEGMENT_SECONDS, duration - start);
-        const samples = await readAudioSegment(file, start, length);
-        if (samples.length) {
-          for (const c of await engine(samples)) chunks.push({ ...c, start: c.start + start, end: c.end + start });
-        }
-        const progress = Math.min(99, ((start + length) / duration) * 100);
-        repo.setMedia(id, { progress });
-        console.log(`[transcrição] ${label}: ${Math.round(progress)}%`);
+      if (item.kind === 'youtube') {
+        await processYouTube(item, label);
+      } else {
+        const text = await transcribeFile(id, path.join(uploadsDir, item.stored_name), label);
+        repo.setTranscript(id, text, 'concluida');
       }
-      repo.setTranscript(id, formatTranscript(chunks), 'concluida');
       console.log(`[transcrição] Concluída ${label}`);
+      try {
+        onDone(id);
+      } catch (err) {
+        console.error('[transcrição] Erro após concluir:', err.message);
+      }
     } catch (err) {
       console.error(`[transcrição] Erro em ${label}:`, err.message);
       const missing = /Cannot find (package|module).*transformers|ERR_MODULE_NOT_FOUND/.test(err.message + err.code);
@@ -196,7 +273,9 @@ export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = t
   return {
     enabled,
     enqueue(id) {
-      if (!enabled) {
+      // Vídeos do YouTube com legendas não dependem do motor de transcrição.
+      const isYouTube = repo.getItem(id)?.kind === 'youtube';
+      if (!enabled && !isYouTube) {
         repo.setMedia(id, { status: 'indisponivel', progress: 0 });
         return;
       }
@@ -206,8 +285,10 @@ export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = t
     },
     /** Retoma transcrições interrompidas (por exemplo, se o servidor reiniciou no meio). */
     resume() {
-      if (!enabled) return;
-      for (const id of repo.pendingTranscriptions()) if (!queue.includes(id)) queue.push(id);
+      for (const id of repo.pendingTranscriptions()) {
+        if (!enabled && repo.getItem(id)?.kind !== 'youtube') continue;
+        if (!queue.includes(id)) queue.push(id);
+      }
       work();
     },
     idle: () => !running && !queue.length,

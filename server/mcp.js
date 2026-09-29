@@ -3,6 +3,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { isMediaFile, formatTime } from './transcribe.js';
+import { TRANSCRIPT_READY } from './db.js';
 
 const READ_CHUNK_CHARS = 30_000;
 
@@ -20,7 +21,19 @@ function ensureHeader(req, name, isOk, value) {
  * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
  */
 export function createMcpHandler({ repo, publicUrl = '' }) {
-  const kindOf = (i) => (i.kind === 'article' ? 'texto' : isMediaFile(i.file_name, i.mime_type) ? 'vídeo/áudio (transcrição)' : 'arquivo');
+  const kindOf = (i) =>
+    i.kind === 'article'
+      ? 'texto'
+      : i.kind === 'youtube'
+        ? 'vídeo do YouTube (transcrição)'
+        : isMediaFile(i.file_name, i.mime_type)
+          ? 'vídeo/áudio (transcrição)'
+          : 'arquivo';
+  // Aviso para o agente não repassar um procedimento possivelmente desatualizado sem ressalva.
+  const reviewWarning = (i) =>
+    i.review_overdue
+      ? `Revisão vencida desde ${i.review_due.split('-').reverse().join('/')}: o conteúdo pode estar desatualizado. Avise o usuário e sugira confirmar com o responsável.`
+      : undefined;
   const link = (id) => `${publicUrl.replace(/\/$/, '')}/#/item/${id}`;
   // Registro no terminal de cada uso das ferramentas, para acompanhar o que o agente consulta.
   const log = (msg) => console.log(`[mcp ${new Date().toLocaleTimeString('pt-BR')}] ${msg}`);
@@ -45,7 +58,11 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       async ({ consulta, limite }) => {
         const results = repo.search(consulta, { limit: limite || 8 });
         log(`buscar_documentos "${consulta}" → ${results.length} resultado(s)${results.length ? `: ${results.slice(0, 3).map((r) => `#${r.id} ${r.title}`).join(' | ')}` : ''}`);
-        if (!results.length) return text(`Nenhum documento encontrado para "${consulta}".`);
+        if (!results.length) {
+          return text(
+            `Nenhum documento encontrado para "${consulta}". Tente sinônimos; se a base realmente não tiver a resposta, chame registrar_lacuna com a pergunta do usuário.`,
+          );
+        }
         return text(
           results.map((r) => ({
             id: r.id,
@@ -55,6 +72,7 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
             tags: r.tags,
             resumo: r.summary || undefined,
             trecho: r.snippet?.replace(/\[\[|\]\]/g, ''),
+            aviso: reviewWarning(r),
             link: link(r.id),
           })),
         );
@@ -91,9 +109,14 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
           resumo: item.summary || undefined,
           arquivo: item.file_name || undefined,
           ...(item.duration ? { duracao: formatTime(item.duration) } : {}),
-          ...(item.media_status && !['concluida', 'manual'].includes(item.media_status)
+          ...(item.media_status && !TRANSCRIPT_READY.includes(item.media_status)
             ? { observacao: `Transcrição ainda não disponível (situação: ${item.media_status}).` }
             : {}),
+          ...(item.kind === 'youtube' ? { video_youtube: item.source_url } : {}),
+          ...(item.ai_summary ? { resumo_do_video: item.ai_summary } : {}),
+          ...(item.chapters?.length ? { capitulos: item.chapters.map((c) => `${formatTime(c.start)} ${c.title}`) } : {}),
+          ...(reviewWarning(item) ? { aviso: reviewWarning(item) } : {}),
+          atualizado_em: item.updated_at,
           link: link(item.id),
           total_caracteres: body.length,
           conteudo: chunk || '(documento sem texto legível)',
@@ -134,6 +157,26 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       async () => {
         log('listar_categorias');
         return text(repo.listCategories().map((c) => ({ id: c.id, nome: c.name, descricao: c.description, documentos: c.item_count })));
+      },
+    );
+
+    server.registerTool(
+      'registrar_lacuna',
+      {
+        title: 'Registrar lacuna na Base de Conhecimento',
+        description:
+          'Registra uma pergunta que a Base de Conhecimento não conseguiu responder, para o time do Suporte escrever o documento que falta. ' +
+          'Use quando buscar_documentos não trouxer nada útil (depois de tentar sinônimos) ou quando o documento encontrado estiver incompleto ou desatualizado. ' +
+          'Não use para conversas casuais nem para perguntas que você respondeu com a base.',
+        inputSchema: {
+          pergunta: z.string().min(3).describe('A pergunta do usuário, com o assunto claro (ex.: "Como cancelar um CT-e já autorizado?")'),
+          detalhe: z.string().optional().describe('O que foi procurado e por que não serviu (opcional)'),
+        },
+      },
+      async ({ pergunta, detalhe }) => {
+        const id = repo.addGap({ source: 'agente', query: pergunta, detail: detalhe || '' });
+        log(`registrar_lacuna "${pergunta}"${id ? '' : ' (ignorada: vazia)'}`);
+        return text(id ? 'Lacuna registrada. O time do Suporte vai ver essa pergunta no relatório de lacunas.' : 'Pergunta vazia; nada registrado.');
       },
     );
 

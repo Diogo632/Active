@@ -11,6 +11,9 @@ import { createActiveIA } from './ai.js';
 import { createN8nActiveIA } from './n8n.js';
 import { createMcpHandler } from './mcp.js';
 import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTranscript } from './transcribe.js';
+import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
+import { createChaptersQueue } from './chapters.js';
+import { looksUnanswered } from './gaps.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -21,6 +24,9 @@ export function createApp({
   model = process.env.ACTIVE_IA_MODEL || 'claude-opus-5',
   ai: aiOverride,
   transcriptionEngine,
+  youtubeClient,
+  // Período padrão de revisão dos textos novos, em meses (0 desliga).
+  reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
 } = {}) {
   const uploadsDir = path.join(dataDir, 'uploads');
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -32,15 +38,22 @@ export function createApp({
   // Transcrição de vídeos/áudios (Whisper local por padrão; TRANSCRIPTION=off desliga).
   const transcriptionEnabled = (process.env.TRANSCRIPTION || 'local').toLowerCase() !== 'off';
   const transcriptionModel = process.env.TRANSCRIPTION_MODEL || 'Xenova/whisper-small';
+  const youtube = youtubeClient || createYouTubeClient();
+  // Resumo e capítulos dos vídeos, gerados pela Active AI depois da transcrição (CHAPTERS=off desliga).
+  const chapters = createChaptersQueue({ repo, ai, enabled: (process.env.CHAPTERS || 'auto').toLowerCase() !== 'off' });
   const transcription = createTranscriptionQueue({
     repo,
     uploadsDir,
+    youtube,
+    onDone: (id) => chapters.enqueue(id),
     enabled: transcriptionEnabled,
     engine:
       transcriptionEngine ||
       createWhisperEngine({ model: transcriptionModel, dtype: process.env.TRANSCRIPTION_DTYPE || 'q8' }),
   });
   transcription.resume();
+  // Retoma capítulos que ficaram pela metade (servidor reiniciado).
+  for (const { id } of db.prepare("SELECT id FROM items WHERE chapters_status IN ('pendente', 'gerando')").all()) chapters.enqueue(id);
 
   const app = express();
   app.disable('x-powered-by');
@@ -191,6 +204,8 @@ export function createApp({
   // ---------- Itens ----------
   app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, provider: ai.provider, model: ai.model },
     transcription: { enabled: transcriptionEnabled, model: transcriptionModel },
+    chapters: { enabled: chapters.available },
+    review_months_default: reviewMonthsDefault,
   }));
 
   app.get('/api/tags', (req, res) => res.json(repo.allTags()));
@@ -198,7 +213,7 @@ export function createApp({
   app.get('/api/items', (req, res) => {
     const q = String(req.query.q || '').trim();
     const categoryId = req.query.category === 'none' ? 'none' : parseId(req.query.category) || undefined;
-    const kind = ['article', 'file'].includes(req.query.kind) ? req.query.kind : undefined;
+    const kind = ['article', 'file', 'youtube'].includes(req.query.kind) ? req.query.kind : undefined;
     const tag = String(req.query.tag || '').trim().toLowerCase();
     const limit = Math.min(parseId(req.query.limit) || 50, 200);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -206,8 +221,11 @@ export function createApp({
 
     if (q) {
       const items = repo.search(q, { categoryId, kind, limit });
+      // Busca feita pela pessoa (não a busca rápida enquanto digita) sem resultado vira lacuna.
+      if (!items.length && req.query.registrar !== undefined) repo.addGap({ source: 'busca', query: q });
       return res.json({ items, total: items.length, query: q });
     }
+    if (req.query.revisar !== undefined) return res.json(repo.listItems({ categoryId, kind, limit, offset, reviewDue: true }));
     if (tag) {
       const { items } = repo.listItems({ categoryId, kind, limit: 10000 });
       const tagged = items.filter((i) => i.tags.some((t) => t.toLowerCase() === tag));
@@ -227,6 +245,8 @@ export function createApp({
     // ?full devolve o texto inteiro (usado pela transcrição de vídeos, que pode passar do limite da prévia).
     if (req.query.full !== undefined) rest.text_full = rest.text;
     delete rest.text;
+    rest.feedback = repo.feedbackFor(item.id);
+    rest.versions_count = item.kind === 'article' ? repo.listVersions(item.id).length : 0;
     res.json(rest);
   });
 
@@ -241,8 +261,39 @@ export function createApp({
       tags: req.body.tags,
       category_id: parseCategory(req.body.category_id),
       author: String(req.body.author || ''),
+      review_months: req.body.review_months === undefined ? reviewMonthsDefault : Number(req.body.review_months) || null,
     });
     res.status(201).json(item);
+  });
+
+  // Vídeo do YouTube: fica na base com o player incorporado; a transcrição vem das legendas do vídeo.
+  app.post('/api/youtube', async (req, res) => {
+    const videoId = parseYouTubeId(req.body.url);
+    if (!videoId) throw httpError(400, 'Cole um link válido do YouTube (ex.: https://www.youtube.com/watch?v=…).');
+    const url = watchUrl(videoId);
+    const existing = repo.findBySourceUrl(url);
+    if (existing) throw Object.assign(httpError(409, `Este vídeo já está na base: “${existing.title}”.`), { item: existing });
+    const categoryId = parseCategory(req.body.category_id);
+    let info = { title: '', channel: '' };
+    try {
+      info = await youtube.info(videoId);
+    } catch (err) {
+      if (err.status) throw err;
+      console.error('[youtube] Não foi possível ler o título:', err.message);
+    }
+    const item = repo.createItem({
+      kind: 'youtube',
+      title: String(req.body.title || '').trim() || info.title || `Vídeo do YouTube ${videoId}`,
+      summary: String(req.body.summary || ''),
+      tags: req.body.tags,
+      category_id: categoryId,
+      author: String(req.body.author || '') || info.channel,
+      source_url: url,
+      extract_status: 'media',
+      review_months: Number(req.body.review_months) || null,
+    });
+    transcription.enqueue(item.id);
+    res.status(201).json(repo.getItem(item.id));
   });
 
   app.post('/api/files', upload.array('files'), async (req, res) => {
@@ -287,6 +338,64 @@ export function createApp({
     res.json(item);
   });
 
+  // ---------- Histórico de versões dos textos ----------
+  app.get('/api/items/:id/versions', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item) throw httpError(404, 'Documento não encontrado.');
+    res.json(repo.listVersions(item.id));
+  });
+
+  app.get('/api/items/:id/versions/:versionId', (req, res) => {
+    const version = repo.getVersion(parseId(req.params.id), parseId(req.params.versionId));
+    if (!version) throw httpError(404, 'Versão não encontrada.');
+    res.json(version);
+  });
+
+  app.post('/api/items/:id/versions/:versionId/restore', (req, res) => {
+    const item = repo.restoreVersion(parseId(req.params.id), parseId(req.params.versionId), req.body?.author);
+    if (!item) throw httpError(404, 'Versão não encontrada.');
+    res.json(item);
+  });
+
+  // ---------- Revisão ----------
+  app.post('/api/items/:id/reviewed', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item) throw httpError(404, 'Documento não encontrado.');
+    res.json(repo.markReviewed(item.id));
+  });
+
+  // ---------- Avaliações ("Isso ajudou?") ----------
+  app.post('/api/feedback', (req, res) => {
+    const target = req.body.target === 'resposta' ? 'resposta' : 'documento';
+    const helpful = Boolean(req.body.helpful);
+    const itemId = target === 'documento' ? parseId(req.body.item_id) : null;
+    if (target === 'documento' && !(itemId && repo.getItem(itemId))) throw httpError(404, 'Documento não encontrado.');
+    const question = String(req.body.question || '').trim();
+    const comment = String(req.body.comment || '').trim();
+    const id = repo.addFeedback({ target, item_id: itemId, helpful, comment, question, answer: String(req.body.answer || '') });
+    // Resposta da Active AI marcada como "não ajudou" vira lacuna: falta conteúdo na base para essa pergunta.
+    if (target === 'resposta' && !helpful && question) repo.addGap({ source: 'avaliacao', query: question, detail: comment });
+    res.status(201).json({ id });
+  });
+
+  // ---------- Relatório: lacunas, revisões e avaliações ----------
+  app.get('/api/relatorio', (req, res) => {
+    res.json({
+      gaps: repo.listGaps({ resolved: req.query.resolvidas !== undefined }),
+      review: repo.listItems({ reviewDue: true, limit: 200 }).items,
+      feedback: repo.feedbackReport(),
+    });
+  });
+
+  app.post('/api/lacunas/resolver', (req, res) => {
+    const changes = repo.resolveGap(String(req.body.pergunta || ''), parseId(req.body.item_id));
+    res.json({ resolvidas: changes });
+  });
+
+  app.post('/api/lacunas/reabrir', (req, res) => {
+    res.json({ reabertas: repo.reopenGap(String(req.body.pergunta || '')) });
+  });
+
   // Substitui o arquivo de um documento (nova versão), mantendo título, categoria e tags.
   app.put('/api/items/:id/file', upload.single('file'), async (req, res) => {
     const id = parseId(req.params.id);
@@ -315,8 +424,9 @@ export function createApp({
   // Transcreve (de novo) um vídeo/áudio.
   app.post('/api/items/:id/transcribe', (req, res) => {
     const item = repo.getItem(parseId(req.params.id));
-    if (!item || item.kind !== 'file' || !isMediaFile(item.file_name, item.mime_type)) throw httpError(404, 'Vídeo ou áudio não encontrado.');
-    if (!transcriptionEnabled) throw httpError(400, 'A transcrição automática está desligada neste servidor. Envie a transcrição manualmente.');
+    const isVideo = item && (item.kind === 'youtube' || (item.kind === 'file' && isMediaFile(item.file_name, item.mime_type)));
+    if (!isVideo) throw httpError(404, 'Vídeo ou áudio não encontrado.');
+    if (!transcriptionEnabled && item.kind !== 'youtube') throw httpError(400, 'A transcrição automática está desligada neste servidor. Envie a transcrição manualmente.');
     transcription.enqueue(item.id);
     res.json(repo.getItem(item.id));
   });
@@ -324,7 +434,7 @@ export function createApp({
   // Recebe uma transcrição pronta (.vtt/.srt do Teams, Meet, Zoom; .txt; .docx) ou texto no corpo.
   app.put('/api/items/:id/transcript', upload.single('file'), async (req, res) => {
     const item = repo.getItem(parseId(req.params.id));
-    if (!item || item.kind !== 'file') {
+    if (!item || item.kind === 'article') {
       if (req.file) removeStored(req.file.filename);
       throw httpError(404, 'Documento não encontrado.');
     }
@@ -341,6 +451,17 @@ export function createApp({
     const text = normalizeTranscript(raw, name);
     if (!text) throw httpError(400, 'A transcrição está vazia.');
     repo.setTranscript(item.id, text, 'manual');
+    chapters.enqueue(item.id);
+    res.json(repo.getItem(item.id));
+  });
+
+  // Gera (de novo) o resumo e os capítulos de um vídeo com a Active AI.
+  app.post('/api/items/:id/chapters', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id), { full: true });
+    if (!item || item.kind === 'article') throw httpError(404, 'Vídeo não encontrado.');
+    if (!item.text?.trim()) throw httpError(400, 'O vídeo ainda não tem transcrição.');
+    if (!chapters.available) throw httpError(400, 'A Active AI não está configurada neste servidor.');
+    chapters.enqueue(item.id);
     res.json(repo.getItem(item.id));
   });
 
@@ -383,7 +504,9 @@ export function createApp({
       if (!res.writableEnded) controller.abort();
     });
 
+    let replyText = '';
     const emit = (event) => {
+      if (event.type === 'text') replyText += event.text;
       if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
@@ -395,6 +518,11 @@ export function createApp({
       emit,
       signal: controller.signal,
     });
+    // Resposta dizendo que não encontrou a informação: registra a pergunta como lacuna da base.
+    const question = [...(Array.isArray(req.body.messages) ? req.body.messages : [])].reverse().find((m) => m?.role === 'user')?.content;
+    if (question && looksUnanswered(replyText)) {
+      repo.addGap({ source: 'ia', query: String(question), detail: replyText.replace(/\s+/g, ' ').slice(0, 400) });
+    }
     emit({ type: 'done' });
     res.end();
   });
@@ -411,10 +539,10 @@ export function createApp({
     }
     const status = err.status || 500;
     if (status >= 500) console.error(err);
-    res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message });
+    res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message, ...(err.item ? { item: err.item } : {}) });
   });
 
-  return { app, db, repo, ai, transcription };
+  return { app, db, repo, ai, transcription, chapters };
 }
 
 /**

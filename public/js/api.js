@@ -8,7 +8,7 @@ async function request(method, url, body) {
   const res = await fetch(url, options);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Erro ${res.status}`), { status: res.status, data });
   return data;
 }
 
@@ -31,6 +31,19 @@ export const api = {
   item: (id, { view = false, full = false } = {}) =>
     request('GET', `/api/items/${id}${qs({ ...(view && { view: 1 }), ...(full && { full: 1 }) })}`),
   retranscribe: (id) => request('POST', `/api/items/${id}/transcribe`),
+  regenerateChapters: (id) => request('POST', `/api/items/${id}/chapters`),
+  saveTranscriptText: (id, text) => request('PUT', `/api/items/${id}/transcript`, { text }),
+  addYouTube: (data) => request('POST', '/api/youtube', data),
+
+  versions: (id) => request('GET', `/api/items/${id}/versions`),
+  version: (id, versionId) => request('GET', `/api/items/${id}/versions/${versionId}`),
+  restoreVersion: (id, versionId, author) => request('POST', `/api/items/${id}/versions/${versionId}/restore`, { author }),
+  markReviewed: (id) => request('POST', `/api/items/${id}/reviewed`),
+
+  feedback: (data) => request('POST', '/api/feedback', data),
+  report: ({ resolved = false } = {}) => request('GET', `/api/relatorio${resolved ? '?resolvidas' : ''}`),
+  resolveGap: (pergunta, itemId) => request('POST', '/api/lacunas/resolver', { pergunta, item_id: itemId }),
+  reopenGap: (pergunta) => request('POST', '/api/lacunas/reabrir', { pergunta }),
   createArticle: (data) => request('POST', '/api/articles', data),
   updateItem: (id, data) => request('PUT', `/api/items/${id}`, data),
   deleteItem: (id) => request('DELETE', `/api/items/${id}`),

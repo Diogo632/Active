@@ -43,6 +43,15 @@ const ICONS = {
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
   monitor: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
   network: '<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-2h14v2"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/>',
+  thumbsUp: '<path d="M7 10v11H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><path d="M7 10l4-8a2.5 2.5 0 0 1 3 2.5V9h5.2a2 2 0 0 1 2 2.3l-1.3 8A2 2 0 0 1 17.9 21H7"/>',
+  thumbsDown: '<path d="M17 14V3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1z"/><path d="M17 14l-4 8a2.5 2.5 0 0 1-3-2.5V15H4.8a2 2 0 0 1-2-2.3l1.3-8A2 2 0 0 1 6.1 3H17"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  youtube: '<rect x="2" y="5" width="20" height="14" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
 };
 
@@ -106,6 +115,7 @@ export function formatBytes(bytes) {
 
 export function fileIcon(item) {
   if (item.kind === 'article') return 'article';
+  if (item.kind === 'youtube') return 'youtube';
   const mime = item.mime_type || '';
   const name = (item.file_name || '').toLowerCase();
   if (mime.startsWith('image/')) return 'image';
@@ -120,6 +130,7 @@ export function fileIcon(item) {
 
 export function fileTypeLabel(item) {
   if (item.kind === 'article') return 'Texto';
+  if (item.kind === 'youtube') return 'YouTube';
   const ext = (item.file_name || '').split('.').pop();
   return ext && ext !== item.file_name ? ext.toUpperCase() : 'Arquivo';
 }
@@ -160,6 +171,36 @@ export function confirmDialog({ title, message, confirmLabel = 'Confirmar', dang
       dialog.remove();
     });
     dialog.showModal();
+  });
+}
+
+/** Caixa de diálogo com um campo de texto. Resolve com o texto digitado ou null se cancelar. */
+export function promptDialog({ title, message = '', placeholder = '', confirmLabel = 'Enviar', skipLabel = 'Cancelar', multiline = true }) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('dialog');
+    dialog.innerHTML = `
+      <form method="dialog" class="dialog-body form">
+        <h3>${esc(title)}</h3>
+        ${message ? `<p class="muted">${esc(message)}</p>` : ''}
+        ${
+          multiline
+            ? `<textarea class="textarea" name="value" rows="4" placeholder="${esc(placeholder)}"></textarea>`
+            : `<input class="input" name="value" placeholder="${esc(placeholder)}" />`
+        }
+        <div class="form-actions">
+          <button class="btn" value="cancel" formnovalidate>${esc(skipLabel)}</button>
+          <button class="btn btn-primary" value="ok">${esc(confirmLabel)}</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    requestAnimationFrame(() => dialogIn(dialog));
+    const field = dialog.querySelector('[name=value]');
+    dialog.addEventListener('close', () => {
+      resolve(dialog.returnValue === 'ok' ? field.value.trim() : null);
+      dialog.remove();
+    });
+    dialog.showModal();
+    field.focus();
   });
 }
 
