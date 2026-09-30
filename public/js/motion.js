@@ -119,3 +119,24 @@ export function setupRipples(root = document) {
     anim.onfinish = () => dot.remove();
   });
 }
+
+/**
+ * Brilhos do botão da Active AI: de tempos em tempos as estrelinhas giram e piscam de leve,
+ * uma depois da outra. Não anima enquanto o botão está escondido, com o mouse em cima ou a aba em segundo plano.
+ */
+export function twinkle(button, { every = 7000 } = {}) {
+  const sparkle = () => {
+    if (button.hidden || button.matches(':hover') || document.hidden) return;
+    const [big, small, tiny] = button.querySelectorAll('svg path');
+    run(big, [{ transform: 'none' }, { transform: 'rotate(18deg) scale(1.12)' }, { transform: 'none' }], { duration: 900, easing: EASE_SPRING, fill: 'none' });
+    [small, tiny].forEach((el, i) =>
+      run(el, [{ transform: 'none', opacity: 1 }, { transform: 'scale(.3)', opacity: 0.2 }, { transform: 'scale(1.25)', opacity: 1 }, { transform: 'none', opacity: 1 }], {
+        duration: 800,
+        delay: 180 + i * 160,
+        fill: 'none',
+      }),
+    );
+  };
+  setTimeout(sparkle, 1500);
+  return setInterval(sparkle, every);
+}

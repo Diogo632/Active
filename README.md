@@ -39,7 +39,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - **tabelas** com cabeçalho destacado e rolagem e **blocos de código** com a linguagem e o botão **Copiar**, nos textos e nas respostas da Active AI;
   - **menu lateral recolhível** (botão no canto superior esquerdo; recolhe sozinho em telas menores);
   - **Active AI fixável**: o ícone de alfinete deixa o chat aberto ao lado enquanto você usa o resto da plataforma (em telas a partir de 1100 px);
-  - botão **Perguntar à Active AI** flutuando no canto inferior direito.
+  - botão da Active AI no canto inferior direito: um círculo com brilhos que piscam de leve de tempos em tempos e se abre com o texto *Perguntar à Active AI* ao passar o mouse.
 - **Animações** em JavaScript (Web Animations API): entrada das telas em cascata, mensagens do chat, revelação das respostas, botões com onda ao clicar e busca rápida animada. Tudo respeita a opção "reduzir movimento" do sistema.
 - Tema claro/escuro e layout responsivo (funciona no celular).
 

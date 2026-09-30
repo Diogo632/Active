@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { setupPalette } from './palette.js';
-import { pageEnter, setupRipples, popIn } from './motion.js';
+import { pageEnter, setupRipples, popIn, twinkle } from './motion.js';
 import { chat, mountChat } from './chat.js';
 import { esc, icon, hydrateIcons, toast, storage, copyText } from './util.js';
 import {
@@ -151,6 +151,7 @@ function closeDrawer({ keepPinned = false } = {}) {
 }
 
 fab.addEventListener('click', () => openDrawer());
+twinkle(fab);
 document.addEventListener('open-ia', (e) => openDrawer(e.detail?.prompt));
 scrim.addEventListener('click', () => {
   if (drawer.classList.contains('open')) closeDrawer({ keepPinned: true });
