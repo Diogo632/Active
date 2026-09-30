@@ -17,7 +17,9 @@ const DEFAULTS = {
   // mensagem; o conteúdo completo dos documentos o agente lê pelo MCP (ferramenta ler_documento).
   maxPromptChars: 3_500,
   chunkChars: 400,
-  timeoutMs: 120_000,
+  // O agente pode ler vários documentos e anexos pelo MCP antes de responder, o que leva tempo.
+  // (Fica abaixo dos 300 s em que o próprio Node desiste de esperar a resposta.)
+  timeoutMs: 240_000,
   // true: a mensagem enviada ao workflow já leva os documentos da base junto com a pergunta.
   // false: envia só a pergunta (use quando o workflow consulta a base sozinho pela API de integração).
   includeContext: true,
@@ -198,6 +200,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
 
     emit({ type: 'status', label: 'Consultando a Active AI' });
     const timeout = AbortSignal.timeout(cfg.timeoutMs);
+    const started = Date.now();
     try {
       const res = await fetch(webhookUrl, {
         method: 'POST',
@@ -252,13 +255,18 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       }
     } catch (err) {
       if (signal?.aborted) return;
-      console.error('[active-ai/n8n] Erro:', err);
+      const elapsed = Math.round((Date.now() - started) / 1000);
+      // O fetch do Node esconde o motivo real em err.cause (ex.: ECONNRESET, UND_ERR_SOCKET, ENOTFOUND).
+      const cause = err.cause?.code || err.cause?.message || err.message;
+      console.error(`[active-ai/n8n] Erro depois de ${elapsed} s: ${cause}`, err.cause || err);
       emit({
         type: 'error',
         message:
           err.name === 'TimeoutError'
-            ? 'A Active AI demorou demais para responder. Tente novamente.'
-            : 'Não foi possível conectar ao n8n. Verifique N8N_WEBHOOK_URL e se o servidor tem acesso a ele.',
+            ? `A Active AI demorou mais de ${Math.round(cfg.timeoutMs / 1000)} s para responder. Tente novamente ou aumente N8N_TIMEOUT_SECONDS.`
+            : elapsed >= 20
+              ? `A conexão com o n8n caiu depois de ${elapsed} s, antes da resposta (${cause}). O agente pode ter demorado lendo os documentos; o servidor do n8n (ou um proxy na frente dele) pode ter um limite de tempo menor.`
+              : `Não foi possível conectar ao n8n (${cause}). Verifique N8N_WEBHOOK_URL e se o servidor tem acesso a ele.`,
       });
     }
   }

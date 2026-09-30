@@ -64,7 +64,7 @@ Configurações do `.env`:
 | --- | --- |
 | `N8N_WEBHOOK_URL` | URL de produção do webhook do n8n que responde como Active AI (ex.: fluxo com o agente do GPTMaker). Sem ela, a base funciona normalmente e só a Active AI fica indisponível. |
 | `N8N_WEBHOOK_TOKEN` | Opcional: enviado como `Authorization: Bearer <token>` (configure *Header Auth* no webhook). |
-| `N8N_TIMEOUT_SECONDS` | Tempo máximo de espera pela resposta (padrão `120`). |
+| `N8N_TIMEOUT_SECONDS` | Tempo máximo de espera pela resposta (padrão `240`; o agente pode ler vários documentos pelo MCP antes de responder). |
 | `INTEGRATION_TOKEN` | Opcional: libera a API de integração para o n8n consultar a base (veja abaixo). |
 | `PORT` | Porta HTTP (padrão `3000`). |
 | `DATA_DIR` | Pasta do banco SQLite e dos arquivos enviados (padrão `./data`). **Faça backup desta pasta.** |
