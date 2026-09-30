@@ -628,10 +628,11 @@ export function attachmentNote(items) {
       : size
         ? `${size.toLocaleString('pt-BR')} caracteres`
         : 'sem texto legível (arquivo digitalizado, imagem ou formato não suportado)';
-    return `- #${i.id} “${i.file_name || i.title}” (${info})`;
+    return `- id ${i.id}: “${i.file_name || i.title}” (${info})`;
   });
+  const ids = items.map((i) => `{"id": ${i.id}}`).join(', ');
   return [
-    `[Arquivo${items.length > 1 ? 's' : ''} anexado${items.length > 1 ? 's' : ''} pelo usuário nesta conversa. Leia o conteúdo completo com a ferramenta ler_documento da Base de Conhecimento (use o id; se a resposta disser "continua", leia as próximas partes com "inicio") antes de responder.]`,
+    `[Arquivo${items.length > 1 ? 's' : ''} anexado${items.length > 1 ? 's' : ''} pelo usuário nesta conversa e guardado${items.length > 1 ? 's' : ''} na Base de Conhecimento. Antes de responder, leia o conteúdo completo com a ferramenta ler_documento (MCP da Base de Conhecimento) usando ${ids}. Se a resposta disser "continua", leia as próximas partes com "inicio".]`,
     ...lines,
   ].join('\n');
 }

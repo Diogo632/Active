@@ -88,15 +88,23 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
           'para vídeos e áudios (treinamentos, reuniões), o conteúdo é a transcrição com marcações de tempo [hh:mm:ss] — cite o minuto ao responder; ' +
           'se houver continuação, a resposta informa o próximo valor de "inicio".',
         inputSchema: {
-          id: z.number().int().describe('Id do documento'),
-          inicio: z.number().int().min(0).optional().describe('Posição inicial (padrão 0)'),
+          // Alguns agentes mandam o id como texto ("6" ou "#6"): aceita os dois formatos.
+          id: z.union([z.number().int(), z.string()]).describe('Id do documento (número, ex.: 6)'),
+          inicio: z.union([z.number().int(), z.string()]).optional().describe('Posição inicial (padrão 0)'),
         },
         annotations: { readOnlyHint: true },
       },
-      async ({ id, inicio = 0 }) => {
-        const item = repo.getItem(id, { full: true });
+      async ({ id: rawId, inicio: rawInicio = 0 }) => {
+        const id = Number(String(rawId).replace(/\D/g, '')) || 0;
+        const inicio = Math.max(0, Number(String(rawInicio).replace(/\D/g, '')) || 0);
+        const item = id ? repo.getItem(id, { full: true }) : null;
         log(item ? `ler_documento #${id} "${item.title}" (a partir do caractere ${inicio})` : `ler_documento #${id} → não encontrado`);
-        if (!item) return { ...text(`Documento ${id} não encontrado.`), isError: true };
+        if (!item) {
+          return {
+            ...text(`Documento ${rawId} não encontrado. Use o número do id (ex.: {"id": 6}) ou procure com buscar_documentos.`),
+            isError: true,
+          };
+        }
         const body = (item.kind === 'article' ? item.content : item.text) || '';
         const chunk = body.slice(inicio, inicio + READ_CHUNK_CHARS);
         const next = inicio + chunk.length;

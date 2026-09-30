@@ -313,7 +313,7 @@ test('anexo na conversa: fica temporário na plataforma e o agente recebe só o 
   });
   await res.text();
   const sent = prompts.at(-1);
-  assert.match(sent, new RegExp(`#${anexo.id} “contrato-selmi\\.txt”`));
+  assert.match(sent, new RegExp(`id ${anexo.id}: “contrato-selmi\\.txt”`));
   assert.match(sent, /ler_documento/);
   assert.match(sent, /Qual a multa do SLA\?$/);
   assert.ok(sent.length < 1000, 'o conteúdo do arquivo não vai na mensagem');
@@ -324,6 +324,12 @@ test('anexo na conversa: fica temporário na plataforma e o agente recebe só o 
   const client = new Client({ name: 'teste', version: '1.0.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: 'Bearer tok-teste' } } }));
   const read = JSON.parse((await client.callTool({ name: 'ler_documento', arguments: { id: anexo.id } })).content[0].text);
+  // Id enviado como texto ("6" ou "#6") também funciona.
+  for (const id of [String(anexo.id), `#${anexo.id}`]) {
+    const out = await client.callTool({ name: 'ler_documento', arguments: { id, inicio: '0' } });
+    assert.ok(!out.isError, `id ${id}`);
+    assert.equal(JSON.parse(out.content[0].text).id, anexo.id);
+  }
   await client.close();
   assert.equal(read.total_caracteres, anexo.text_length);
   assert.ok(read.anexo_da_conversa);
