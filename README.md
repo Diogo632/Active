@@ -33,6 +33,13 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
   - **servidor MCP** para o agente pesquisar e ler a base sozinho.
 - **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
 - **Opções de resposta em botões**, iguais às da Active AI. A plataforma usa a mesma regra da página da Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
+- **Visual**:
+  - vídeos com **miniatura** (capa do YouTube ou um quadro do vídeo enviado) e a duração por cima;
+  - **esqueletos de carregamento** no formato do conteúdo;
+  - **tabelas** com cabeçalho destacado e rolagem e **blocos de código** com a linguagem e o botão **Copiar**, nos textos e nas respostas da Active AI;
+  - **menu lateral recolhível** (botão no canto superior esquerdo; recolhe sozinho em telas menores);
+  - **Active AI fixável**: o ícone de alfinete deixa o chat aberto ao lado enquanto você usa o resto da plataforma (em telas a partir de 1100 px);
+  - botão **Perguntar à Active AI** flutuando no canto inferior direito.
 - **Animações** em JavaScript (Web Animations API): entrada das telas em cascata, mensagens do chat, revelação das respostas, botões com onda ao clicar e busca rápida animada. Tudo respeita a opção "reduzir movimento" do sistema.
 - Tema claro/escuro e layout responsivo (funciona no celular).
 

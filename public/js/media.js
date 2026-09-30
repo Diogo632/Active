@@ -15,12 +15,32 @@ export const isMediaItem = (item) =>
 export const youtubeId = (item) => item.source_url?.match(/[?&]v=([\w-]{11})/)?.[1] || null;
 
 const toSeconds = (t) => t.split(':').map(Number).reduce((a, n) => a * 60 + n, 0);
-const clock = (seconds) => {
+export const clock = (seconds) => {
   const s = Math.max(0, Math.floor(seconds || 0));
   const h = Math.floor(s / 3600);
   const mm = String(Math.floor((s % 3600) / 60)).padStart(h ? 2 : 1, '0');
   return `${h ? `${h}:` : ''}${mm}:${String(s % 60).padStart(2, '0')}`;
 };
+
+const VIDEO_EXT = /\.(mp4|mov|mkv|webm|avi|wmv|m4v|mpg|mpeg)$/i;
+
+/** Vídeo com imagem de capa: YouTube ou vídeo enviado (áudios não têm). */
+export const hasThumbnail = (item) =>
+  item.kind === 'youtube' || (item.kind === 'file' && (/^video\//.test(item.mime_type || '') || VIDEO_EXT.test(item.file_name || '')));
+
+/**
+ * Miniatura estilo YouTube: capa do vídeo (ou um quadro do vídeo enviado) com a duração por cima.
+ * Se a imagem não carregar, fica o ícone por baixo (ver o tratamento de erro em app.js).
+ */
+export function videoThumb(item, { size = 'md' } = {}) {
+  const version = encodeURIComponent(item.updated_at || '');
+  return `<span class="video-thumb thumb-${size}${item.kind === 'youtube' ? ' is-youtube' : ''}">
+      ${icon(item.kind === 'youtube' ? 'youtube' : 'video')}
+      <img class="thumb-img" src="/api/items/${item.id}/thumb?v=${version}" alt="" loading="lazy" decoding="async" />
+      <span class="thumb-play">${icon('play')}</span>
+      ${item.duration ? `<span class="thumb-duration">${clock(item.duration)}</span>` : ''}
+    </span>`;
+}
 
 export function formatDuration(seconds) {
   if (!seconds) return '';

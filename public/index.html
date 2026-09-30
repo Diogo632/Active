@@ -31,20 +31,20 @@
         </a>
 
         <nav class="nav">
-          <a href="#/" data-nav="home"><i data-icon="home"></i>Início</a>
-          <a href="#/docs" data-nav="docs"><i data-icon="library"></i>Todos os documentos</a>
-          <a href="#/ia" data-nav="ia" class="nav-ia"><i data-icon="sparkles"></i>Active AI</a>
-          <a href="#/relatorio" data-nav="report"><i data-icon="chart"></i>Relatório<span class="nav-badge" id="nav-report-count" hidden></span></a>
+          <a href="#/" data-nav="home" title="Início"><i data-icon="home"></i><span class="label">Início</span></a>
+          <a href="#/docs" data-nav="docs" title="Todos os documentos"><i data-icon="library"></i><span class="label">Todos os documentos</span></a>
+          <a href="#/ia" data-nav="ia" class="nav-ia" title="Active AI"><i data-icon="sparkles"></i><span class="label">Active AI</span></a>
+          <a href="#/relatorio" data-nav="report" title="Relatório"><i data-icon="chart"></i><span class="label">Relatório</span><span class="nav-badge" id="nav-report-count" hidden></span></a>
         </nav>
 
         <div class="nav-actions">
-          <a class="btn btn-primary btn-block" href="#/new"><i data-icon="pen"></i>Escrever texto</a>
-          <a class="btn btn-ghost-inverse btn-block" href="#/upload"><i data-icon="upload"></i>Enviar arquivos</a>
+          <a class="btn btn-primary btn-block" href="#/new" title="Escrever texto"><i data-icon="pen"></i><span class="label">Escrever texto</span></a>
+          <a class="btn btn-ghost-inverse btn-block" href="#/upload" title="Enviar arquivos"><i data-icon="upload"></i><span class="label">Enviar arquivos</span></a>
         </div>
 
         <div class="nav-section">
           <div class="nav-section-title">
-            <span>Categorias</span>
+            <span class="label">Categorias</span>
             <a href="#/categories" title="Gerenciar categorias" class="icon-link"><i data-icon="settings"></i></a>
           </div>
           <div id="nav-categories" class="nav-categories"></div>
@@ -59,13 +59,12 @@
 
       <div class="main">
         <header class="topbar">
-          <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Abrir menu"><i data-icon="menu"></i></button>
+          <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Recolher ou abrir o menu" title="Recolher/expandir o menu"><i data-icon="sidebar"></i></button>
           <button class="topbar-search" id="topbar-search" type="button" aria-label="Buscar na base (Ctrl+K)">
             <i data-icon="search"></i>
             <span>Buscar na base…</span>
             <kbd>Ctrl K</kbd>
           </button>
-          <button class="btn btn-ia" id="open-ia" type="button"><i data-icon="sparkles"></i><span>Perguntar à Active AI</span></button>
         </header>
 
         <main id="view" class="view" tabindex="-1"></main>
@@ -77,6 +76,11 @@
       <div class="ia-drawer-inner" id="ia-drawer-inner"></div>
     </aside>
     <div class="scrim" id="scrim"></div>
+
+    <!-- Botão flutuante da Active AI (canto inferior direito) -->
+    <button class="ia-fab" id="open-ia" type="button" aria-label="Perguntar à Active AI" title="Perguntar à Active AI">
+      <span class="ia-fab-mark">AI</span><span class="label">Perguntar à Active AI</span>
+    </button>
 
     <div class="toasts" id="toasts" aria-live="polite"></div>
 

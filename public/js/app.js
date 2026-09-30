@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { setupPalette } from './palette.js';
 import { pageEnter, setupRipples, popIn } from './motion.js';
 import { chat, mountChat } from './chat.js';
-import { esc, icon, hydrateIcons, toast } from './util.js';
+import { esc, icon, hydrateIcons, toast, storage, copyText } from './util.js';
 import {
   shared, homeView, docsView, itemView, editorView, uploadView, categoriesView, iaView, reportView,
 } from './views.js';
@@ -33,8 +33,8 @@ function renderNavCategories() {
   el.innerHTML = shared.categories.length
     ? shared.categories
         .map(
-          (c) => `<a href="#/docs?category=${c.id}" class="${String(c.id) === current ? 'active' : ''}">
-            ${icon(c.icon)}<span>${esc(c.name)}</span><span class="count">${c.item_count}</span></a>`,
+          (c) => `<a href="#/docs?category=${c.id}" class="${String(c.id) === current ? 'active' : ''}" title="${esc(c.name)}">
+            ${icon(c.icon)}<span class="label">${esc(c.name)}</span><span class="count">${c.item_count}</span></a>`,
         )
         .join('')
     : '<div class="empty">Nenhuma categoria</div>';
@@ -59,9 +59,11 @@ async function router() {
   renderNavCategories();
 
 
-  // Na página da Active AI o painel lateral fica redundante.
-  if (route?.nav === 'ia') closeDrawer();
-  document.getElementById('open-ia').hidden = route?.nav === 'ia';
+  // Na página da Active AI o painel lateral fica redundante (o fixado volta ao sair dela).
+  onIaPage = route?.nav === 'ia';
+  if (onIaPage) closeDrawer({ keepPinned: true });
+  else if (pinned && canPin()) openDrawer();
+  syncFab();
 
   if (!route) {
     viewEl.innerHTML = '<div class="card empty-state"><h3>Página não encontrada</h3><p><a href="#/">Voltar ao início</a></p></div>';
@@ -86,14 +88,42 @@ async function router() {
 }
 
 // ---------- Painel lateral da Active AI ----------
+// Fixado: fica aberto ao lado do conteúdo enquanto a pessoa usa o resto da plataforma
+// (só em telas largas; nas menores ele volta a abrir por cima).
+const fab = document.getElementById('open-ia');
+const PIN_MIN_WIDTH = 1100;
+const canPin = () => window.innerWidth >= PIN_MIN_WIDTH;
+let pinned = storage.get('kb-ia-fixado', false);
+let onIaPage = false;
+
 const drawerChat = mountChat(document.getElementById('ia-drawer-inner'), {
   variant: 'drawer',
-  onClose: closeDrawer,
+  onClose: () => closeDrawer(),
+  onPin: () => setPinned(!pinned),
   onExpand: () => {
-    closeDrawer();
+    closeDrawer({ keepPinned: true });
     location.hash = '#/ia';
   },
 });
+
+function syncFab() {
+  fab.hidden = onIaPage || drawer.classList.contains('open');
+}
+
+function applyPinnedLayout() {
+  const docked = pinned && canPin() && drawer.classList.contains('open');
+  document.body.classList.toggle('ia-pinned', docked);
+  drawer.classList.toggle('pinned', pinned);
+  scrim.classList.toggle('show', drawer.classList.contains('open') && !docked);
+}
+
+function setPinned(value) {
+  pinned = value;
+  storage.set('kb-ia-fixado', pinned);
+  if (pinned) openDrawer();
+  applyPinnedLayout();
+  toast(pinned ? 'Active AI fixada ao lado. Ela continua aberta enquanto você navega.' : 'Active AI desafixada.');
+}
 
 function openDrawer(prompt) {
   if (location.hash.startsWith('#/ia')) {
@@ -102,34 +132,89 @@ function openDrawer(prompt) {
   }
   drawer.classList.add('open');
   drawer.setAttribute('aria-hidden', 'false');
-  scrim.classList.add('show');
+  applyPinnedLayout();
+  syncFab();
   if (prompt) chat.send(prompt);
   setTimeout(() => drawerChat.focus(), 200);
 }
 
-function closeDrawer() {
+function closeDrawer({ keepPinned = false } = {}) {
+  // Fechar pelo X também desafixa; ir para a página da Active AI mantém a preferência.
+  if (!keepPinned && pinned) {
+    pinned = false;
+    storage.set('kb-ia-fixado', false);
+  }
   drawer.classList.remove('open');
   drawer.setAttribute('aria-hidden', 'true');
-  scrim.classList.remove('show');
+  applyPinnedLayout();
+  syncFab();
 }
 
-document.getElementById('open-ia').addEventListener('click', () => openDrawer());
+fab.addEventListener('click', () => openDrawer());
 document.addEventListener('open-ia', (e) => openDrawer(e.detail?.prompt));
 scrim.addEventListener('click', () => {
-  closeDrawer();
+  if (drawer.classList.contains('open')) closeDrawer({ keepPinned: true });
   sidebar.classList.remove('open');
+  scrim.classList.remove('show');
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && drawer.classList.contains('open')) closeDrawer();
+  if (e.key === 'Escape' && drawer.classList.contains('open') && !document.body.classList.contains('ia-pinned')) {
+    closeDrawer({ keepPinned: true });
+  }
 });
+window.addEventListener('resize', () => {
+  applyPinnedLayout();
+  applySidebar();
+});
+
+// ---------- Menu lateral recolhível ----------
+// Recolhido, mostra só os ícones. Sem preferência salva, recolhe sozinho em telas menores.
+const MOBILE_MAX = 860;
+function applySidebar() {
+  const saved = storage.get('kb-menu-recolhido', null);
+  const collapsed = window.innerWidth > MOBILE_MAX && (saved ?? window.innerWidth < 1280);
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+}
+applySidebar();
+
+// ---------- Botão "Copiar" dos blocos de código ----------
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-copy-code]');
+  if (!btn) return;
+  const text = btn.closest('.code-block')?.querySelector('pre')?.innerText ?? '';
+  const ok = await copyText(text.replace(/\n$/, ''));
+  const label = btn.querySelector('span');
+  btn.classList.toggle('copied', ok);
+  label.textContent = ok ? 'Copiado!' : 'Não foi possível copiar';
+  setTimeout(() => {
+    btn.classList.remove('copied');
+    label.textContent = 'Copiar';
+  }, 1600);
+});
+
+// Miniatura de vídeo que não carregou: mostra o ícone que fica por baixo.
+document.addEventListener(
+  'error',
+  (e) => {
+    if (e.target instanceof HTMLImageElement && e.target.classList.contains('thumb-img')) e.target.closest('.video-thumb')?.classList.add('no-image');
+  },
+  true,
+);
 
 // ---------- Barra superior ----------
 const palette = setupPalette();
 document.getElementById('topbar-search').addEventListener('click', () => palette.open());
 
 document.getElementById('menu-btn').addEventListener('click', () => {
-  sidebar.classList.toggle('open');
-  scrim.classList.toggle('show', sidebar.classList.contains('open'));
+  // No celular abre o menu por cima; em telas maiores recolhe/expande.
+  if (window.innerWidth <= MOBILE_MAX) {
+    sidebar.classList.toggle('open');
+    scrim.classList.toggle('show', sidebar.classList.contains('open'));
+    return;
+  }
+  const collapsed = !document.body.classList.contains('sidebar-collapsed');
+  storage.set('kb-menu-recolhido', collapsed);
+  applySidebar();
 });
 
 // ---------- Tema claro/escuro ----------
@@ -140,7 +225,8 @@ function currentTheme() {
 }
 function renderThemeButton() {
   const dark = currentTheme() === 'dark';
-  themeBtn.innerHTML = `${icon(dark ? 'sun' : 'moon')}<span>${dark ? 'Tema claro' : 'Tema escuro'}</span>`;
+  themeBtn.innerHTML = `${icon(dark ? 'sun' : 'moon')}<span class="label">${dark ? 'Tema claro' : 'Tema escuro'}</span>`;
+  themeBtn.title = dark ? 'Tema claro' : 'Tema escuro';
 }
 themeBtn.addEventListener('click', () => {
   const next = currentTheme() === 'dark' ? 'light' : 'dark';

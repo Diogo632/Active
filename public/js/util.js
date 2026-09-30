@@ -52,6 +52,10 @@ const ICONS = {
   link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
   paperclip: '<path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  pin: '<path d="M12 17v5"/><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/>',
+  sidebar: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/>',
+  play: '<path d="M7 4v16l13-8z" fill="currentColor"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   alert: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
 };
@@ -139,9 +143,51 @@ export function fileTypeLabel(item) {
 window.marked?.setOptions({ gfm: true, breaks: true });
 
 /** Converte Markdown em HTML seguro (sanitizado com DOMPurify). */
+const CODE_LABELS = { sql: 'SQL', js: 'JavaScript', javascript: 'JavaScript', json: 'JSON', xml: 'XML', html: 'HTML', bash: 'Terminal', sh: 'Terminal', shell: 'Terminal', powershell: 'PowerShell', ps: 'PowerShell', cmd: 'Prompt', python: 'Python', py: 'Python', csv: 'CSV', edi: 'EDI', txt: 'Texto', text: 'Texto' };
+
+/**
+ * Converte Markdown em HTML seguro (sanitizado com DOMPurify). Tabelas ganham rolagem horizontal e
+ * blocos de código ganham cabeçalho com a linguagem e o botão "Copiar".
+ */
 export function renderMarkdown(md) {
   const html = window.marked ? window.marked.parse(String(md || '')) : esc(md);
-  return window.DOMPurify ? window.DOMPurify.sanitize(html, { ADD_ATTR: ['target'] }) : esc(md);
+  const clean = window.DOMPurify ? window.DOMPurify.sanitize(html, { ADD_ATTR: ['target'] }) : esc(md);
+  if (!clean.includes('<table') && !clean.includes('<pre')) return clean;
+  const tpl = document.createElement('template');
+  tpl.innerHTML = clean;
+  tpl.content.querySelectorAll('table').forEach((table) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    table.replaceWith(wrap);
+    wrap.appendChild(table);
+  });
+  tpl.content.querySelectorAll('pre').forEach((pre) => {
+    const lang = pre.querySelector('code')?.className.match(/language-([\w+-]+)/)?.[1]?.toLowerCase() || '';
+    const block = document.createElement('div');
+    block.className = 'code-block';
+    block.innerHTML = `<div class="code-head"><span>${esc(CODE_LABELS[lang] || (lang ? lang.toUpperCase() : 'Código'))}</span>
+      <button type="button" class="code-copy" data-copy-code title="Copiar o conteúdo">${icon('copy')}<span>Copiar</span></button></div>`;
+    pre.replaceWith(block);
+    block.appendChild(pre);
+  });
+  return tpl.innerHTML;
+}
+
+/** Copia texto para a área de transferência (com alternativa para navegadores sem a API). */
+export async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
+  }
 }
 
 export function toast(message, type = 'info') {

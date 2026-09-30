@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { chat, mountChat } from './chat.js';
 import { mountAnswer } from './answer.js';
-import { isMediaItem, mediaPlayer, mountTranscript, transcriptBadge, formatDuration } from './media.js';
+import { isMediaItem, mediaPlayer, mountTranscript, transcriptBadge, formatDuration, hasThumbnail, videoThumb } from './media.js';
 import { mountDocFeedback } from './feedback.js';
 import { TEMPLATES, takeDraft, draftFromGap, openDraft } from './templates.js';
 import { fadeUp } from './motion.js';
@@ -28,6 +28,32 @@ export const shared = {
 const dateBr = (isoDate) => String(isoDate || '').split('-').reverse().join('/');
 
 const loading = (text = 'Carregando…') => `<div class="loading"><span class="spinner"></span>${esc(text)}</div>`;
+
+// ---------- Esqueletos de carregamento (blocos no formato do conteúdo que vai aparecer) ----------
+const sk = (cls = '', width) => `<span class="sk ${cls}"${width ? ` style="width:${width}"` : ''}></span>`;
+const skDocItems = (n = 5) =>
+  Array.from(
+    { length: n },
+    (_, i) => `<div class="card doc-item sk-card">${sk('sk-icon')}<div class="sk-stack">${sk('sk-title', `${55 - (i % 3) * 10}%`)}${sk('sk-sm', '35%')}${sk('sk-sm', `${85 - (i % 2) * 20}%`)}</div></div>`,
+  ).join('');
+const SKELETONS = {
+  home: () => `<div class="home sk-screen"><div class="home-hero">${sk('sk-h1 sk-center', '60%')}${sk('sk-search sk-center')}
+      <div class="sk-row sk-center-row">${sk('sk-chip')}${sk('sk-chip')}${sk('sk-chip')}</div></div>
+      <div class="home-columns">${[0, 1]
+        .map(() => `<section>${sk('sk-sm', '40%')}<div class="sk-stack sk-gap">${Array.from({ length: 4 }, () => `<div class="sk-row">${sk('sk-icon sk-icon-sm')}<div class="sk-stack">${sk('', '70%')}${sk('sk-sm', '45%')}</div></div>`).join('')}</div></section>`)
+        .join('')}</div></div>`,
+  list: () => `<div class="sk-screen">${sk('sk-sm', '18%')}<div class="doc-list">${skDocItems()}</div></div>`,
+  doc: () => `<div class="sk-screen">${sk('sk-sm', '14%')}${sk('sk-h1', '55%')}<div class="sk-row">${sk('sk-chip')}${sk('sk-chip')}</div>
+      <div class="sk-row sk-actions">${sk('sk-btn')}${sk('sk-btn')}${sk('sk-btn')}</div>
+      <div class="doc-layout"><div class="card card-pad sk-stack sk-gap">${sk('sk-title', '40%')}${Array.from({ length: 7 }, (_, i) => sk('', `${95 - (i % 4) * 12}%`)).join('')}</div>
+      <aside class="card card-pad sk-stack sk-gap">${Array.from({ length: 5 }, () => sk('sk-sm', '80%')).join('')}</aside></div></div>`,
+  form: () => `<div class="sk-screen">${sk('sk-h1', '30%')}${sk('sk-sm', '55%')}${sk('sk-input sk-input-lg')}
+      <div class="form-grid">${Array.from({ length: 4 }, () => `<div class="sk-stack">${sk('sk-sm', '30%')}${sk('sk-input')}</div>`).join('')}</div>${sk('sk-editor')}</div>`,
+  report: () => `<div class="sk-screen">${sk('sk-h1', '35%')}${sk('sk-sm', '60%')}
+      <div class="stat-grid">${Array.from({ length: 4 }, () => `<div class="card stat">${sk('sk-sm', '60%')}${sk('sk-h1', '30%')}</div>`).join('')}</div>
+      <div class="sk-row">${sk('sk-chip')}${sk('sk-chip')}${sk('sk-chip')}</div><div class="doc-list">${skDocItems(4)}</div></div>`,
+};
+const skeleton = (kind) => SKELETONS[kind]();
 
 function categoryOptions(selected, { includeAll = false, includeNone = true } = {}) {
   const opts = [];
@@ -58,8 +84,8 @@ function docItem(item) {
   ].filter(Boolean);
   const snippet = item.snippet?.trim() || item.summary;
   return `
-    <a class="card doc-item" href="#/item/${item.id}">
-      <div class="doc-icon ${item.kind}">${icon(iconName)}</div>
+    <a class="card doc-item${hasThumbnail(item) ? ' has-thumb' : ''}" href="#/item/${item.id}">
+      ${hasThumbnail(item) ? videoThumb(item) : `<div class="doc-icon ${item.kind}">${icon(iconName)}</div>`}
       <div class="doc-body">
         <div class="doc-title">${esc(item.title)}</div>
         <div class="doc-meta">${meta.join('')}</div>
@@ -80,7 +106,7 @@ function openIa(prompt) {
 // Início
 // ======================================================================
 export async function homeView(view) {
-  view.innerHTML = loading();
+  view.innerHTML = skeleton('home');
   const [popular, recent] = await Promise.all([api.items({ limit: 6, sort: 'views' }), api.items({ limit: 6 })]);
   const cats = shared.categories;
   const empty = !recent.items.length;
@@ -92,7 +118,7 @@ export async function homeView(view) {
       .map(
         (i) => `
         <a class="quick-item" href="#/item/${i.id}">
-          <span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>
+          ${hasThumbnail(i) ? videoThumb(i, { size: 'sm' }) : `<span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>`}
           <span class="quick-text"><strong>${esc(i.title)}</strong><small>${esc(i.category_name || 'Sem categoria')} · ${esc(i.duration ? formatDuration(i.duration) : relativeDate(i.updated_at))}</small></span>
         </a>`,
       )
@@ -181,7 +207,7 @@ export async function docsView(view, { query }) {
       <button class="btn btn-primary" type="submit">${icon('search')}Filtrar</button>
     </form>
     <div id="answer"></div>
-    <div id="results">${loading()}</div>`;
+    <div id="results">${skeleton('list')}</div>`;
 
   // Na busca, a Active AI responde no topo usando os documentos encontrados.
   const stopAnswer = q && shared.aiConfigured ? mountAnswer(view.querySelector('#answer'), q) : null;
@@ -229,7 +255,7 @@ function filePreview(item) {
 }
 
 export async function itemView(view, { params }) {
-  view.innerHTML = loading();
+  view.innerHTML = skeleton('doc');
   const item = await api.item(params.id, { view: true });
 
   const media = isMediaItem(item);
@@ -534,7 +560,7 @@ function applyTool(textarea, tool) {
 
 export async function editorView(view, { params, query }) {
   const editing = Boolean(params.id);
-  view.innerHTML = loading();
+  view.innerHTML = skeleton('form');
   const item = editing ? await api.item(params.id) : null;
   const isFile = Boolean(item) && item.kind !== 'article';
   const author = storage.get('kb-author', '');
@@ -1021,7 +1047,7 @@ const percent = ({ up, down }) => (up + down ? `${Math.round((up / (up + down)) 
 export async function reportView(view, { query }) {
   const tab = ['lacunas', 'revisar', 'avaliacoes'].includes(query.get('aba')) ? query.get('aba') : 'lacunas';
   const showResolved = query.get('resolvidas') === '1';
-  view.innerHTML = loading();
+  view.innerHTML = skeleton('report');
   const data = await api.report({ resolved: showResolved });
   const open = showResolved ? null : data.gaps.length;
   document.dispatchEvent(new CustomEvent('report-changed'));

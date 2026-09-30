@@ -253,7 +253,7 @@ function renderMessage(msg, isLast, index) {
  * variant: 'drawer' (painel lateral) ou 'page' (página inteira).
  * Retorna uma função que desmonta o componente.
  */
-export function mountChat(container, { variant = 'drawer', onClose, onExpand } = {}) {
+export function mountChat(container, { variant = 'drawer', onClose, onExpand, onPin } = {}) {
   container.innerHTML = `
     <section class="ia">
       <header class="ia-header">
@@ -263,6 +263,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
           <small>Assistente interna — processos e sistemas</small>
         </div>
         <button class="icon-btn" data-action="reset" type="button" title="Nova conversa">${icon('refresh')}</button>
+        ${variant === 'drawer' ? `<button class="icon-btn ia-pin" data-action="pin" type="button" title="Fixar ao lado (fica aberta enquanto você navega)">${icon('pin')}</button>` : ''}
         ${variant === 'drawer' ? `<button class="icon-btn" data-action="expand" type="button" title="Abrir em tela cheia">${icon('expand')}</button>` : ''}
         ${variant === 'drawer' ? `<button class="icon-btn" data-action="close" type="button" title="Fechar">${icon('close')}</button>` : ''}
       </header>
@@ -454,6 +455,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand } =
     else if (target.dataset.action === 'reset') chat.reset();
     else if (target.dataset.action === 'close') onClose?.();
     else if (target.dataset.action === 'expand') onExpand?.();
+    else if (target.dataset.action === 'pin') onPin?.();
     else if (target.dataset.action === 'clear-context') chat.setContext(null);
     else if (target.matches('a[href^="#/"]') && variant === 'drawer' && window.innerWidth < 860) onClose?.();
   });
