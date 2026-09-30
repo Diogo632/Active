@@ -10,7 +10,7 @@ import { extractText } from './extract.js';
 import { createActiveIA } from './ai.js';
 import { createN8nActiveIA } from './n8n.js';
 import { createMcpHandler } from './mcp.js';
-import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTranscript, extractThumbnail } from './transcribe.js';
+import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTranscript } from './transcribe.js';
 import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
 import { createChaptersQueue } from './chapters.js';
 import { looksUnanswered } from './gaps.js';
@@ -31,9 +31,7 @@ export function createApp({
   reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
 } = {}) {
   const uploadsDir = path.join(dataDir, 'uploads');
-  const thumbsDir = path.join(dataDir, 'thumbs');
   fs.mkdirSync(uploadsDir, { recursive: true });
-  fs.mkdirSync(thumbsDir, { recursive: true });
 
   const db = openDatabase(dataDir);
   const repo = createRepository(db);
@@ -61,7 +59,6 @@ export function createApp({
     for (const id of repo.expiredTemporary()) {
       const item = repo.deleteItem(id);
       if (item?.stored_name) fs.promises.unlink(path.join(uploadsDir, item.stored_name)).catch(() => {});
-      fs.promises.unlink(path.join(thumbsDir, `${id}.jpg`)).catch(() => {});
     }
   };
   cleanupAttachments();
@@ -178,11 +175,6 @@ export function createApp({
     if (id === null || !repo.getCategory(id)) throw httpError(400, 'Categoria inválida.');
     return id;
   };
-
-  // Miniaturas dos vídeos enviados: geradas com o ffmpeg no primeiro acesso e guardadas em data/thumbs.
-  const thumbFile = (id) => path.join(thumbsDir, `${id}.jpg`);
-  const thumbJobs = new Map();
-  const removeThumb = (id) => fs.promises.unlink(thumbFile(id)).catch(() => {});
 
   const removeStored = (storedName) => {
     if (!storedName) return;
@@ -436,7 +428,6 @@ export function createApp({
       extract_status: status,
     });
     removeStored(current.stored_name);
-    removeThumb(id);
     if (isMediaFile(name, req.file.mimetype)) transcription.enqueue(id);
     res.json(repo.getItem(id) || item);
   });
@@ -520,32 +511,11 @@ export function createApp({
     const item = repo.deleteItem(parseId(req.params.id));
     if (!item) throw httpError(404, 'Documento não encontrado.');
     removeStored(item.stored_name);
-    removeThumb(item.id);
     res.status(204).end();
   });
 
   // Tipos que o navegador pode exibir com segurança dentro da plataforma.
   const INLINE_TYPES = /^(image\/(png|jpeg|gif|webp)|application\/pdf|video\/(mp4|webm|ogg)|audio\/.+|text\/plain)$/;
-
-  app.get('/api/items/:id/thumb', async (req, res) => {
-    const item = repo.getItem(parseId(req.params.id), { full: true });
-    if (!item) throw httpError(404, 'Documento não encontrado.');
-    if (item.kind === 'youtube') {
-      const id = item.source_url?.match(/[?&]v=([\w-]{11})/)?.[1];
-      return res.redirect(302, `https://i.ytimg.com/vi/${id}/mqdefault.jpg`);
-    }
-    const isVideo = item.kind === 'file' && (/^video\//.test(item.mime_type || '') || /\.(mp4|mov|mkv|webm|avi|wmv|m4v|mpg|mpeg)$/i.test(item.file_name || ''));
-    if (!isVideo) throw httpError(404, 'Sem miniatura.');
-    const out = thumbFile(item.id);
-    if (!fs.existsSync(out)) {
-      if (!thumbJobs.has(item.id)) {
-        thumbJobs.set(item.id, extractThumbnail(path.join(uploadsDir, item.stored_name), out).catch(() => false).finally(() => thumbJobs.delete(item.id)));
-      }
-      if (!(await thumbJobs.get(item.id))) throw httpError(404, 'Não foi possível gerar a miniatura.');
-    }
-    res.set('Cache-Control', 'private, max-age=86400');
-    res.sendFile(out);
-  });
 
   app.get('/api/items/:id/file', (req, res) => {
     const item = repo.getItem(parseId(req.params.id), { full: true });

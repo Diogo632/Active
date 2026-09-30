@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 
 // Extensões tratadas como vídeo/áudio (a transcrição vira o conteúdo pesquisável do item).
@@ -134,28 +133,6 @@ export async function probeDuration(file) {
   if (!m) throw new Error('Não foi possível ler a duração do arquivo (formato não suportado?).');
   return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
 }
-
-/**
- * Miniatura de um vídeo: um quadro do início (10% da duração, no máximo aos 30 s), em JPEG de 480 px.
- * Devolve true se o arquivo foi criado.
- */
-export async function extractThumbnail(file, out) {
-  let at = 3;
-  try {
-    at = Math.min(30, Math.max(0, (await probeDuration(file)) * 0.1));
-  } catch {
-    /* sem duração: usa 3 s */
-  }
-  const bin = await ffmpegPath();
-  const tryAt = async (seconds) =>
-    (await run(bin, ['-hide_banner', '-loglevel', 'error', '-y', '-ss', String(seconds), '-i', file, '-frames:v', '1', '-vf', 'scale=480:-2', '-q:v', '4', out]))
-      .code === 0;
-  // Vídeos muito curtos podem não ter quadro no ponto escolhido: tenta o primeiro.
-  if ((await tryAt(at).catch(() => false)) && (await fileSize(out)) > 0) return true;
-  return (await tryAt(0).catch(() => false)) && (await fileSize(out)) > 0;
-}
-
-const fileSize = (f) => fs.promises.stat(f).then((st) => st.size).catch(() => 0);
 
 /** Extrai um trecho do áudio como PCM mono 16 kHz (o formato que o Whisper espera). */
 export async function readAudioSegment(file, start, length) {

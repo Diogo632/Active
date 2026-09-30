@@ -192,14 +192,6 @@ document.addEventListener('click', async (e) => {
   }, 1600);
 });
 
-// Miniatura de vídeo que não carregou: mostra o ícone que fica por baixo.
-document.addEventListener(
-  'error',
-  (e) => {
-    if (e.target instanceof HTMLImageElement && e.target.classList.contains('thumb-img')) e.target.closest('.video-thumb')?.classList.add('no-image');
-  },
-  true,
-);
 
 // ---------- Barra superior ----------
 const palette = setupPalette();

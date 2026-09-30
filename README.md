@@ -34,7 +34,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 - **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
 - **Opções de resposta em botões**, iguais às da Active AI. A plataforma usa a mesma regra da página da Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
 - **Visual**:
-  - vídeos com **miniatura** (capa do YouTube ou um quadro do vídeo enviado) e a duração por cima;
+  - vídeos com ícone próprio e a duração (vermelho no YouTube, verde nos vídeos enviados);
   - **esqueletos de carregamento** no formato do conteúdo;
   - **tabelas** com cabeçalho destacado e rolagem e **blocos de código** com a linguagem e o botão **Copiar**, nos textos e nas respostas da Active AI;
   - **menu lateral recolhível** (botão no canto superior esquerdo; recolhe sozinho em telas menores);

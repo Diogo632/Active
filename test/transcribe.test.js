@@ -101,24 +101,3 @@ test('transcrição enviada manualmente (.vtt do Teams) substitui a automática'
   const full = await (await fetch(`${base}/api/items/${item.id}?full=1`)).json();
   assert.equal(full.text_full, '[00:02:00] Rafaela: Explicando a quilometragem');
 });
-
-test('miniatura: quadro do vídeo enviado e capa do YouTube', async (t) => {
-  if (!ffmpegOk) return t.skip('ffmpeg indisponível neste ambiente');
-  const { default: ff } = await import('@ffmpeg-installer/ffmpeg');
-  const video = path.join(dataDir, 'aula.mp4');
-  spawnSync(ff.path, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=duration=3:size=320x240:rate=10', '-pix_fmt', 'yuv420p', video]);
-  const fd = new FormData();
-  fd.append('files', new Blob([fs.readFileSync(video)], { type: 'video/mp4' }), 'aula.mp4');
-  const [item] = await (await fetch(`${base}/api/files`, { method: 'POST', body: fd })).json();
-  const res = await fetch(`${base}/api/items/${item.id}/thumb`);
-  assert.equal(res.status, 200);
-  assert.equal(res.headers.get('content-type'), 'image/jpeg');
-  assert.ok((await res.arrayBuffer()).byteLength > 500);
-
-  const yt = repo.createItem({ kind: 'youtube', title: 'YT', source_url: 'https://www.youtube.com/watch?v=AbCdEfGhIjK' });
-  const redirect = await fetch(`${base}/api/items/${yt.id}/thumb`, { redirect: 'manual' });
-  assert.equal(redirect.status, 302);
-  assert.equal(redirect.headers.get('location'), 'https://i.ytimg.com/vi/AbCdEfGhIjK/mqdefault.jpg');
-  const doc = repo.createItem({ kind: 'article', title: 'Texto' });
-  assert.equal((await fetch(`${base}/api/items/${doc.id}/thumb`)).status, 404);
-});

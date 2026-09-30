@@ -1,7 +1,7 @@
 import { api } from './api.js';
 import { chat, mountChat } from './chat.js';
 import { mountAnswer } from './answer.js';
-import { isMediaItem, mediaPlayer, mountTranscript, transcriptBadge, formatDuration, hasThumbnail, videoThumb } from './media.js';
+import { isMediaItem, mediaPlayer, mountTranscript, transcriptBadge, formatDuration, mediaTile } from './media.js';
 import { mountDocFeedback } from './feedback.js';
 import { TEMPLATES, takeDraft, draftFromGap, openDraft } from './templates.js';
 import { fadeUp } from './motion.js';
@@ -76,7 +76,6 @@ function docItem(item) {
     `<span class="badge ${item.kind === 'article' ? 'badge-article' : 'badge-file'}">${esc(fileTypeLabel(item))}</span>`,
     item.category_name ? `<span>${esc(item.category_name)}</span>` : '',
     `<span>Atualizado ${esc(relativeDate(item.updated_at))}</span>`,
-    item.duration ? `<span>${esc(formatDuration(item.duration))}</span>` : '',
     item.size ? `<span>${formatBytes(item.size)}</span>` : '',
     transcriptBadge(item),
     item.review_overdue ? `<span class="badge badge-warn" title="Revisão vencida desde ${esc(dateBr(item.review_due))}">${icon('clock')}Revisar</span>` : '',
@@ -84,8 +83,8 @@ function docItem(item) {
   ].filter(Boolean);
   const snippet = item.snippet?.trim() || item.summary;
   return `
-    <a class="card doc-item${hasThumbnail(item) ? ' has-thumb' : ''}" href="#/item/${item.id}">
-      ${hasThumbnail(item) ? videoThumb(item) : `<div class="doc-icon ${item.kind}">${icon(iconName)}</div>`}
+    <a class="card doc-item" href="#/item/${item.id}">
+      ${isMediaItem(item) ? mediaTile(item) : `<div class="doc-icon ${item.kind}">${icon(iconName)}</div>`}
       <div class="doc-body">
         <div class="doc-title">${esc(item.title)}</div>
         <div class="doc-meta">${meta.join('')}</div>
@@ -118,7 +117,7 @@ export async function homeView(view) {
       .map(
         (i) => `
         <a class="quick-item" href="#/item/${i.id}">
-          ${hasThumbnail(i) ? videoThumb(i, { size: 'sm' }) : `<span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>`}
+          ${isMediaItem(i) ? mediaTile(i, { size: 'sm' }) : `<span class="quick-icon ${i.kind}">${icon(fileIcon(i))}</span>`}
           <span class="quick-text"><strong>${esc(i.title)}</strong><small>${esc(i.category_name || 'Sem categoria')} · ${esc(i.duration ? formatDuration(i.duration) : relativeDate(i.updated_at))}</small></span>
         </a>`,
       )

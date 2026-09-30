@@ -22,24 +22,15 @@ export const clock = (seconds) => {
   return `${h ? `${h}:` : ''}${mm}:${String(s % 60).padStart(2, '0')}`;
 };
 
-const VIDEO_EXT = /\.(mp4|mov|mkv|webm|avi|wmv|m4v|mpg|mpeg)$/i;
-
-/** Vídeo com imagem de capa: YouTube ou vídeo enviado (áudios não têm). */
-export const hasThumbnail = (item) =>
-  item.kind === 'youtube' || (item.kind === 'file' && (/^video\//.test(item.mime_type || '') || VIDEO_EXT.test(item.file_name || '')));
-
 /**
- * Miniatura estilo YouTube: capa do vídeo (ou um quadro do vídeo enviado) com a duração por cima.
- * Se a imagem não carregar, fica o ícone por baixo (ver o tratamento de erro em app.js).
+ * Ícone de vídeo/áudio para as listas: quadradinho do tamanho dos ícones dos textos, com a duração
+ * embaixo. Vermelho no YouTube, verde nos vídeos enviados.
  */
-export function videoThumb(item, { size = 'md' } = {}) {
-  const version = encodeURIComponent(item.updated_at || '');
-  return `<span class="video-thumb thumb-${size}${item.kind === 'youtube' ? ' is-youtube' : ''}">
-      ${icon(item.kind === 'youtube' ? 'youtube' : 'video')}
-      <img class="thumb-img" src="/api/items/${item.id}/thumb?v=${version}" alt="" loading="lazy" decoding="async" />
-      <span class="thumb-play">${icon('play')}</span>
-      ${item.duration ? `<span class="thumb-duration">${clock(item.duration)}</span>` : ''}
-    </span>`;
+export function mediaTile(item, { size = 'md' } = {}) {
+  const name = item.kind === 'youtube' ? 'youtube' : /^audio\//.test(item.mime_type || '') ? 'audio' : 'video';
+  const duration = item.duration && size !== 'sm' ? `<span class="tile-duration">${clock(item.duration)}</span>` : '';
+  return `<span class="media-tile tile-${size}${item.kind === 'youtube' ? ' is-youtube' : ''}${duration ? ' has-duration' : ''}"
+    title="${item.duration ? `Duração ${clock(item.duration)}` : ''}">${icon(name)}${duration}</span>`;
 }
 
 export function formatDuration(seconds) {
