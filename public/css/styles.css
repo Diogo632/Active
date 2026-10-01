@@ -992,3 +992,26 @@ dialog.history-dialog { width: min(980px, calc(100vw - 32px)); }
 /* Nas tabelas as palavras não se quebram no meio: a tabela ganha rolagem horizontal. */
 .prose th, .prose td { overflow-wrap: normal; word-break: normal; }
 .prose td { min-width: 64px; }
+
+/* ---------- Início enxuto: busca + uma lista com abas ---------- */
+.home { max-width: 720px; }
+.home-hero { padding: 72px 0 36px; }
+.home-hero h1 { margin-bottom: 26px; }
+.home-list { max-width: 640px; margin: 8px auto 0; }
+.home-tabs { display: flex; align-items: center; gap: 4px; margin-bottom: 10px; padding: 0 4px; }
+.home-tabs button {
+  border: 0; background: none; cursor: pointer; padding: 6px 12px; border-radius: 999px;
+  color: var(--text-muted); font: 600 13px var(--font); transition: background .15s, color .15s;
+}
+.home-tabs button:hover { color: var(--text); }
+.home-tabs button.active { background: var(--surface-2); color: var(--text); }
+.home-all { margin-left: auto; color: var(--text-muted); }
+.home-all:hover { color: var(--brand-accent); }
+.home-list .quick-list { gap: 4px; }
+.home-list .quick-item { padding-top: 10px; padding-bottom: 10px; }
+.home-list .quick-text strong { white-space: normal; overflow: visible; }
+@media (max-width: 860px) {
+  .home-hero { padding: 28px 0 20px; }
+}
+/* Na tela inicial a busca principal já está no centro: a do topo fica escondida. */
+body.route-home .topbar-search { visibility: hidden; }

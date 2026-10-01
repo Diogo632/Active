@@ -37,11 +37,8 @@ const skDocItems = (n = 5) =>
     (_, i) => `<div class="card doc-item sk-card">${sk('sk-icon')}<div class="sk-stack">${sk('sk-title', `${55 - (i % 3) * 10}%`)}${sk('sk-sm', '35%')}${sk('sk-sm', `${85 - (i % 2) * 20}%`)}</div></div>`,
   ).join('');
 const SKELETONS = {
-  home: () => `<div class="home sk-screen"><div class="home-hero">${sk('sk-h1 sk-center', '60%')}${sk('sk-search sk-center')}
-      <div class="sk-row sk-center-row">${sk('sk-chip')}${sk('sk-chip')}${sk('sk-chip')}</div></div>
-      <div class="home-columns">${[0, 1]
-        .map(() => `<section>${sk('sk-sm', '40%')}<div class="sk-stack sk-gap">${Array.from({ length: 4 }, () => `<div class="sk-row">${sk('sk-icon sk-icon-sm')}<div class="sk-stack">${sk('', '70%')}${sk('sk-sm', '45%')}</div></div>`).join('')}</div></section>`)
-        .join('')}</div></div>`,
+  home: () => `<div class="home sk-screen"><div class="home-hero">${sk('sk-h1 sk-center', '55%')}${sk('sk-search sk-center')}</div>
+      <div class="home-list sk-stack sk-gap">${sk('sk-sm', '30%')}${Array.from({ length: 5 }, () => `<div class="sk-row">${sk('sk-icon sk-icon-sm')}<div class="sk-stack">${sk('', '60%')}${sk('sk-sm', '35%')}</div></div>`).join('')}</div></div>`,
   list: () => `<div class="sk-screen">${sk('sk-sm', '18%')}<div class="doc-list">${skDocItems()}</div></div>`,
   doc: () => `<div class="sk-screen">${sk('sk-sm', '14%')}${sk('sk-h1', '55%')}<div class="sk-row">${sk('sk-chip')}${sk('sk-chip')}</div>
       <div class="sk-row sk-actions">${sk('sk-btn')}${sk('sk-btn')}${sk('sk-btn')}</div>
@@ -106,11 +103,14 @@ function openIa(prompt) {
 // ======================================================================
 export async function homeView(view) {
   view.innerHTML = skeleton('home');
-  const [popular, recent] = await Promise.all([api.items({ limit: 6, sort: 'views' }), api.items({ limit: 6 })]);
-  const cats = shared.categories;
+  const [popular, recent] = await Promise.all([api.items({ limit: 5, sort: 'views' }), api.items({ limit: 5 })]);
   const empty = !recent.items.length;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  // Uma lista só, com abas; a aba escolhida fica lembrada neste navegador.
+  const lists = { recentes: recent.items, acessados: popular.items };
+  let tab = storage.get('kb-inicio-aba', 'recentes');
+  if (!lists[tab]) tab = 'recentes';
 
   const quickList = (items) =>
     items
@@ -132,14 +132,6 @@ export async function homeView(view) {
           <input name="q" placeholder="Busque um processo, cliente, erro ou sistema…" autocomplete="off" aria-label="Buscar na base" autofocus />
           <button class="btn btn-primary" type="submit">Buscar</button>
         </form>
-        <p class="home-hint">A Active AI responde junto com os resultados<span class="kbd-hint"> · <kbd>Ctrl</kbd> <kbd>K</kbd> busca de qualquer tela</span></p>
-        ${
-          cats.length
-            ? `<nav class="chips" aria-label="Categorias">${cats
-                .map((c) => `<a class="chip" href="#/docs?category=${c.id}">${icon(c.icon)}${esc(c.name)}<span>${c.item_count}</span></a>`)
-                .join('')}</nav>`
-            : ''
-        }
       </div>
       ${
         empty
@@ -149,12 +141,28 @@ export async function homeView(view) {
               'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens, vídeos de treinamento e qualquer outro tipo).',
               '<div class="row" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
             )
-          : `<div class="home-columns">
-              <section><h2>Mais acessados</h2><div class="quick-list">${quickList(popular.items)}</div></section>
-              <section><h2>Atualizados recentemente</h2><div class="quick-list">${quickList(recent.items)}</div><a class="small" href="#/docs">Ver todos os documentos →</a></section>
-            </div>`
+          : `<section class="home-list">
+              <div class="home-tabs" role="tablist">
+                <button type="button" role="tab" data-tab="recentes" class="${tab === 'recentes' ? 'active' : ''}">Recentes</button>
+                <button type="button" role="tab" data-tab="acessados" class="${tab === 'acessados' ? 'active' : ''}">Mais acessados</button>
+                <a class="small home-all" href="#/docs">Ver todos →</a>
+              </div>
+              <div class="quick-list" id="home-quick">${quickList(lists[tab])}</div>
+            </section>`
       }
     </section>`;
+
+  view.querySelector('.home-tabs')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-tab]');
+    if (!btn || btn.dataset.tab === tab) return;
+    tab = btn.dataset.tab;
+    storage.set('kb-inicio-aba', tab);
+    view.querySelectorAll('[data-tab]').forEach((b) => b.classList.toggle('active', b === btn));
+    const list = view.querySelector('#home-quick');
+    list.innerHTML = quickList(lists[tab]);
+    hydrateIcons(list);
+    fadeUp(list.querySelectorAll('.quick-item'), { y: 6, stagger: 35 });
+  });
 
   const form = view.querySelector('#home-search');
   form.addEventListener('submit', (e) => {

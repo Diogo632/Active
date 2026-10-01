@@ -60,6 +60,7 @@ async function router() {
 
 
   // Na página da Active AI o painel lateral fica redundante (o fixado volta ao sair dela).
+  document.body.classList.toggle('route-home', route?.nav === 'home');
   onIaPage = route?.nav === 'ia';
   if (onIaPage) closeDrawer({ keepPinned: true });
   else if (pinned && canPin()) openDrawer();
