@@ -2,6 +2,8 @@
 
 Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, com a assistente **Active AI** integrada.
 
+> 📘 **Documentação completa em [`docs/`](docs/README.md)**: guia de uso, Active AI e MCP, vídeos, instalação e hospedagem, API, dados, segurança, solução de problemas e desenvolvimento.
+
 ## Funcionalidades
 
 - **Textos**: escreva procedimentos, soluções e comunicados direto na plataforma. O editor usa Markdown e tem barra de formatação, visualização lado a lado e atalhos (Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+S).
