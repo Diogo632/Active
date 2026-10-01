@@ -83,6 +83,7 @@ Configurações do `.env`:
 | `CHAPTERS` | `auto` (padrão) pede à Active AI o resumo e os capítulos de cada vídeo transcrito; `off` desliga. |
 | `YTDLP_PATH` | Opcional: caminho do [yt-dlp](https://github.com/yt-dlp/yt-dlp). Com ele instalado, vídeos do YouTube sem legendas têm o áudio baixado e transcrito pelo Whisper. |
 | `CHAT_ATTACHMENT_HOURS` | Por quantas horas os arquivos anexados na conversa com a Active AI ficam guardados (padrão `72`). |
+| `TRUST_PROXY` | Quando a plataforma roda atrás de um proxy (nginx, Traefik), informe quantos proxies há na frente (ex.: `1`), para o limite de tentativas enxergar o IP real de cada pessoa. |
 | `REVIEW_MONTHS_DEFAULT` | Prazo de revisão padrão dos textos novos, em meses (padrão `6`; `0` desliga). |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
@@ -214,6 +215,28 @@ Como funciona:
 O vídeo precisa permitir incorporação (a maioria permite; vídeos "não listados" também funcionam).
 
 O YouTube às vezes bloqueia a leitura das legendas a partir de servidores de nuvem (como o Codespace), pedindo login para "confirmar que não é um robô". A plataforma tenta várias formas de leitura e, se todas forem bloqueadas, avisa isso na tela do vídeo; o motivo detalhado de cada tentativa fica no log (`[transcrição] Legendas de … não lidas`). Nesse caso, use **Colar**.
+
+## Segurança
+
+O que a plataforma já faz:
+
+- **Senha de acesso** (`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`). Sem ela, o servidor avisa no terminal ao iniciar: qualquer pessoa com o endereço teria acesso total.
+- **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam aquele endereço por alguns minutos.
+- **Proteção contra CSRF**: ações (criar, editar, excluir, enviar) vindas de outro site com a sessão de quem está logado são recusadas.
+- **Cabeçalhos de segurança** e **política de conteúdo (CSP)**: a página só executa scripts da própria plataforma, não pode ser embutida em outros sites e não envia dados para outros endereços.
+- **Conteúdo sanitizado**: textos, respostas da Active AI e nomes de arquivo passam por escape ou DOMPurify antes de aparecer na tela.
+- **Arquivos enviados**: guardados com nome gerado pelo servidor; HTML, SVG e outros tipos perigosos são sempre baixados, nunca abertos no navegador.
+- **MCP e API de integração** só com o `INTEGRATION_TOKEN`; consultas ao banco sempre parametrizadas; ffmpeg e yt-dlp chamados sem shell.
+
+Antes de colocar em produção:
+
+1. **Troque a senha e o token** usados nos testes (`npm run gerar-token` para o token; senha com 12+ caracteres).
+2. **Use HTTPS** (no nginx/Traefik da Active, junto do n8n). Com HTTP, a senha trafega sem criptografia.
+3. **Faça backup** da pasta `data/` (banco, arquivos e vídeos).
+4. **Atualize as dependências** de tempos em tempos (`npm audit`), principalmente as que leem arquivos enviados (officeparser, ffmpeg).
+5. Lembre que o conteúdo consultado pela Active AI (documentos, transcrições e anexos) é enviado ao **n8n e ao GPTMaker**; documentos com dados pessoais de clientes seguem para esses serviços.
+
+Limitações conhecidas: todos usam o mesmo usuário e senha (não há login individual nem registro de quem fez cada alteração), e quem tem a senha vê todos os documentos, inclusive os anexos temporários da conversa.
 
 ## Cores (identidade visual da Active AI)
 

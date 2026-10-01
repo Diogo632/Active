@@ -142,6 +142,11 @@ export function fileTypeLabel(item) {
 
 window.marked?.setOptions({ gfm: true, breaks: true });
 
+// Links que abrem em outra aba não podem controlar esta página (rel="noopener").
+window.DOMPurify?.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A' && node.hasAttribute('target')) node.setAttribute('rel', 'noopener noreferrer');
+});
+
 /** Converte Markdown em HTML seguro (sanitizado com DOMPurify). */
 const CODE_LABELS = { sql: 'SQL', js: 'JavaScript', javascript: 'JavaScript', json: 'JSON', xml: 'XML', html: 'HTML', bash: 'Terminal', sh: 'Terminal', shell: 'Terminal', powershell: 'PowerShell', ps: 'PowerShell', cmd: 'Prompt', python: 'Python', py: 'Python', csv: 'CSV', edi: 'EDI', txt: 'Texto', text: 'Texto' };
 

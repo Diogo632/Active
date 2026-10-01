@@ -14,6 +14,7 @@ import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTr
 import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
 import { createChaptersQueue } from './chapters.js';
 import { looksUnanswered } from './gaps.js';
+import { securityHeaders, blockCrossSiteWrites, createFailureLimiter, CONTENT_SECURITY_POLICY } from './security.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -69,16 +70,23 @@ export function createApp({
 
   const app = express();
   app.disable('x-powered-by');
+  // Atrás de um proxy (nginx, Codespaces), TRUST_PROXY faz o limite de tentativas enxergar o IP real.
+  if (process.env.TRUST_PROXY) app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+  app.use(securityHeaders);
+  // Senha ou token errados: no máximo 10 tentativas a cada 10 minutos por endereço.
+  const failures = createFailureLimiter();
 
   // ---------- Integração (n8n / GPTMaker) ----------
   // Endpoints somente leitura, protegidos por token, para fluxos externos consultarem a base.
   const integrationToken = process.env.INTEGRATION_TOKEN;
   // Aceita o token no header "Authorization: Bearer <token>" ou em ?token= (para clientes que não enviam headers).
   const requireIntegrationToken = (req, res, next) => {
+    if (failures.blocked(req, res)) return;
     const raw = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.token || '');
     const given = Buffer.from(raw);
     const expected = Buffer.from(integrationToken || '');
     if (integrationToken && given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
+    failures.fail(req);
     res.status(401).json({ error: 'Token de integração inválido.' });
   };
   const integration = express.Router();
@@ -127,13 +135,18 @@ export function createApp({
     const expected = Buffer.from(`${authUser}:${authPass}`);
     app.use((req, res, next) => {
       const header = req.headers.authorization || '';
+      if (header && failures.blocked(req, res)) return;
       const given = Buffer.from(header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString() : '');
       if (given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
+      // O primeiro acesso do navegador vem sem senha (é o que abre a janela de login): só conta como erro se veio com senha.
+      if (header) failures.fail(req);
       res.set('WWW-Authenticate', 'Basic realm="Base de Conhecimento Active", charset="UTF-8"');
       res.status(401).send('Autenticação necessária');
     });
   }
 
+  // Ações disparadas por outros sites com a sessão de quem está logado (CSRF) são recusadas.
+  app.use('/api', blockCrossSiteWrites);
   app.use(express.json({ limit: '5mb' }));
 
   // ---------- Arquivos estáticos ----------
@@ -142,6 +155,7 @@ export function createApp({
     express.static(path.join(rootDir, 'public'), {
       setHeaders: (res, file) => {
         if (/\.(html|js|css)$/.test(file)) res.set('Cache-Control', 'no-store');
+        if (/\.html$/.test(file)) res.set('Content-Security-Policy', CONTENT_SECURITY_POLICY);
       },
     }),
   );
@@ -662,6 +676,17 @@ if (isMain) {
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
     const { ai } = createdInfo;
     if (ai.provider === 'n8n') console.log(`Active AI: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
+    if (!process.env.BASIC_AUTH_USER || !process.env.BASIC_AUTH_PASSWORD) {
+      console.warn(
+        'ATENÇÃO: a plataforma está SEM SENHA (BASIC_AUTH_USER/BASIC_AUTH_PASSWORD vazios no .env). ' +
+          'Qualquer pessoa com o endereço pode ver, enviar e excluir documentos. Defina usuário e senha antes de expor a porta.',
+      );
+    } else if (String(process.env.BASIC_AUTH_PASSWORD).length < 12) {
+      console.warn('Aviso: a senha da plataforma (BASIC_AUTH_PASSWORD) tem menos de 12 caracteres. Use uma senha mais longa.');
+    }
+    if (process.env.INTEGRATION_TOKEN && String(process.env.INTEGRATION_TOKEN).length < 32) {
+      console.warn('Aviso: o INTEGRATION_TOKEN é curto. Gere um novo com "npm run gerar-token".');
+    }
     else if (ai.configured) console.log('Active AI: API da Anthropic');
     if (!ai.configured) console.log('Aviso: Active AI não configurada — defina N8N_WEBHOOK_URL no arquivo .env.');
   });
