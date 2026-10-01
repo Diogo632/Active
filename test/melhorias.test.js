@@ -342,3 +342,43 @@ test('anexo na conversa: fica temporário na plataforma e o agente recebe só o 
   assert.deepEqual(repo.expiredTemporary(), []);
   assert.ok((await json('GET', '/api/items?q=contrato%20selmi')).body.items.some((i) => i.id === anexo.id));
 });
+
+test('YouTube: tenta outros clientes quando um é bloqueado e explica a falha', async () => {
+  const { createYouTubeClient } = await import('../server/youtube.js');
+  const xml = '<transcript><text start="0" dur="2">Roteirização automática</text><text start="40" dur="2">Montando as rotas</text></transcript>';
+  const reply = (body, status = 200) => ({ ok: status < 400, status, json: async () => body, text: async () => (typeof body === 'string' ? body : JSON.stringify(body)) });
+  const blocked = { playabilityStatus: { status: 'LOGIN_REQUIRED', reason: 'Sign in to confirm you’re not a bot' } };
+  const fakeFetch = (behavior) => async (url, init = {}) => {
+    if (url.includes('/youtubei/v1/player')) return reply(behavior(JSON.parse(init.body).context.client.clientName));
+    if (url.includes('/watch')) return reply('<html>sem dados</html>');
+    if (url.includes('timedtext')) return reply(xml);
+    throw new Error('url inesperada');
+  };
+
+  // ANDROID bloqueado, IOS devolve as legendas.
+  const ok = await createYouTubeClient({
+    fetchImpl: fakeFetch((client) =>
+      client === 'IOS'
+        ? { playabilityStatus: { status: 'OK' }, videoDetails: { lengthSeconds: '754' }, captions: { playerCaptionsTracklistRenderer: { captionTracks: [{ baseUrl: 'https://www.youtube.com/api/timedtext?v=x&fmt=srv3', languageCode: 'pt', kind: 'asr' }] } } }
+        : blocked,
+    ),
+  }).transcript('AbCdEfGhIjK');
+  assert.equal(ok.chunks.length, 2);
+  assert.equal(ok.duration, 754);
+
+  // Todos bloqueados: o motivo é "bloqueado" (não "sem legendas").
+  const all = await createYouTubeClient({ fetchImpl: fakeFetch(() => blocked) }).transcript('AbCdEfGhIjK');
+  assert.equal(all.failure, 'bloqueado');
+  assert.match(all.attempts, /ANDROID: LOGIN_REQUIRED/);
+
+  // O vídeo respondeu, mas não tem legendas.
+  const none = await createYouTubeClient({ fetchImpl: fakeFetch(() => ({ playabilityStatus: { status: 'OK' }, videoDetails: { lengthSeconds: '60' } })) }).transcript('AbCdEfGhIjK');
+  assert.equal(none.failure, 'sem_legendas');
+});
+
+test('transcrição colada do YouTube com o horário por extenso', () => {
+  assert.equal(
+    normalizeTranscript('0:00\n0 segundos\nBom dia\n1:05\n1 minuto e 5 segundos\nAgora as rotas'),
+    '[00:00:00] Bom dia\n[00:01:05] Agora as rotas',
+  );
+});

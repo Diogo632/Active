@@ -65,41 +65,105 @@ export function pickCaptionTrack(tracks = []) {
   );
 }
 
-const ANDROID_CLIENT = { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30, hl: 'pt', gl: 'BR' };
-const ANDROID_UA = 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip';
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 
-async function playerResponse(id, fetchImpl) {
-  // 1) API interna usada pelo app do YouTube (costuma trazer as legendas sem bloqueio).
+// Clientes da API interna do YouTube, tentados em ordem: cada um às vezes devolve as legendas
+// quando outro é bloqueado (o YouTube costuma bloquear servidores de nuvem pedindo login).
+const PLAYER_CLIENTS = [
+  {
+    name: 'ANDROID',
+    ua: 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
+    client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 30, hl: 'pt', gl: 'BR' },
+  },
+  {
+    name: 'IOS',
+    ua: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
+    client: { clientName: 'IOS', clientVersion: '20.10.4', deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.3.2.22D82', hl: 'pt', gl: 'BR' },
+  },
+  {
+    name: 'TVHTML5_EMBEDDED',
+    ua: BROWSER_UA,
+    client: { clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', clientVersion: '2.0', hl: 'pt', gl: 'BR' },
+    thirdParty: true,
+  },
+];
+
+const captionTracksOf = (data) => data?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+
+/** Situação devolvida pelo YouTube (OK, LOGIN_REQUIRED "confirme que não é um robô", UNPLAYABLE…). */
+const statusOf = (data) => ({
+  status: data?.playabilityStatus?.status || 'SEM_RESPOSTA',
+  reason: data?.playabilityStatus?.reason || data?.playabilityStatus?.messages?.join(' ') || '',
+});
+
+/**
+ * Procura a resposta do player com legendas, tentando os clientes da API e depois a página do vídeo.
+ * Devolve { data, attempts } — attempts registra o que cada tentativa recebeu, para explicar falhas.
+ */
+async function findPlayerResponse(id, fetchImpl) {
+  const attempts = [];
+  let best = null;
+  for (const c of PLAYER_CLIENTS) {
+    try {
+      const res = await fetchImpl('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'User-Agent': c.ua, 'Accept-Language': 'pt-BR,pt;q=0.9' },
+        body: JSON.stringify({
+          context: { client: c.client, ...(c.thirdParty ? { thirdParty: { embedUrl: watchUrl(id) } } : {}) },
+          videoId: id,
+          contentCheckOk: true,
+          racyCheckOk: true,
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (!res.ok) {
+        attempts.push({ via: c.name, status: `HTTP ${res.status}`, reason: '' });
+        continue;
+      }
+      const data = await res.json();
+      attempts.push({ via: c.name, ...statusOf(data), tracks: captionTracksOf(data).length });
+      if (captionTracksOf(data).length) return { data, attempts };
+      if (!best && data?.videoDetails) best = data;
+    } catch (err) {
+      attempts.push({ via: c.name, status: 'ERRO', reason: err.cause?.code || err.message });
+    }
+  }
+  // Página do vídeo: o mesmo JSON vem embutido em ytInitialPlayerResponse.
   try {
-    const res = await fetchImpl('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'User-Agent': ANDROID_UA },
-      body: JSON.stringify({ context: { client: ANDROID_CLIENT }, videoId: id }),
+    const res = await fetchImpl(`${watchUrl(id)}&hl=pt-BR`, {
+      headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
       signal: AbortSignal.timeout(20_000),
     });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.captions || data?.videoDetails) return data;
+    const html = await res.text();
+    const marker = 'ytInitialPlayerResponse = ';
+    const start = html.indexOf(marker);
+    if (start >= 0) {
+      const from = start + marker.length;
+      const end = html.indexOf(';</script>', from);
+      const data = JSON.parse(html.slice(from, end > 0 ? end : undefined));
+      attempts.push({ via: 'PAGINA', ...statusOf(data), tracks: captionTracksOf(data).length });
+      if (captionTracksOf(data).length) return { data, attempts };
+      best ||= data?.videoDetails ? data : null;
+    } else {
+      attempts.push({ via: 'PAGINA', status: /consent|captcha|sorry/i.test(html) ? 'BLOQUEIO' : 'SEM_DADOS', reason: '' });
     }
-  } catch {
-    /* tenta pela página do vídeo */
+  } catch (err) {
+    attempts.push({ via: 'PAGINA', status: 'ERRO', reason: err.cause?.code || err.message });
   }
-  // 2) Página do vídeo: o mesmo JSON vem embutido em ytInitialPlayerResponse.
-  const res = await fetchImpl(`${watchUrl(id)}&hl=pt-BR`, {
-    headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'pt-BR,pt;q=0.9' },
-    signal: AbortSignal.timeout(20_000),
-  });
-  const html = await res.text();
-  const start = html.indexOf('ytInitialPlayerResponse = ');
-  if (start < 0) return null;
-  const from = start + 'ytInitialPlayerResponse = '.length;
-  const end = html.indexOf(';</script>', from);
-  try {
-    return JSON.parse(html.slice(from, end > 0 ? end : undefined));
-  } catch {
-    return null;
-  }
+  return { data: best, attempts };
+}
+
+/**
+ * Por que não deu para ler as legendas:
+ * 'bloqueado' (o YouTube pediu login/confirmação de que não é robô — comum em servidores de nuvem),
+ * 'sem_legendas' (o vídeo respondeu normalmente, mas não tem legendas) ou 'erro' (falha de rede ou outra).
+ */
+export function explainCaptionFailure(attempts = []) {
+  const blocked = attempts.some((a) => a.status === 'LOGIN_REQUIRED' || a.status === 'BLOQUEIO' || /bot|robô|sign in|faça login/i.test(a.reason));
+  const answeredOk = attempts.some((a) => a.status === 'OK');
+  if (answeredOk && !blocked) return 'sem_legendas';
+  if (blocked) return 'bloqueado';
+  return 'erro';
 }
 
 /** Cliente do YouTube usado pela plataforma (título, duração e legendas). */
@@ -119,15 +183,23 @@ export function createYouTubeClient({ fetchImpl = fetch } = {}) {
 
     /** Transcrição a partir das legendas do vídeo: { chunks: [{start, text}], duration, language, automatic }. */
     async transcript(id) {
-      const data = await playerResponse(id, fetchImpl);
+      const { data, attempts } = await findPlayerResponse(id, fetchImpl);
       const duration = Number(data?.videoDetails?.lengthSeconds) || null;
-      const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
-      const track = pickCaptionTrack(tracks);
-      if (!track?.baseUrl) return { chunks: [], duration, language: null, automatic: false };
+      const track = pickCaptionTrack(captionTracksOf(data));
+      const summary = attempts.map((a) => `${a.via}: ${a.status}${a.reason ? ` (${a.reason})` : ''}${a.tracks ? `, ${a.tracks} legenda(s)` : ''}`).join(' | ');
+      if (!track?.baseUrl) {
+        return { chunks: [], duration, language: null, automatic: false, failure: explainCaptionFailure(attempts), attempts: summary };
+      }
       const url = track.baseUrl.replace(/&fmt=[^&]*/, '');
-      const res = await fetchImpl(url, { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(20_000) });
-      const chunks = res.ok ? parseCaptionXml(await res.text()) : [];
-      return { chunks, duration, language: track.languageCode, automatic: track.kind === 'asr' };
+      const res = await fetchImpl(url, { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+      const chunks = res?.ok ? parseCaptionXml(await res.text()) : [];
+      return {
+        chunks,
+        duration,
+        language: track.languageCode,
+        automatic: track.kind === 'asr',
+        ...(chunks.length ? {} : { failure: 'erro', attempts: `${summary} | legenda: ${res ? `HTTP ${res.status}, vazia` : 'falha de rede'}` }),
+      };
     },
 
     /**

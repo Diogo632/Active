@@ -73,7 +73,8 @@ export function parseTimestampedText(raw) {
   let current = null;
   for (const line of String(raw || '').replace(/\r/g, '').split('\n')) {
     const text = line.trim();
-    if (!text) continue;
+    // O painel de transcrição do YouTube, ao copiar, às vezes inclui o horário por extenso ("1 minuto e 5 segundos").
+    if (!text || /^(\d+\s+(horas?|minutos?|segundos?|hours?|minutes?|seconds?)[,\s]*(e|and)?\s*)+$/i.test(text)) continue;
     const alone = text.match(/^[[(]?((?:\d{1,2}:)?\d{1,2}:\d{2})[\])]?$/);
     const inline = text.match(/^[[(]?((?:\d{1,2}:)?\d{1,2}:\d{2})[\])]?\s*[-–—:]?\s+(.+)$/);
     if (alone) {
@@ -174,8 +175,15 @@ export function createWhisperEngine({ model, dtype, language = 'portuguese' }) {
   };
 }
 
-const YOUTUBE_NO_CAPTIONS =
-  'Este vídeo não tem legendas disponíveis no YouTube. Envie a transcrição: no YouTube, abra “Mostrar transcrição” (abaixo da descrição), copie o texto e cole em “Colar transcrição”.';
+const PASTE_HELP =
+  'No YouTube, abra “…mais” na descrição do vídeo → “Mostrar transcrição”, copie o texto e cole em “Colar transcrição”.';
+const YOUTUBE_FAILURES = {
+  sem_legendas: `Este vídeo não tem legendas no YouTube. ${PASTE_HELP}`,
+  bloqueado:
+    'O YouTube bloqueou a leitura das legendas a partir deste servidor (ele pede login para “confirmar que não é um robô”, o que é comum em servidores de nuvem como o Codespace; no servidor da Active tende a funcionar). ' +
+    `Por enquanto, cole a transcrição: ${PASTE_HELP}`,
+  erro: `Não foi possível baixar as legendas do YouTube agora. Tente “Buscar legendas de novo” ou cole a transcrição: ${PASTE_HELP}`,
+};
 
 /**
  * Fila de transcrição: processa um vídeo/áudio por vez, em segundo plano, em partes de 5 minutos,
@@ -211,10 +219,11 @@ export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = t
     const videoId = item.source_url?.match(/[?&]v=([\w-]{11})/)?.[1];
     if (!videoId || !youtube) throw new Error('Link do YouTube inválido.');
     console.log(`[transcrição] Buscando as legendas do YouTube de ${label}`);
-    const { chunks, duration } = await youtube.transcript(videoId).catch((err) => {
+    const { chunks, duration, failure = 'erro', attempts } = await youtube.transcript(videoId).catch((err) => {
       console.error(`[transcrição] Falha ao ler as legendas de ${label}:`, err.message);
-      return { chunks: [], duration: null };
+      return { chunks: [], duration: null, failure: 'erro' };
     });
+    if (!chunks.length && attempts) console.log(`[transcrição] Legendas de ${label} não lidas (${failure}): ${attempts}`);
     if (duration) repo.setMedia(item.id, { duration });
     if (chunks.length) {
       repo.setTranscript(item.id, formatTranscript(chunks), 'legendas');
@@ -222,9 +231,10 @@ export function createTranscriptionQueue({ repo, uploadsDir, engine, enabled = t
       return true;
     }
     // Sem legendas: tenta baixar o áudio (yt-dlp) e transcrever com o Whisper.
-    if (!enabled) throw new Error(YOUTUBE_NO_CAPTIONS);
+    const message = YOUTUBE_FAILURES[failure] || YOUTUBE_FAILURES.erro;
+    if (!enabled) throw new Error(message);
     const audio = await youtube.downloadAudio?.(videoId);
-    if (!audio) throw new Error(YOUTUBE_NO_CAPTIONS);
+    if (!audio) throw new Error(message);
     try {
       repo.setTranscript(item.id, await transcribeFile(item.id, audio.file, label), 'concluida');
       return true;

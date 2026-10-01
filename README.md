@@ -213,6 +213,8 @@ Como funciona:
 
 O vídeo precisa permitir incorporação (a maioria permite; vídeos "não listados" também funcionam).
 
+O YouTube às vezes bloqueia a leitura das legendas a partir de servidores de nuvem (como o Codespace), pedindo login para "confirmar que não é um robô". A plataforma tenta várias formas de leitura e, se todas forem bloqueadas, avisa isso na tela do vídeo; o motivo detalhado de cada tentativa fica no log (`[transcrição] Legendas de … não lidas`). Nesse caso, use **Colar**.
+
 ## Cores (identidade visual da Active AI)
 
 A plataforma usa a mesma paleta da Active AI: tema escuro por padrão, fundo `#0a0a0a`, painéis `#121212`, bordas `#242424` e verde `#15803d` nos destaques. Também há um tema claro com o mesmo verde. Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css).
