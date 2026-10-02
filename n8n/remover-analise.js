@@ -8,7 +8,8 @@
 // rascunho no campo "analise", para quem quiser conferir no histórico de execuções do n8n.
 //
 // IMPORTANTE: no nó "Responder ao chat", devolva também o campo "analise", por exemplo:
-//   { "message": {{ JSON.stringify($json.message) }}, "analise": {{ JSON.stringify($json.analise || '') }} }
+//   {{ JSON.stringify({ message: $json.message || '', analise: $json.analise || '' }) }}
+// (Response Body com "Respond With = JSON"; este nó Code precisa ficar logo antes do "Responder ao chat".)
 // A Base de Conhecimento mostra esse rascunho no botão "!" da resposta; o chat oficial ignora o campo.
 
 const ABRE = /<an[aá]lise>/i;

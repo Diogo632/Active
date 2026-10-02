@@ -195,7 +195,7 @@ Para o agente não responder com "o assunto mais parecido" que encontrou, o prom
 | Filtro na plataforma | Automático (`splitAnalysis` em `server/n8n.js`) | Tira o rascunho do texto da resposta, mostra-o só ao clicar no **!** da mensagem e registra no log: `[active-ai/análise] sessão \| pergunta ⇒ rascunho` |
 | Filtro no n8n | [`n8n/remover-analise.js`](../n8n/remover-analise.js) → nó **Code** entre o agente e o "Responder ao chat" | Tira o rascunho para o **chat oficial** também; guarda o rascunho no campo `analise` (a plataforma registra esse campo no log) |
 
-Ordem para ativar: **primeiro** o nó no n8n, **depois** o trecho no prompt (senão o chat oficial mostra o rascunho). No nó **"Responder ao chat"**, inclua também o campo `analise` na resposta (ex.: `{ "message": {{ $json.message }}, "analise": {{ $json.analise }} }`), senão o **!** da plataforma não tem o que mostrar. Para ver os rascunhos: `grep "active-ai/análise" servidor.log | tail`.
+Ordem para ativar: **primeiro** o nó no n8n, **depois** o trecho no prompt (senão o chat oficial mostra o rascunho). No nó **"Responder ao chat"**, inclua também o campo `analise` na resposta (no *Response Body*, com *Respond With = JSON*: `{{ JSON.stringify({ message: $json.message || '', analise: $json.analise || '' }) }}`; o nó **Code** precisa vir logo antes), senão o **!** da plataforma não tem o que mostrar. Para ver os rascunhos: `grep "active-ai/análise" servidor.log | tail`.
 
 Se o bloco vier sem o fechamento `</analise>`, só o trecho até a primeira linha em branco é tratado como rascunho; a plataforma nunca esconde a resposta inteira.
 
