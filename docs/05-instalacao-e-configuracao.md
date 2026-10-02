@@ -55,6 +55,10 @@ Na inicialização, o terminal mostra o endereço, o motor da Active AI e **avis
 | `INTEGRATION_TOKEN` | vazio | Token do MCP e da API de integração. Sem ele, o MCP fica desligado. Gere com `npm run gerar-token` |
 | `TRUST_PROXY` | vazio | Atrás de nginx/Traefik, quantos proxies há na frente (ex.: `1`), para o limite de tentativas ver o IP real |
 
+### Login individual e busca por significado
+
+Login com a conta Microsoft ou Google da empresa (`MICROSOFT_*`, `GOOGLE_*`, `OIDC_*`, `AUTH_ALLOWED_DOMAINS`, `ADMIN_EMAILS`, `AUTH_DEFAULT_ROLE`, `SESSION_DAYS`) e busca por significado (`SEMANTIC_SEARCH`, `SEMANTIC_MODEL`, `SEMANTIC_DTYPE`, `SEMANTIC_MIN_SCORE`): veja a tabela completa e o passo a passo de registro na Microsoft e no Google em [11. Login, busca por significado e glossário](11-login-busca-e-glossario.md). Com o login ligado, a senha única (`BASIC_AUTH_*`) deixa de ser usada e o `PUBLIC_URL` passa a ser obrigatório.
+
 ### Active AI (n8n + GPTMaker)
 
 | Variável | Padrão | Descrição |

@@ -75,6 +75,7 @@ function docItem(item) {
     `<span>Atualizado ${esc(relativeDate(item.updated_at))}</span>`,
     item.size ? `<span>${formatBytes(item.size)}</span>` : '',
     transcriptBadge(item),
+    item.by_meaning ? `<span class="badge badge-meaning" title="Encontrado pelo significado: o documento fala do assunto, mesmo sem as mesmas palavras">≈ significado</span>` : '',
     item.review_overdue ? `<span class="badge badge-warn" title="Revisão vencida desde ${esc(dateBr(item.review_due))}">${icon('clock')}Revisar</span>` : '',
     ...item.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`),
   ].filter(Boolean);
@@ -195,7 +196,7 @@ export async function docsView(view, { query }) {
       ${
         q
           ? ''
-          : `<div class="row">
+          : `<div class="row needs-editor">
         <a class="btn" href="#/upload${category ? `?category=${category}` : ''}">${icon('upload')}Enviar arquivos</a>
         <a class="btn btn-primary" href="#/new${category ? `?category=${category}` : ''}">${icon('pen')}Escrever texto</a>
       </div>`
@@ -272,7 +273,7 @@ export async function itemView(view, { params }) {
     ? `<div class="review-banner">${icon('clock')}
         <div><strong>Revisão vencida desde ${esc(dateBr(item.review_due))}</strong>
         <span>Este documento está há mais de ${item.review_months} ${item.review_months === 1 ? 'mês' : 'meses'} sem atualização e pode ter informação antiga. A Active AI avisa isso ao usar este conteúdo.</span></div>
-        <div class="row"><button class="btn btn-sm btn-primary" type="button" id="mark-reviewed">${icon('check')}Continua válido</button><a class="btn btn-sm" href="#/edit/${item.id}">${icon('edit')}Atualizar</a></div>
+        <div class="row needs-editor"><button class="btn btn-sm btn-primary" type="button" id="mark-reviewed">${icon('check')}Continua válido</button><a class="btn btn-sm" href="#/edit/${item.id}">${icon('edit')}Atualizar</a></div>
       </div>`
     : '';
   const extractNote = {
@@ -305,7 +306,7 @@ export async function itemView(view, { params }) {
     ? `<div class="temp-banner">${icon('paperclip')}
         <div><strong>Anexo de uma conversa com a Active AI</strong>
         <span>Este arquivo não aparece nas listas nem na busca e será apagado em ${esc(formatDate(item.expires_at, true))}. Se ele for útil para a equipe, mantenha na base.</span></div>
-        <button class="btn btn-sm btn-primary" type="button" id="keep">${icon('check')}Manter na base</button>
+        <button class="btn btn-sm btn-primary needs-editor" type="button" id="keep">${icon('check')}Manter na base</button>
       </div>`
     : '';
   body = `${tempBanner}${reviewBanner}${body}${item.temporary ? '' : '<div id="doc-feedback"></div>'}`;
@@ -322,12 +323,12 @@ export async function itemView(view, { params }) {
     </header>
     <div class="doc-actions">
       <button class="btn btn-ia" id="ask">${icon('sparkles')}Perguntar à Active AI</button>
-      <a class="btn" href="#/edit/${item.id}">${icon('edit')}Editar${item.kind !== 'article' ? ' informações' : ''}</a>
+      <a class="btn needs-editor" href="#/edit/${item.id}">${icon('edit')}Editar${item.kind !== 'article' ? ' informações' : ''}</a>
       ${item.kind === 'file' ? `<a class="btn" href="/api/items/${item.id}/file?download">${icon('download')}Baixar</a>` : ''}
-      ${item.kind === 'file' ? `<label class="btn">${icon('upload')}Nova versão<input type="file" id="replace" hidden /></label>` : ''}
+      ${item.kind === 'file' ? `<label class="btn needs-editor">${icon('upload')}Nova versão<input type="file" id="replace" hidden /></label>` : ''}
       ${isYouTube ? `<a class="btn" href="${esc(item.source_url)}" target="_blank" rel="noopener">${icon('youtube')}Abrir no YouTube</a>` : ''}
       ${item.versions_count ? `<button class="btn" id="history" type="button">${icon('history')}Histórico (${item.versions_count})</button>` : ''}
-      <button class="btn btn-danger" id="delete">${icon('trash')}Excluir</button>
+      <button class="btn btn-danger needs-editor" id="delete">${icon('trash')}Excluir</button>
     </div>
     <div class="doc-layout">
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">${body}</div>
@@ -341,6 +342,7 @@ export async function itemView(view, { params }) {
           <dl>
             <dt>Categoria</dt><dd>${esc(item.category_name || 'Sem categoria')}</dd>
             ${item.author ? `<dt>Autor</dt><dd>${esc(item.author)}</dd>` : ''}
+            ${item.updated_by && item.updated_by !== item.author ? `<dt>Atualizado por</dt><dd>${esc(item.updated_by)}</dd>` : ''}
             ${item.file_name ? `<dt>Arquivo</dt><dd>${esc(item.file_name)}</dd>` : ''}
             ${item.duration ? `<dt>Duração</dt><dd>${esc(formatDuration(item.duration))}</dd>` : ''}
             ${isYouTube ? `<dt>Vídeo</dt><dd><a href="${esc(item.source_url)}" target="_blank" rel="noopener">YouTube</a></dd>` : ''}
@@ -481,7 +483,7 @@ async function showHistory(item, onRestored) {
       const version = await api.version(item.id, pick.dataset.version);
       preview.innerHTML = `
         <div class="row history-preview-head"><strong>${esc(version.title)}</strong><span class="spacer"></span>
-          <button class="btn btn-sm btn-primary" type="button" data-restore="${version.id}">${icon('history')}Restaurar esta versão</button></div>
+          <button class="btn btn-sm btn-primary needs-editor" type="button" data-restore="${version.id}">${icon('history')}Restaurar esta versão</button></div>
         <article class="prose">${version.content.trim() ? renderMarkdown(version.content) : '<p class="muted">Texto vazio.</p>'}</article>`;
       hydrateIcons(preview);
       return;
@@ -615,7 +617,7 @@ export async function editorView(view, { params, query }) {
           <label for="f-summary">Descrição curta</label>
           <input class="input" id="f-summary" name="summary" placeholder="Resumo em uma frase (opcional)" value="${esc(item?.summary || '')}" />
         </div>
-        <div class="field">
+        <div class="field manual-author">
           <label for="f-author">Autor</label>
           <input class="input" id="f-author" name="author" placeholder="Seu nome" value="${esc(item ? item.author : author)}" />
         </div>
@@ -800,7 +802,7 @@ export async function uploadView(view, { query }) {
           <label for="u-summary">Descrição</label>
           <input class="input" id="u-summary" name="summary" placeholder="Do que se trata (opcional)" />
         </div>
-        <div class="field">
+        <div class="field manual-author">
           <label for="u-author">Enviado por</label>
           <input class="input" id="u-author" name="author" placeholder="Seu nome" value="${esc(storage.get('kb-author', ''))}" />
         </div>
@@ -933,7 +935,7 @@ export async function categoriesView(view) {
     view.innerHTML = `
       <div class="page-header">
         <div><h1>Categorias</h1><p>Organize os documentos do Suporte por assunto.</p></div>
-        <button class="btn btn-primary" id="new-cat">${icon('plus')}Nova categoria</button>
+        <button class="btn btn-primary needs-editor" id="new-cat">${icon('plus')}Nova categoria</button>
       </div>
       ${
         cats.length
@@ -946,7 +948,7 @@ export async function categoriesView(view) {
               <td><a href="#/docs?category=${c.id}" class="row" style="gap:8px">${icon(c.icon)}<strong>${esc(c.name)}</strong></a></td>
               <td class="hide-sm muted">${esc(c.description)}</td>
               <td>${c.item_count}</td>
-              <td style="text-align:right;white-space:nowrap">
+              <td class="needs-editor" style="text-align:right;white-space:nowrap">
                 <button class="icon-btn" data-edit="${c.id}" title="Editar">${icon('edit')}</button>
                 <button class="icon-btn" data-delete="${c.id}" title="Excluir">${icon('trash')}</button>
               </td>
@@ -1078,7 +1080,7 @@ export async function reportView(view, { query }) {
             : ''
         }
       </div>
-      <div class="gap-actions">
+      <div class="gap-actions needs-editor">
         ${
           showResolved
             ? `<button class="btn btn-sm" type="button" data-reopen>${icon('refresh')}Reabrir</button>`
@@ -1107,7 +1109,7 @@ export async function reportView(view, { query }) {
         ? `<p class="muted small">Documentos que passaram do prazo de revisão sem atualização. Confira se continuam valendo — a Active AI avisa quem pergunta que eles podem estar desatualizados.</p>
            <div class="doc-list">${data.review
              .map(
-               (i) => `<div class="review-row">${docItem(i)}<div class="review-actions">
+               (i) => `<div class="review-row">${docItem(i)}<div class="review-actions needs-editor">
                  <button class="btn btn-sm btn-primary" type="button" data-reviewed="${i.id}">${icon('check')}Continua válido</button>
                  <a class="btn btn-sm" href="#/edit/${i.id}">${icon('edit')}Atualizar</a></div></div>`,
              )
@@ -1139,11 +1141,11 @@ export async function reportView(view, { query }) {
                     (a) => `<div class="card gap-row" data-gap="${esc(a.question)}">
                       <div class="gap-main">
                         <strong>${esc(a.question || '(pergunta não registrada)')}</strong>
-                        <div class="gap-meta"><span class="muted small">${esc(relativeDate(a.created_at))}</span></div>
+                        <div class="gap-meta"><span class="muted small">${a.user_name ? `${esc(a.user_name)} · ` : ''}${esc(relativeDate(a.created_at))}</span></div>
                         ${a.comment ? `<p class="feedback-comment">“${esc(a.comment)}”</p>` : ''}
                         <details class="gap-details"><summary>Ver a resposta</summary><div class="prose">${renderMarkdown(a.answer)}</div></details>
                       </div>
-                      <div class="gap-actions">${a.question ? `<button class="btn btn-sm btn-primary" type="button" data-write>${icon('pen')}Escrever documento</button>` : ''}</div>
+                      <div class="gap-actions needs-editor">${a.question ? `<button class="btn btn-sm btn-primary" type="button" data-write>${icon('pen')}Escrever documento</button>` : ''}</div>
                     </div>`,
                   )
                   .join('')}</div>`
@@ -1199,4 +1201,170 @@ export async function reportView(view, { query }) {
     }
   });
   fadeUp(view.querySelectorAll('.stat'), { y: 8, stagger: 50 });
+}
+
+// ======================================================================
+// Glossário da Active: termos, siglas e sinônimos (ampliam a busca e explicam os termos à Active AI)
+// ======================================================================
+export async function glossaryView(view) {
+  view.innerHTML = skeleton('list');
+  let terms = await api.glossary();
+  let filter = '';
+
+  const matches = (t) => {
+    const q = filter.trim().toLowerCase();
+    return !q || [t.term, ...t.synonyms, t.description].some((s) => String(s).toLowerCase().includes(q));
+  };
+  const renderList = () => {
+    const list = terms.filter(matches);
+    view.querySelector('#gloss-body').innerHTML = list.length
+      ? `<div class="card"><table class="cat-table gloss-table">
+          <thead><tr><th>Termo</th><th>Sinônimos e siglas</th><th class="hide-sm">O que significa</th><th class="needs-editor"></th></tr></thead>
+          <tbody>${list
+            .map(
+              (t) => `<tr>
+                <td><strong>${esc(t.term)}</strong></td>
+                <td>${t.synonyms.length ? t.synonyms.map((s) => `<span class="tag">${esc(s)}</span>`).join(' ') : '<span class="muted">—</span>'}</td>
+                <td class="hide-sm muted">${esc(t.description) || '—'}</td>
+                <td class="needs-editor" style="text-align:right;white-space:nowrap">
+                  <button class="icon-btn" data-edit="${t.id}" title="Editar">${icon('edit')}</button>
+                  <button class="icon-btn" data-delete="${t.id}" title="Excluir">${icon('trash')}</button>
+                </td>
+              </tr>`,
+            )
+            .join('')}</tbody></table></div>`
+      : terms.length
+        ? `<p class="muted">Nenhum termo com “${esc(filter)}”.</p>`
+        : emptyState('book', 'O glossário está vazio', 'Cadastre os termos que a equipe usa no dia a dia — por exemplo “CT-e”, com os sinônimos “conhecimento de transporte” e “CTe”. A busca passa a achar documentos pelos sinônimos e a Active AI entende os termos internos.');
+    hydrateIcons(view.querySelector('#gloss-body'));
+  };
+
+  view.innerHTML = `
+    <div class="page-header">
+      <div><h1>Glossário</h1><p>Termos, siglas e sinônimos da Active. Quem pesquisar por um sinônimo encontra os documentos que usam o termo, e a Active AI recebe a explicação dos termos citados na pergunta.</p></div>
+      <button class="btn btn-primary needs-editor" id="new-term">${icon('plus')}Novo termo</button>
+    </div>
+    <div class="filters"><input class="input search-input" id="gloss-filter" type="search" placeholder="Filtrar termos…" /></div>
+    <div id="gloss-body"></div>`;
+  renderList();
+
+  const edit = (term) => {
+    const dialog = document.createElement('dialog');
+    dialog.innerHTML = `
+      <form method="dialog" class="dialog-body form">
+        <h3>${term ? 'Editar termo' : 'Novo termo'}</h3>
+        <div class="field"><label>Termo</label><input class="input" name="term" required maxlength="120" placeholder="Ex.: CT-e" value="${esc(term?.term || '')}" /></div>
+        <div class="field"><label>Sinônimos e siglas</label><input class="input" name="synonyms" placeholder="Separados por vírgula. Ex.: CTe, conhecimento de transporte" value="${esc(term?.synonyms.join(', ') || '')}" /></div>
+        <div class="field"><label>O que significa</label><textarea class="textarea" name="description" rows="3" maxlength="1000" placeholder="Explicação curta (opcional), usada pela Active AI">${esc(term?.description || '')}</textarea></div>
+        <div class="form-actions">
+          <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+          <button class="btn btn-primary" value="ok">Salvar</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    const form = dialog.querySelector('form');
+    form.addEventListener('submit', async (e) => {
+      if (e.submitter?.value !== 'ok') return;
+      e.preventDefault();
+      const data = { term: form.term.value, synonyms: form.synonyms.value, description: form.description.value };
+      try {
+        if (term) await api.updateTerm(term.id, data);
+        else await api.createTerm(data);
+        terms = await api.glossary();
+        dialog.close();
+        renderList();
+        toast('Termo salvo.');
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    dialog.addEventListener('close', () => dialog.remove());
+    dialog.showModal();
+  };
+
+  view.querySelector('#gloss-filter').addEventListener('input', (e) => {
+    filter = e.target.value;
+    renderList();
+  });
+  view.addEventListener('click', async (e) => {
+    if (e.target.closest('#new-term')) return edit(null);
+    const editBtn = e.target.closest('[data-edit]');
+    if (editBtn) return edit(terms.find((t) => String(t.id) === editBtn.dataset.edit));
+    const delBtn = e.target.closest('[data-delete]');
+    if (!delBtn) return;
+    const term = terms.find((t) => String(t.id) === delBtn.dataset.delete);
+    const ok = await confirmDialog({ title: 'Excluir termo?', message: `“${term.term}” sai do glossário.`, confirmLabel: 'Excluir', danger: true });
+    if (!ok) return;
+    try {
+      await api.deleteTerm(term.id);
+      terms = terms.filter((t) => t.id !== term.id);
+      renderList();
+      toast('Termo excluído.');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
+}
+
+// ======================================================================
+// Pessoas e perfis (somente administradores; só existe com o login individual ligado)
+// ======================================================================
+const ROLE_INFO = {
+  admin: { label: 'Administrador', text: 'edita e gerencia as pessoas' },
+  editor: { label: 'Editor', text: 'cria e edita documentos' },
+  leitor: { label: 'Só consulta', text: 'pesquisa e conversa com a Active AI' },
+};
+const PROVIDER_LABELS = { microsoft: 'Microsoft', google: 'Google' };
+
+export async function usersView(view) {
+  if (!shared.authEnabled) {
+    view.innerHTML = emptyState('users', 'Login individual desligado', 'Configure o login com a conta Microsoft ou Google da empresa para cada pessoa entrar com a própria conta. Veja docs/05-configuracao.md.');
+    return;
+  }
+  if (shared.user?.role !== 'admin') {
+    view.innerHTML = emptyState('shield', 'Somente administradores', 'Peça a um administrador para mudar perfis de acesso.');
+    return;
+  }
+  view.innerHTML = skeleton('list');
+  let users = await api.users();
+
+  const render = () => {
+    view.innerHTML = `
+      <div class="page-header">
+        <div><h1>Pessoas</h1><p>Quem já entrou na plataforma. Cada pessoa aparece aqui no primeiro login; defina o que ela pode fazer.</p></div>
+      </div>
+      <div class="role-legend">${Object.values(ROLE_INFO).map((r) => `<span><strong>${r.label}</strong> — ${r.text}</span>`).join('')}</div>
+      <div class="card"><table class="cat-table users-table">
+        <thead><tr><th>Pessoa</th><th>Perfil</th><th class="hide-sm">Último acesso</th><th>Acesso</th></tr></thead>
+        <tbody>${users
+          .map((u) => {
+            const me = u.id === shared.user.id;
+            return `<tr class="${u.active ? '' : 'user-inactive'}" data-user="${u.id}">
+              <td><strong>${esc(u.name || u.email)}</strong>${me ? ' <span class="badge badge-file">você</span>' : ''}<br><span class="muted small">${esc(u.email)} · ${esc(PROVIDER_LABELS[u.provider] || u.provider)}</span></td>
+              <td><select class="select select-sm" data-role${me ? ' disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${Object.entries(ROLE_INFO)
+                .map(([value, r]) => `<option value="${value}"${u.role === value ? ' selected' : ''}>${r.label}</option>`)
+                .join('')}</select></td>
+              <td class="hide-sm muted small">${u.last_login_at ? esc(relativeDate(u.last_login_at)) : '—'}</td>
+              <td><label class="switch"${me ? ' title="Você não pode bloquear o seu próprio acesso"' : ''}><input type="checkbox" data-active${u.active ? ' checked' : ''}${me ? ' disabled' : ''} /><span>${u.active ? 'Liberado' : 'Bloqueado'}</span></label></td>
+            </tr>`;
+          })
+          .join('')}</tbody></table></div>`;
+    hydrateIcons(view);
+  };
+
+  view.addEventListener('change', async (e) => {
+    const row = e.target.closest('[data-user]');
+    if (!row) return;
+    const id = Number(row.dataset.user);
+    const data = e.target.matches('[data-role]') ? { role: e.target.value } : { active: e.target.checked };
+    try {
+      const updated = await api.updateUser(id, data);
+      users = users.map((u) => (u.id === id ? updated : u));
+      toast(data.role ? `Perfil alterado para “${ROLE_INFO[updated.role].label}”.` : updated.active ? 'Acesso liberado.' : 'Acesso bloqueado. A pessoa foi desconectada.');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+    render();
+  });
+  render();
 }

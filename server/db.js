@@ -70,6 +70,9 @@ export function openDatabase(dataDir) {
     // Anexos enviados na conversa com a Active AI: ficam fora das listas e da busca e expiram.
     temporary: 'INTEGER NOT NULL DEFAULT 0',
     expires_at: 'TEXT',
+    // Quem fez a última alteração (com login individual) e a versão do conteúdo já indexada pela busca semântica.
+    updated_by: 'TEXT',
+    embedding_hash: 'TEXT',
   };
   const present = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   for (const [name, type] of Object.entries(NEW_COLUMNS)) {
@@ -131,7 +134,46 @@ export function openDatabase(dataDir) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE INDEX IF NOT EXISTS feedback_item ON feedback(item_id);
+
+    -- Glossário da Active: termos, siglas e sinônimos usados pela busca e pela Active AI.
+    CREATE TABLE IF NOT EXISTS glossary_terms (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      term        TEXT NOT NULL,
+      synonyms    TEXT NOT NULL DEFAULT '',
+      description TEXT NOT NULL DEFAULT '',
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Busca semântica: trechos dos documentos com o vetor de significado (embedding) de cada um.
+    CREATE TABLE IF NOT EXISTS item_chunks (
+      item_id   INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+      idx       INTEGER NOT NULL,
+      text      TEXT NOT NULL,
+      embedding BLOB NOT NULL,
+      PRIMARY KEY (item_id, idx)
+    );
+
+    -- Login individual: pessoas, perfis e sessões.
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      email         TEXT NOT NULL UNIQUE,
+      name          TEXT NOT NULL DEFAULT '',
+      provider      TEXT NOT NULL DEFAULT '',
+      role          TEXT NOT NULL DEFAULT 'leitor' CHECK (role IN ('admin', 'editor', 'leitor')),
+      active        INTEGER NOT NULL DEFAULT 1,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+      last_login_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS sessions (
+      token_hash TEXT PRIMARY KEY,
+      user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      expires_at TEXT NOT NULL
+    );
   `);
+  const feedbackColumns = db.prepare('PRAGMA table_info(feedback)').all().map((c) => c.name);
+  if (!feedbackColumns.includes('user_name')) db.exec("ALTER TABLE feedback ADD COLUMN user_name TEXT NOT NULL DEFAULT ''");
 
   return db;
 }
@@ -154,7 +196,7 @@ const ITEM_COLUMNS = `
   i.id, i.kind, i.title, i.summary, i.tags, i.category_id, i.author,
   i.file_name, i.mime_type, i.size, i.extract_status, i.views, i.created_at, i.updated_at,
   i.media_status, i.media_progress, i.media_error, i.duration,
-  i.temporary, i.expires_at, i.source_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
+  i.temporary, i.expires_at, i.updated_by, i.source_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
   CASE WHEN i.review_months > 0
        THEN date(max(COALESCE(i.reviewed_at, ''), i.updated_at), '+' || i.review_months || ' months') END AS review_due,
   c.name AS category_name
@@ -223,6 +265,7 @@ export function createRepository(db) {
         })(),
       ].join('\n'),
     );
+    repo.onChange?.(id);
   };
 
   const repo = {
@@ -265,6 +308,19 @@ export function createRepository(db) {
     },
 
     // ---------- Itens (textos e arquivos) ----------
+    /** Chamado a cada alteração de conteúdo de um item (usado para reindexar a busca semântica). */
+    onChange: null,
+
+    /** Vários itens pelos ids (sem o conteúdo completo). */
+    getItems(ids) {
+      const list = [...new Set(ids)].filter(Number.isInteger);
+      if (!list.length) return [];
+      return db
+        .prepare(`SELECT ${ITEM_COLUMNS} FROM items i LEFT JOIN categories c ON c.id = i.category_id WHERE i.id IN (${list.map(() => '?').join(',')})`)
+        .all(...list)
+        .map(toItem);
+    },
+
     getItem(id, { full = false } = {}) {
       const extra = full ? ', i.content, i.text, i.stored_name' : '';
       const row = db
@@ -344,10 +400,10 @@ export function createRepository(db) {
         .prepare(
           `INSERT INTO items (kind, title, summary, content, tags, category_id, author,
                               file_name, stored_name, mime_type, size, text, extract_status, source_url, review_months,
-                              temporary, expires_at)
+                              temporary, expires_at, updated_by)
            VALUES (@kind, @title, @summary, @content, @tags, @category_id, @author,
                    @file_name, @stored_name, @mime_type, @size, @text, @extract_status, @source_url, @review_months,
-                   @temporary, CASE WHEN @expires_offset IS NULL THEN NULL ELSE datetime('now', @expires_offset) END)`,
+                   @temporary, CASE WHEN @expires_offset IS NULL THEN NULL ELSE datetime('now', @expires_offset) END, @updated_by)`,
         )
         .run({
           kind: data.kind,
@@ -366,6 +422,7 @@ export function createRepository(db) {
           source_url: data.source_url || null,
           review_months: data.review_months > 0 ? Math.round(data.review_months) : null,
           temporary: data.temporary ? 1 : 0,
+          updated_by: data.updated_by || null,
           expires_offset: data.temporary ? `+${Math.max(1, Math.round(data.expires_hours || 72))} hours` : null,
         });
       syncFts(info.lastInsertRowid);
@@ -394,13 +451,13 @@ export function createRepository(db) {
           db.prepare(
             `INSERT INTO item_versions (item_id, title, summary, content, tags, category_id, author, saved_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          ).run(id, current.title, current.summary, current.content, joinTags(current.tags), current.category_id, current.author, current.updated_at);
+          ).run(id, current.title, current.summary, current.content, joinTags(current.tags), current.category_id, current.updated_by || current.author, current.updated_at);
         }
         db.prepare(
           `UPDATE items SET title = ?, summary = ?, content = ?, tags = ?, category_id = ?,
-                            author = ?, review_months = ?, updated_at = datetime('now')
+                            author = ?, review_months = ?, updated_by = ?, updated_at = datetime('now')
             WHERE id = ?`,
-        ).run(next.title, next.summary, next.content, next.tags, next.category_id, next.author, reviewMonths, id);
+        ).run(next.title, next.summary, next.content, next.tags, next.category_id, next.author, reviewMonths, data.updated_by ?? current.updated_by ?? null, id);
       });
       run();
       syncFts(id);
@@ -423,7 +480,7 @@ export function createRepository(db) {
     },
 
     /** Volta o texto a uma versão anterior (a versão atual também entra no histórico). */
-    restoreVersion(itemId, versionId, author) {
+    restoreVersion(itemId, versionId, { author, updatedBy } = {}) {
       const version = repo.getVersion(itemId, versionId);
       if (!version) return null;
       return repo.updateItem(itemId, {
@@ -431,7 +488,7 @@ export function createRepository(db) {
         summary: version.summary,
         content: version.content,
         tags: version.tags,
-        author: author ?? version.author,
+        ...(updatedBy ? { updated_by: updatedBy } : { author: author ?? version.author }),
       });
     },
 
@@ -457,6 +514,7 @@ export function createRepository(db) {
     /** Anexo da conversa passa a fazer parte da base (deixa de ser temporário). */
     keepItem(id) {
       db.prepare("UPDATE items SET temporary = 0, expires_at = NULL, updated_at = datetime('now') WHERE id = ?").run(id);
+      repo.onChange?.(id);
       return repo.getItem(id);
     },
 
@@ -529,10 +587,10 @@ export function createRepository(db) {
     },
 
     // ---------- Avaliações ----------
-    addFeedback({ target, item_id = null, helpful, comment = '', question = '', answer = '' }) {
+    addFeedback({ target, item_id = null, helpful, comment = '', question = '', answer = '', user_name = '' }) {
       const info = db
-        .prepare('INSERT INTO feedback (target, item_id, helpful, comment, question, answer) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(target, item_id, helpful ? 1 : 0, String(comment).slice(0, 2000), String(question).slice(0, 2000), String(answer).slice(0, 20000));
+        .prepare('INSERT INTO feedback (target, item_id, helpful, comment, question, answer, user_name) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(target, item_id, helpful ? 1 : 0, String(comment).slice(0, 2000), String(question).slice(0, 2000), String(answer).slice(0, 20000), String(user_name).slice(0, 200));
       return info.lastInsertRowid;
     },
 
@@ -564,7 +622,7 @@ export function createRepository(db) {
         .map((r) => ({ ...r, comments: r.comments ? r.comments.split('\u001f') : [] }));
       const answers = db
         .prepare(
-          `SELECT id, question, answer, comment, created_at FROM feedback
+          `SELECT id, question, answer, comment, user_name, created_at FROM feedback
             WHERE target = 'resposta' AND helpful = 0 ORDER BY id DESC LIMIT 50`,
         )
         .all();
@@ -625,6 +683,7 @@ export function createRepository(db) {
       if (!item) return null;
       db.prepare('DELETE FROM items WHERE id = ?').run(id);
       db.prepare('DELETE FROM items_fts WHERE rowid = ?').run(id);
+      repo.onChange?.(id);
       return item;
     },
 

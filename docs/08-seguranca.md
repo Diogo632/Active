@@ -4,7 +4,8 @@
 
 ### Acesso
 
-- **Senha da plataforma** (HTTP Basic, `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`) em todas as telas e rotas `/api`. A comparação é feita em tempo constante.
+- **Login individual** (quando configurado, veja [11](11-login-busca-e-glossario.md)): conta Microsoft ou Google da empresa via OpenID Connect com PKCE, `state` e `nonce`; domínios restritos por `AUTH_ALLOWED_DOMAINS`; sessão em cookie HttpOnly, SameSite=Lax e Secure (em HTTPS), guardada no banco só como hash; perfis verificados no servidor (403); bloquear uma pessoa derruba as sessões dela na hora. As mensagens de erro da página de login são fixas (um link com `?erro=` não consegue mostrar texto inventado).
+- **Senha da plataforma** (HTTP Basic, usada só quando o login individual está desligado, `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`) em todas as telas e rotas `/api`. A comparação é feita em tempo constante.
 - **Token de integração** (`INTEGRATION_TOKEN`) separado para o MCP e a API de integração; sem ele, essas rotas ficam desligadas.
 - **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam o endereço (429) até a janela passar. O primeiro acesso do navegador, que vem sem senha para abrir a janela de login, não conta. Atrás de proxy, configure `TRUST_PROXY` para o bloqueio valer por pessoa e não para o proxy inteiro.
 - **Avisos ao iniciar**: sem senha, senha com menos de 12 caracteres ou token curto.
@@ -36,7 +37,7 @@
 
 ## Checklist para produção
 
-1. **Senha forte** (12+ caracteres) e **token novo** (`npm run gerar-token`). Troque os valores usados nos testes e atualize o token no GPTMaker.
+1. **Login individual** com `AUTH_ALLOWED_DOMAINS` e `PUBLIC_URL` (recomendado), ou **senha forte** (12+ caracteres) e **token novo** (`npm run gerar-token`). Troque os valores usados nos testes e atualize o token no GPTMaker.
 2. **HTTPS** obrigatório (nginx/Traefik com certificado). Com HTTP, a senha trafega sem criptografia.
 3. **`TRUST_PROXY=1`** quando houver um proxy na frente.
 4. **Backup** periódico de `data/` e teste de restauração.
@@ -46,7 +47,8 @@
 
 ## Limitações conhecidas
 
-- **Um usuário para todos**: não há login individual, perfis (quem pode editar, quem só consulta) nem registro de quem fez cada alteração (o campo *autor* é preenchido à mão).
+- **Sem login individual configurado**, todos usam a mesma senha e o campo *autor* é preenchido à mão. Configure o login com Microsoft ou Google para ter perfis e o registro de quem criou e editou cada documento.
+- **Perfil Só consulta** vê todos os documentos: não há permissão por categoria ou documento.
 - **Visibilidade total**: quem tem a senha vê todos os documentos, inclusive os anexos temporários do chat (pelo link).
 - **Dados para terceiros**: o conteúdo lido pela Active AI vai para o n8n e o GPTMaker. Documentos com dados pessoais de clientes devem considerar a LGPD.
 - **Instruções em documentos**: um documento ou anexo pode conter texto tentando instruir o agente ("ignore as instruções…"). O impacto é limitado porque as ferramentas do agente só leem dados e registram lacunas, mas a resposta do agente pode ser influenciada.

@@ -4,7 +4,7 @@ import { pageEnter, setupRipples, popIn, twinkle } from './motion.js';
 import { chat, mountChat } from './chat.js';
 import { esc, icon, hydrateIcons, toast, storage, copyText } from './util.js';
 import {
-  shared, homeView, docsView, itemView, editorView, uploadView, categoriesView, iaView, reportView,
+  shared, homeView, docsView, itemView, editorView, uploadView, categoriesView, iaView, reportView, glossaryView, usersView,
 } from './views.js';
 
 const routes = [
@@ -17,6 +17,8 @@ const routes = [
   { pattern: /^\/categories$/, view: categoriesView },
   { pattern: /^\/ia$/, view: iaView, nav: 'ia' },
   { pattern: /^\/relatorio$/, view: reportView, nav: 'report' },
+  { pattern: /^\/glossario$/, view: glossaryView, nav: 'glossary' },
+  { pattern: /^\/usuarios$/, view: usersView, nav: 'users' },
 ];
 
 const viewEl = document.getElementById('view');
@@ -256,11 +258,38 @@ async function refreshReportBadge(stats) {
 document.addEventListener('report-changed', () => refreshReportBadge());
 
 // ---------- Inicialização ----------
+// ---------- Pessoa logada (login individual) ----------
+const ROLE_LABELS = { admin: 'Administrador', editor: 'Editor', leitor: 'Só consulta' };
+function applyUser(me) {
+  shared.user = me?.user || null;
+  shared.authEnabled = Boolean(me?.auth?.enabled);
+  const role = shared.user?.role || 'editor';
+  // Classes no <body> escondem o que o perfil não pode usar (o servidor também bloqueia).
+  document.body.classList.toggle('auth-sso', shared.authEnabled);
+  for (const r of ['admin', 'editor', 'leitor']) document.body.classList.toggle(`role-${r}`, shared.authEnabled && role === r);
+  const box = document.getElementById('user-box');
+  if (!shared.user) {
+    box.hidden = true;
+    return;
+  }
+  const initials = shared.user.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  box.hidden = false;
+  box.innerHTML = `
+    <span class="user-avatar" title="${esc(shared.user.email)}">${esc(initials || '?')}</span>
+    <span class="user-text label"><strong>${esc(shared.user.name)}</strong><small>${esc(ROLE_LABELS[shared.user.role] || shared.user.role)}</small></span>
+    <button type="button" class="icon-btn user-logout" id="logout" title="Sair">${icon('back')}</button>`;
+  box.querySelector('#logout').addEventListener('click', async () => {
+    const res = await api.logout().catch(() => ({ login: '/entrar' }));
+    location.href = res?.login || '/entrar';
+  });
+}
+
 async function init() {
   hydrateIcons(document);
   setupRipples();
   renderThemeButton();
   try {
+    applyUser(await api.me());
     await shared.refreshCategories();
     const stats = await api.stats();
     chat.setConfigured(stats.ai.configured);

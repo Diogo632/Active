@@ -43,7 +43,7 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Error: error on connect with mcp server` significa que o GPTMaker não conseguiu falar com a plataforma.
 
 1. **A plataforma está no ar e a porta pública?** (veja a primeira tabela).
-2. **O MCP responde pelo endereço público?** `npm run mcp:testar -- https://ENDERECO SEU_TOKEN` deve listar 5 ferramentas.
+2. **O MCP responde pelo endereço público?** `npm run mcp:testar -- https://ENDERECO SEU_TOKEN` deve listar 6 ferramentas.
 3. **A chamada chegou?** `grep "\[mcp" servidor.log | tail`:
    - nenhuma linha no horário: endereço errado, porta privada ou plataforma parada;
    - `→ 401`: token do GPTMaker diferente do `INTEGRATION_TOKEN`;
@@ -75,3 +75,19 @@ No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Err
 | --- | --- |
 | Documento não aparece na busca | Arquivos digitalizados (PDF de imagem) e formatos não suportados não têm texto; adicione **descrição** e **tags** ao documento |
 | Busca demais / de menos | A busca exige todas as palavras e, sem resultado, aceita qualquer uma; use palavras-chave em vez de frases |
+| Nenhum resultado *≈ significado* | Veja `GET /api/stats` → `semantic`. `error` preenchido: o modelo não carregou (precisa de internet na primeira vez para baixar do Hugging Face); `pending` > 0: ainda indexando. Log: `grep "busca semântica" servidor.log` |
+| Resultados *≈ significado* sem relação | Aumente `SEMANTIC_MIN_SCORE` (ex.: `0.82`) olhando as notas no log `[busca semântica]` |
+| Sinônimo não encontra o documento | Cadastre o termo e o sinônimo no **Glossário** (o termo tem de aparecer como palavra inteira na busca) |
+
+## Login individual
+
+| Sintoma | Causa provável | O que fazer |
+| --- | --- | --- |
+| Microsoft: *AADSTS50011 … redirect URI … does not match* | URI de retorno não cadastrada ou `PUBLIC_URL` diferente do endereço aberto | Cadastre exatamente `PUBLIC_URL` + `/auth/microsoft/callback` no Azure (no Codespace, o endereço `…-3001.app.github.dev`) |
+| Google: *Erro 400: redirect_uri_mismatch* | O mesmo, no Google | Cadastre `PUBLIC_URL` + `/auth/google/callback` |
+| *Esta conta não é da empresa* | E-mail fora do `AUTH_ALLOWED_DOMAINS` | Entre com a conta da empresa ou inclua o domínio |
+| *Não foi possível conectar ao login* | O servidor não alcança `login.microsoftonline.com` / `accounts.google.com` | Veja o log `[login]`; libere a saída HTTPS do servidor |
+| *Não foi possível concluir o login* | Segredo do cliente errado ou vencido (Azure) | Veja o log `[login] Falha no retorno`; gere um novo segredo |
+| *O login expirou* | Mais de 10 minutos na tela da Microsoft/Google, ou a plataforma reiniciou no meio | Clique em entrar de novo |
+| Não aparece o menu Pessoas | Só administradores veem | A primeira pessoa a entrar é administradora; inclua o e-mail em `ADMIN_EMAILS` e entre de novo |
+| Botões de editar sumiram | Perfil *Só consulta* | Um administrador muda o perfil em **Pessoas**; recarregue a página |

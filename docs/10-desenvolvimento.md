@@ -28,12 +28,16 @@ server/
   youtube.js      Links, título, legendas e áudio (yt-dlp) do YouTube
   chapters.js     Resumo e capítulos dos vídeos pedidos à Active AI
   gaps.js         Detecta respostas em que a Active AI não encontrou a informação
+  auth.js         Login individual (OpenID Connect: Microsoft, Google), sessões, pessoas e perfis
+  search.js       Busca da plataforma: junta palavras (FTS5), sinônimos do glossário e significado (RRF)
+  semantic.js     Busca por significado: trechos, vetores (multilingual-e5) e índice em memória
+  glossary.js     Glossário: termos, sinônimos, variações da busca e explicação para a Active AI
 public/
   index.html      Esqueleto da página
   css/styles.css  Todo o visual (tema escuro/claro em variáveis CSS no topo)
   js/
     app.js        Roteador (#/…), menu, painel da Active AI, tema, atalhos globais
-    views.js      Telas: início, lista, documento, editor, envio, categorias, relatório
+    views.js      Telas: início, lista, documento, editor, envio, categorias, relatório, glossário, pessoas
     chat.js       Chat da Active AI (estado compartilhado entre painel e página)
     answer.js     Resposta da Active AI na busca
     media.js      Player, transcrição, capítulos e ícones de vídeo
@@ -75,8 +79,9 @@ npm test
 | `test/transcribe.test.js` | Formatação de transcrição, legendas, transcrição em segundo plano com ffmpeg real e motor simulado |
 | `test/melhorias.test.js` | Versões, revisão, lacunas, avaliações, capítulos, YouTube (simulado), anexos do chat |
 | `test/seguranca.test.js` | Senha, cabeçalhos, CSP, CSRF e limite de tentativas |
+| `test/conta-e-busca.test.js` | Login completo com um provedor OpenID simulado, domínios, perfis, autor/atualizado por, glossário, busca por significado (vetores simulados) |
 
-Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine })`.
+Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, authProviders })`. O `npm test` roda com `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores.
 
 ## Como estender
 

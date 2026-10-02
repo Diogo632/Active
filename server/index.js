@@ -15,6 +15,10 @@ import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
 import { createChaptersQueue } from './chapters.js';
 import { looksUnanswered } from './gaps.js';
 import { securityHeaders, blockCrossSiteWrites, createFailureLimiter, CONTENT_SECURITY_POLICY } from './security.js';
+import { createAuth, providersFromEnv, ROLES } from './auth.js';
+import { createGlossary } from './glossary.js';
+import { createSemanticIndex, createE5Embedder } from './semantic.js';
+import { createSearchService } from './search.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -30,13 +34,33 @@ export function createApp({
   attachmentHours = Number(process.env.CHAT_ATTACHMENT_HOURS || 72),
   // Período padrão de revisão dos textos novos, em meses (0 desliga).
   reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
+  // Motor da busca semântica (os testes passam um simulado). SEMANTIC_SEARCH=off desliga.
+  embedder,
+  // Provedores de login individual (por padrão, os configurados no .env).
+  authProviders,
 } = {}) {
   const uploadsDir = path.join(dataDir, 'uploads');
   fs.mkdirSync(uploadsDir, { recursive: true });
 
   const db = openDatabase(dataDir);
   const repo = createRepository(db);
-  const ai = aiOverride || createAssistant({ repo, uploadsDir, model });
+
+  // Glossário + busca por significado + busca por palavras = a busca da plataforma e do agente.
+  const glossary = createGlossary(db);
+  const semanticEnabled = Boolean(embedder) || (process.env.SEMANTIC_SEARCH || 'auto').toLowerCase() !== 'off';
+  const semantic = createSemanticIndex({
+    db,
+    repo,
+    enabled: semanticEnabled,
+    embedder: embedder || createE5Embedder({ model: process.env.SEMANTIC_MODEL || 'Xenova/multilingual-e5-small', dtype: process.env.SEMANTIC_DTYPE || 'q8' }),
+    minScore: Number(process.env.SEMANTIC_MIN_SCORE || 0.8),
+  });
+  repo.onChange = (id) => semantic.enqueue(id);
+  semantic.resume();
+  const search = createSearchService({ repo, semantic, glossary });
+
+  const ai = aiOverride || createAssistant({ repo, uploadsDir, model, search, glossary });
+  const auth = createAuth({ db, providers: authProviders ?? providersFromEnv() });
 
   // Transcrição de vídeos/áudios (Whisper local por padrão; TRANSCRIPTION=off desliga).
   const transcriptionEnabled = (process.env.TRANSCRIPTION || 'local').toLowerCase() !== 'off';
@@ -91,10 +115,10 @@ export function createApp({
   };
   const integration = express.Router();
   integration.use(requireIntegrationToken);
-  integration.get('/buscar', (req, res) => {
+  integration.get('/buscar', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const limit = Math.min(Number(req.query.limite) || 8, 25);
-    const items = q ? repo.search(q, { limit }) : repo.listItems({ limit }).items;
+    const items = q ? await search.search(q, { limit }) : repo.listItems({ limit }).items;
     res.json(items.map((i) => ({ id: i.id, titulo: i.title, categoria: i.category_name, tags: i.tags, resumo: i.summary, trecho: i.snippet, link: `#/item/${i.id}` })));
   });
   integration.get('/documentos/:id', (req, res) => {
@@ -108,7 +132,7 @@ export function createApp({
   app.use('/api/integracao', integration);
 
   // Servidor MCP: o agente (GPTMaker, n8n ou outro cliente MCP) pesquisa e lê a base por aqui.
-  const mcp = createMcpHandler({ repo, publicUrl: process.env.PUBLIC_URL || '' });
+  const mcp = createMcpHandler({ repo, search, glossary, publicUrl: process.env.PUBLIC_URL || '' });
   // Registro de todas as chamadas ao MCP (inclusive recusadas), para diagnosticar a conexão do agente.
   app.use('/mcp', (req, res, next) => {
     const started = Date.now();
@@ -129,9 +153,14 @@ export function createApp({
   app.post('/mcp/messages', requireIntegrationToken, express.json({ limit: '1mb' }), mcp.sseMessage);
 
   // ---------- Autenticação opcional (HTTP Basic) ----------
+  // Login individual (Microsoft/Google): substitui a senha única quando está configurado.
+  if (auth.enabled) {
+    auth.routes(app);
+    app.use(auth.requireUser);
+  }
   const authUser = process.env.BASIC_AUTH_USER;
   const authPass = process.env.BASIC_AUTH_PASSWORD;
-  if (authUser && authPass) {
+  if (!auth.enabled && authUser && authPass) {
     const expected = Buffer.from(`${authUser}:${authPass}`);
     app.use((req, res, next) => {
       const header = req.headers.authorization || '';
@@ -147,6 +176,16 @@ export function createApp({
 
   // Ações disparadas por outros sites com a sessão de quem está logado (CSRF) são recusadas.
   app.use('/api', blockCrossSiteWrites);
+  // Perfis: "leitor" consulta, avalia e conversa com a Active AI; criar, editar e excluir exige "editor".
+  const READER_WRITES = new Set(['/feedback', '/chat/anexos', '/ai/chat']);
+  app.use('/api', (req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || READER_WRITES.has(req.path) || req.path.startsWith('/usuarios')) return next();
+    if (!auth.allows(req, 'editor')) return res.status(403).json({ error: 'Seu perfil é só de consulta. Peça a um administrador o perfil de editor.' });
+    next();
+  });
+  const requireAdmin = (req, res, next) => (auth.enabled && auth.allows(req, 'admin') ? next() : res.status(403).json({ error: 'Só administradores.' }));
+  // Nome de quem está logado (com login individual); sem ele, vale o que a pessoa digitou.
+  const userName = (req, typed = '') => (auth.enabled && req.user ? req.user.name : String(typed || ''));
   app.use(express.json({ limit: '5mb' }));
 
   // ---------- Arquivos estáticos ----------
@@ -228,7 +267,40 @@ export function createApp({
   });
 
   // ---------- Itens ----------
+  // ---------- Pessoa logada e perfis ----------
+  app.get('/api/me', (req, res) =>
+    res.json({ user: req.user || null, auth: { enabled: auth.enabled, providers: auth.providers, roles: ROLES } }),
+  );
+  app.get('/api/usuarios', requireAdmin, (req, res) => res.json(auth.users.list()));
+  app.put('/api/usuarios/:id', requireAdmin, (req, res) => {
+    const id = parseId(req.params.id);
+    if (id === req.user.id && (req.body.role !== undefined && req.body.role !== 'admin' || req.body.active === false)) {
+      throw httpError(400, 'Você não pode tirar o seu próprio acesso de administrador.');
+    }
+    const user = id && auth.users.update(id, { role: req.body.role, active: req.body.active });
+    if (!user) throw httpError(404, 'Pessoa não encontrada.');
+    res.json(user);
+  });
+
+  // ---------- Glossário ----------
+  app.get('/api/glossario', (req, res) => res.json(glossary.list()));
+  app.post('/api/glossario', (req, res) => {
+    if (!String(req.body.term || '').trim()) throw httpError(400, 'Informe o termo.');
+    res.status(201).json(glossary.create(req.body));
+  });
+  app.put('/api/glossario/:id', (req, res) => {
+    const entry = glossary.update(parseId(req.params.id), req.body);
+    if (!entry) throw httpError(404, 'Termo não encontrado.');
+    res.json(entry);
+  });
+  app.delete('/api/glossario/:id', (req, res) => {
+    if (!glossary.remove(parseId(req.params.id))) throw httpError(404, 'Termo não encontrado.');
+    res.status(204).end();
+  });
+
   app.get('/api/stats', (req, res) => res.json({ ...repo.stats(), ai: { configured: ai.configured, provider: ai.provider, model: ai.model },
+    semantic: semantic.status(),
+    auth: { enabled: auth.enabled },
     transcription: { enabled: transcriptionEnabled, model: transcriptionModel },
     chapters: { enabled: chapters.available },
     review_months_default: reviewMonthsDefault,
@@ -236,7 +308,7 @@ export function createApp({
 
   app.get('/api/tags', (req, res) => res.json(repo.allTags()));
 
-  app.get('/api/items', (req, res) => {
+  app.get('/api/items', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const categoryId = req.query.category === 'none' ? 'none' : parseId(req.query.category) || undefined;
     const kind = ['article', 'file', 'youtube'].includes(req.query.kind) ? req.query.kind : undefined;
@@ -246,7 +318,7 @@ export function createApp({
     const sort = req.query.sort === 'views' ? 'views' : undefined;
 
     if (q) {
-      const items = repo.search(q, { categoryId, kind, limit });
+      const items = await search.search(q, { categoryId, kind, limit });
       // Busca feita pela pessoa (não a busca rápida enquanto digita) sem resultado vira lacuna.
       if (!items.length && req.query.registrar !== undefined) repo.addGap({ source: 'busca', query: q });
       return res.json({ items, total: items.length, query: q });
@@ -286,7 +358,8 @@ export function createApp({
       content: String(req.body.content || ''),
       tags: req.body.tags,
       category_id: parseCategory(req.body.category_id),
-      author: String(req.body.author || ''),
+      author: userName(req, req.body.author),
+      updated_by: auth.enabled ? req.user?.name : null,
       review_months: req.body.review_months === undefined ? reviewMonthsDefault : Number(req.body.review_months) || null,
     });
     res.status(201).json(item);
@@ -313,7 +386,7 @@ export function createApp({
       summary: String(req.body.summary || ''),
       tags: req.body.tags,
       category_id: categoryId,
-      author: String(req.body.author || '') || info.channel,
+      author: userName(req, req.body.author) || info.channel,
       source_url: url,
       extract_status: 'media',
       review_months: Number(req.body.review_months) || null,
@@ -343,7 +416,7 @@ export function createApp({
           summary: String(req.body.summary || ''),
           tags: req.body.tags,
           category_id: categoryId,
-          author: String(req.body.author || ''),
+          author: userName(req, req.body.author),
           file_name: name,
           stored_name: file.filename,
           mime_type: file.mimetype,
@@ -359,7 +432,13 @@ export function createApp({
 
   app.put('/api/items/:id', (req, res) => {
     const id = parseId(req.params.id);
-    const item = id && repo.updateItem(id, { ...req.body, category_id: parseCategory(req.body.category_id) });
+    const changes = { ...req.body, category_id: parseCategory(req.body.category_id) };
+    // Com login individual, o autor fica como está e quem editou é registrado automaticamente.
+    if (auth.enabled) {
+      delete changes.author;
+      changes.updated_by = req.user?.name;
+    }
+    const item = id && repo.updateItem(id, changes);
     if (!item) throw httpError(404, 'Documento não encontrado.');
     res.json(item);
   });
@@ -378,7 +457,7 @@ export function createApp({
   });
 
   app.post('/api/items/:id/versions/:versionId/restore', (req, res) => {
-    const item = repo.restoreVersion(parseId(req.params.id), parseId(req.params.versionId), req.body?.author);
+    const item = repo.restoreVersion(parseId(req.params.id), parseId(req.params.versionId), auth.enabled ? { updatedBy: req.user?.name } : { author: req.body?.author });
     if (!item) throw httpError(404, 'Versão não encontrada.');
     res.json(item);
   });
@@ -398,7 +477,7 @@ export function createApp({
     if (target === 'documento' && !(itemId && repo.getItem(itemId))) throw httpError(404, 'Documento não encontrado.');
     const question = String(req.body.question || '').trim();
     const comment = String(req.body.comment || '').trim();
-    const id = repo.addFeedback({ target, item_id: itemId, helpful, comment, question, answer: String(req.body.answer || '') });
+    const id = repo.addFeedback({ target, item_id: itemId, helpful, comment, question, answer: String(req.body.answer || ''), user_name: userName(req) });
     // Resposta da Active AI marcada como "não ajudou" vira lacuna: falta conteúdo na base para essa pergunta.
     if (target === 'resposta' && !helpful && question) repo.addGap({ source: 'avaliacao', query: question, detail: comment });
     res.status(201).json({ id });
@@ -607,19 +686,21 @@ export function createApp({
     res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message, ...(err.item ? { item: err.item } : {}) });
   });
 
-  return { app, db, repo, ai, transcription, chapters };
+  return { app, db, repo, ai, transcription, chapters, semantic, search, glossary, auth };
 }
 
 /**
  * Escolhe o motor da Active AI: webhook do n8n (ex.: agente do GPTMaker) quando N8N_WEBHOOK_URL
  * está definido; caso contrário, a API da Anthropic.
  */
-function createAssistant({ repo, uploadsDir, model }) {
+function createAssistant({ repo, uploadsDir, model, search, glossary }) {
   const fallback = process.env.N8N_WEBHOOK_URL || !process.env.ANTHROPIC_API_KEY ? 'n8n' : 'anthropic';
   const provider = (process.env.ACTIVE_IA_PROVIDER || fallback).toLowerCase();
   if (provider === 'n8n') {
     return createN8nActiveIA({
       repo,
+      search,
+      glossary,
       webhookUrl: process.env.N8N_WEBHOOK_URL,
       token: process.env.N8N_WEBHOOK_TOKEN,
       options: {

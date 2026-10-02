@@ -29,9 +29,11 @@
           <a href="#/docs" data-nav="docs" title="Todos os documentos"><i data-icon="library"></i><span class="label">Todos os documentos</span></a>
           <a href="#/ia" data-nav="ia" class="nav-ia" title="Active AI"><i data-icon="sparkles"></i><span class="label">Active AI</span></a>
           <a href="#/relatorio" data-nav="report" title="Relatório"><i data-icon="chart"></i><span class="label">Relatório</span><span class="nav-badge" id="nav-report-count" hidden></span></a>
+          <a href="#/glossario" data-nav="glossary" title="Glossário"><i data-icon="book"></i><span class="label">Glossário</span></a>
+          <a href="#/usuarios" data-nav="users" title="Pessoas e perfis" class="needs-admin"><i data-icon="users"></i><span class="label">Pessoas</span></a>
         </nav>
 
-        <div class="nav-actions">
+        <div class="nav-actions needs-editor">
           <a class="btn btn-primary btn-block" href="#/new" title="Escrever texto"><i data-icon="pen"></i><span class="label">Escrever texto</span></a>
           <a class="btn btn-ghost-inverse btn-block" href="#/upload" title="Enviar arquivos"><i data-icon="upload"></i><span class="label">Enviar arquivos</span></a>
         </div>
@@ -39,12 +41,13 @@
         <div class="nav-section">
           <div class="nav-section-title">
             <span class="label">Categorias</span>
-            <a href="#/categories" title="Gerenciar categorias" class="icon-link"><i data-icon="settings"></i></a>
+            <a href="#/categories" title="Gerenciar categorias" class="icon-link needs-editor"><i data-icon="settings"></i></a>
           </div>
           <div id="nav-categories" class="nav-categories"></div>
         </div>
 
         <div class="sidebar-footer">
+          <div class="user-box" id="user-box" hidden></div>
           <button class="theme-toggle" id="theme-toggle" type="button" title="Alternar tema claro/escuro">
             <i data-icon="moon"></i><span>Tema</span>
           </button>

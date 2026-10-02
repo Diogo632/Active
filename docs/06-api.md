@@ -198,8 +198,27 @@ Resposta em **Server-Sent Events** (`text/event-stream`), um evento por linha `d
 
 | Rota | Descrição |
 | --- | --- |
-| `GET /api/stats` | `{ total, articles, files, bytes, categories, gaps_open, review_due, ai: { configured, provider, model }, transcription: { enabled, model }, chapters: { enabled }, review_months_default }` |
+| `GET /api/stats` | `{ total, articles, files, bytes, categories, gaps_open, review_due, ai: { configured, provider, model }, transcription: { enabled, model }, chapters: { enabled }, semantic: { enabled, ready, model, indexed, pending, error }, auth: { enabled }, review_months_default }` |
 | `GET /api/tags` | `[{ name, count }]` |
+
+## Pessoa logada, perfis e glossário
+
+| Rota | Perfil | Descrição |
+| --- | --- | --- |
+| `GET /api/me` | todos | `{ user: { id, email, name, provider, role } \| null, auth: { enabled, providers, roles } }` |
+| `GET /api/usuarios` | admin | `[{ id, email, name, provider, role, active, created_at, last_login_at }]` |
+| `PUT /api/usuarios/{id}` | admin | `{ role?: "admin" \| "editor" \| "leitor", active?: boolean }`. Bloquear encerra as sessões da pessoa |
+| `GET /api/glossario` | todos | `[{ id, term, synonyms: [], description, created_at, updated_at }]` |
+| `POST /api/glossario` | editor | `{ term, synonyms: "a, b" \| ["a","b"], description }` → 201 |
+| `PUT /api/glossario/{id}` | editor | Mesmos campos, todos opcionais |
+| `DELETE /api/glossario/{id}` | editor | 204 |
+| `GET /entrar` | — | Página de login (`?volta=` para onde voltar) |
+| `GET /auth/{provedor}` e `/auth/{provedor}/callback` | — | Início e retorno do login (`microsoft`, `google` ou `oidc`) |
+| `POST /auth/sair` | — | Encerra a sessão → `{ ok, login }` |
+
+Com o login ligado, chamadas sem sessão recebem `401 { error, login: "/entrar" }`, e alterações que o perfil não permite recebem `403`. *Só consulta* pode usar `POST /api/feedback`, `POST /api/chat/anexos` e `POST /api/ai/chat`. Os campos `author` (na criação) e `updated_by` vêm da pessoa logada; o `author` enviado pelo cliente é ignorado.
+
+Resultados de busca (`GET /api/items?q=`) achados só pelo significado vêm com `by_meaning: true` e o trecho mais parecido em `snippet`.
 
 ## Integração e MCP
 

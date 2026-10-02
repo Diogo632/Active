@@ -155,7 +155,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
 
   function statusBlock() {
     const retry = canRetranscribe()
-      ? `<button class="btn btn-sm" type="button" data-action="retranscribe">${icon('refresh')}${item.kind === 'youtube' ? 'Buscar legendas de novo' : 'Transcrever novamente'}</button>`
+      ? `<button class="btn btn-sm needs-editor" type="button" data-action="retranscribe">${icon('refresh')}${item.kind === 'youtube' ? 'Buscar legendas de novo' : 'Transcrever novamente'}</button>`
       : '';
     switch (item.media_status) {
       case 'pendente':
@@ -168,7 +168,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
           </div>`;
       case 'erro':
         return `<div class="msg-error">${item.kind === 'youtube' ? '' : 'Não foi possível transcrever: '}${esc(item.media_error || 'erro desconhecido')}</div>
-          <div class="row"><button class="btn btn-sm btn-primary" type="button" data-action="paste">${icon('edit')}Colar transcrição</button>${retry}</div>`;
+          <div class="row"><button class="btn btn-sm btn-primary needs-editor" type="button" data-action="paste">${icon('edit')}Colar transcrição</button>${retry}</div>`;
       case 'indisponivel':
         return '<p class="muted">A transcrição automática está desligada neste servidor. Envie a transcrição pronta (por exemplo, o arquivo .vtt gerado pelo Teams, Meet ou Zoom) ou cole o texto.</p>';
       default:
@@ -179,7 +179,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
   function chaptersBlock() {
     const status = item.chapters_status;
     const regenerate = chaptersEnabled
-      ? `<button class="btn btn-sm" type="button" data-action="chapters" title="Pedir de novo à Active AI">${icon('refresh')}${status === 'ok' ? '' : 'Tentar de novo'}</button>`
+      ? `<button class="btn btn-sm needs-editor" type="button" data-action="chapters" title="Pedir de novo à Active AI">${icon('refresh')}${status === 'ok' ? '' : 'Tentar de novo'}</button>`
       : '';
     if (CHAPTERS_WORKING.includes(status)) {
       return `<div class="chapters"><div class="row muted"><span class="spinner"></span> A Active AI está criando o resumo e os capítulos do vídeo…</div></div>`;
@@ -197,7 +197,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
         </div>`;
     }
     return chaptersEnabled
-      ? `<div class="chapters chapters-empty"><button class="btn btn-sm btn-ia" type="button" data-action="chapters">${icon('sparkles')}Gerar resumo e capítulos com a Active AI</button></div>`
+      ? `<div class="chapters chapters-empty"><button class="btn btn-sm btn-ia needs-editor" type="button" data-action="chapters">${icon('sparkles')}Gerar resumo e capítulos com a Active AI</button></div>`
       : '';
   }
 
@@ -212,11 +212,11 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
           <h2>${icon('article')} Transcrição</h2>
           ${item.duration ? `<span class="muted small">Duração ${esc(formatDuration(item.duration))}</span>` : ''}
           <span class="spacer"></span>
-          <button class="btn btn-sm" type="button" data-action="paste" title="Colar o texto da transcrição (por exemplo, copiado do YouTube em “Mostrar transcrição”)">${icon('edit')}Colar</button>
-          <label class="btn btn-sm" title="Arquivos .vtt/.srt do Teams, Meet ou Zoom, ou texto (.txt, .docx)">
+          <button class="btn btn-sm needs-editor" type="button" data-action="paste" title="Colar o texto da transcrição (por exemplo, copiado do YouTube em “Mostrar transcrição”)">${icon('edit')}Colar</button>
+          <label class="btn btn-sm needs-editor" title="Arquivos .vtt/.srt do Teams, Meet ou Zoom, ou texto (.txt, .docx)">
             ${icon('upload')}Enviar<input type="file" accept=".vtt,.srt,.txt,.docx,.md" hidden data-action="upload" />
           </label>
-          ${done && canRetranscribe() ? `<button class="btn btn-sm" type="button" data-action="retranscribe" title="${item.kind === 'youtube' ? 'Buscar as legendas do YouTube de novo' : 'Gerar a transcrição automática de novo'}">${icon('refresh')}</button>` : ''}
+          ${done && canRetranscribe() ? `<button class="btn btn-sm needs-editor" type="button" data-action="retranscribe" title="${item.kind === 'youtube' ? 'Buscar as legendas do YouTube de novo' : 'Gerar a transcrição automática de novo'}">${icon('refresh')}</button>` : ''}
         </header>
         ${statusBlock()}
         ${done ? chaptersBlock() : ''}

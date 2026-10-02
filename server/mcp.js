@@ -20,7 +20,7 @@ function ensureHeader(req, name, isOk, value) {
  * Servidor MCP da Base de Conhecimento (transporte Streamable HTTP, sem estado).
  * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
  */
-export function createMcpHandler({ repo, publicUrl = '' }) {
+export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
   const kindOf = (i) =>
     i.kind === 'article'
       ? 'texto'
@@ -56,15 +56,15 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
         annotations: { readOnlyHint: true },
       },
       async ({ consulta, limite }) => {
-        const results = repo.search(consulta, { limit: limite || 8 });
+        const results = search ? await search.search(consulta, { limit: limite || 8 }) : repo.search(consulta, { limit: limite || 8 });
         log(`buscar_documentos "${consulta}" → ${results.length} resultado(s)${results.length ? `: ${results.slice(0, 3).map((r) => `#${r.id} ${r.title}`).join(' | ')}` : ''}`);
+        const termos = glossary?.describe(consulta) || '';
         if (!results.length) {
           return text(
-            `Nenhum documento encontrado para "${consulta}". Tente sinônimos; se a base realmente não tiver a resposta, chame registrar_lacuna com a pergunta do usuário.`,
+            `Nenhum documento encontrado para "${consulta}". Tente sinônimos; se a base realmente não tiver a resposta, chame registrar_lacuna com a pergunta do usuário.${termos ? `\n\nGlossário da Active para os termos da busca:\n${termos}` : ''}`,
           );
         }
-        return text(
-          results.map((r) => ({
+        const documentos = results.map((r) => ({
             id: r.id,
             titulo: r.title,
             tipo: kindOf(r),
@@ -73,9 +73,10 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
             resumo: r.summary || undefined,
             trecho: r.snippet?.replace(/\[\[|\]\]/g, ''),
             aviso: reviewWarning(r),
+            ...(r.by_meaning ? { encontrado_por: 'significado (sem as mesmas palavras): confira se responde à pergunta' } : {}),
             link: link(r.id),
-          })),
-        );
+          }));
+        return text(termos ? { glossario: termos.split('\n'), documentos } : documentos);
       },
     );
 
@@ -166,6 +167,30 @@ export function createMcpHandler({ repo, publicUrl = '' }) {
       async () => {
         log('listar_categorias');
         return text(repo.listCategories().map((c) => ({ id: c.id, nome: c.name, descricao: c.description, documentos: c.item_count })));
+      },
+    );
+
+    server.registerTool(
+      'consultar_glossario',
+      {
+        title: 'Consultar o glossário da Active',
+        description:
+          'Explica termos internos, siglas, nomes de telas e sistemas da Active Corp e dos clientes (ex.: "CT-e", "tela 306", "OnSupply"). ' +
+          'Use quando a pergunta tiver uma sigla ou termo que você não conhece com certeza. Sem "termo", lista o glossário inteiro.',
+        inputSchema: { termo: z.string().optional().describe('Termo, sigla ou frase para procurar no glossário') },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ termo }) => {
+        const entries = glossary ? (termo ? glossary.match(termo).map((m) => m.entry) : glossary.list()) : [];
+        // Também procura o texto dentro de termos e sinônimos (ex.: "306" encontra "tela 306").
+        const extra =
+          termo && glossary
+            ? glossary.list().filter((e) => !entries.some((x) => x.id === e.id) && [e.term, ...e.synonyms, e.description].join(' ').toLowerCase().includes(termo.toLowerCase()))
+            : [];
+        const found = [...entries, ...extra].slice(0, 50);
+        log(`consultar_glossario${termo ? ` "${termo}"` : ''} → ${found.length} termo(s)`);
+        if (!found.length) return text(termo ? `O glossário não tem "${termo}".` : 'O glossário está vazio.');
+        return text(found.map((e) => ({ termo: e.term, sinonimos: e.synonyms, significado: e.description || undefined })));
       },
     );
 

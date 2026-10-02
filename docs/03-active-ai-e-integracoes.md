@@ -117,7 +117,7 @@ Pesquisa em texto completo em toda a base (exceto anexos temporários).
 | `consulta` | texto (obrigatório) | Palavras-chave |
 | `limite` | número 1–25 | Máximo de resultados (padrão 8) |
 
-Retorna uma lista de `{ id, titulo, tipo, categoria, tags, resumo, trecho, aviso, link }`. `tipo` é `texto`, `arquivo`, `vídeo/áudio (transcrição)` ou `vídeo do YouTube (transcrição)`. `aviso` aparece quando a revisão do documento venceu. Sem resultados, a resposta sugere tentar sinônimos ou chamar `registrar_lacuna`.
+Retorna uma lista de `{ id, titulo, tipo, categoria, tags, resumo, trecho, aviso, link }`. `tipo` é `texto`, `arquivo`, `vídeo/áudio (transcrição)` ou `vídeo do YouTube (transcrição)`. `aviso` aparece quando a revisão do documento venceu. `encontrado_por` aparece quando o documento foi achado só pelo significado (sem as mesmas palavras). Se a busca citar termos do [glossário](11-login-busca-e-glossario.md#glossário-da-active), a resposta vira `{ glossario: [...], documentos: [...] }`, com a explicação dos termos. Sem resultados, a resposta sugere tentar sinônimos ou chamar `registrar_lacuna`.
 
 #### `ler_documento`
 
@@ -150,6 +150,16 @@ Retorna:
 #### `listar_categorias`
 
 Sem parâmetros. Retorna `[{ id, nome, descricao, documentos }]`.
+
+#### `consultar_glossario`
+
+Explica termos, siglas e nomes internos cadastrados no [glossário](11-login-busca-e-glossario.md#glossário-da-active).
+
+| Parâmetro | Tipo | Descrição |
+| --- | --- | --- |
+| `termo` | texto | Termo, sigla ou frase. Sem ele, lista o glossário inteiro (até 50 termos) |
+
+Retorna `[{ termo, sinonimos, significado }]`.
 
 #### `registrar_lacuna`
 

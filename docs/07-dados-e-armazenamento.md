@@ -47,7 +47,19 @@ Tabela virtual **FTS5** com `title`, `tags`, `summary` e `body` (conteúdo do te
 
 ### `feedback`: avaliações
 
-`id`, `target` (`documento` ou `resposta`), `item_id`, `helpful` (1/0), `comment`, `question`, `answer`, `created_at`. Apagadas junto com o documento avaliado.
+`id`, `target` (`documento` ou `resposta`), `item_id`, `helpful` (1/0), `comment`, `question`, `answer`, `user_name` (com o login ligado), `created_at`. Apagadas junto com o documento avaliado.
+
+### `glossary_terms`: glossário
+
+`id`, `term`, `synonyms` (separados por vírgula), `description`, `created_at`, `updated_at`.
+
+### `item_chunks`: busca por significado
+
+`item_id`, `idx`, `text` (trecho do documento com o título), `embedding` (vetor float32 de 384 posições). Recalculados quando o documento muda (`items.embedding_hash`) e apagados junto com ele. Podem ser apagados à vontade: a plataforma recalcula ao iniciar.
+
+### `users` e `sessions`: login individual
+
+`users`: `id`, `email`, `name`, `provider`, `role` (`admin`, `editor`, `leitor`), `active`, `created_at`, `last_login_at`. `sessions`: `token_hash` (SHA-256 do cookie; o cookie em si não fica no banco), `user_id`, `created_at`, `expires_at`. Sessões vencidas são apagadas automaticamente.
 
 ## Retenção
 

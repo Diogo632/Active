@@ -14,13 +14,33 @@ Este guia cobre todas as telas da plataforma, na ordem em que aparecem no menu.
 - [Anexar arquivos na conversa](#anexar-arquivos-na-conversa)
 - [Relatório da base](#relatório-da-base)
 - [Categorias](#categorias)
+- [Glossário](#glossário) e [busca por significado](#busca-por-significado)
 - [Atalhos de teclado](#atalhos-de-teclado)
 
 ---
 
 ## Acesso
 
-Abra o endereço da plataforma no navegador. Se ela estiver protegida por senha (o recomendado), o navegador pede **usuário e senha**; eles são os mesmos para toda a equipe e ficam guardados pelo navegador até ele ser fechado.
+Abra o endereço da plataforma no navegador.
+
+- **Com o login individual** (recomendado): clique em **Entrar com Microsoft** ou **Entrar com Google** e use a sua conta da empresa. Seu nome e perfil aparecem no rodapé do menu, com o botão para sair. O que você cria e edita fica registrado no seu nome.
+- **Com a senha única**: o navegador pede **usuário e senha**, os mesmos para toda a equipe.
+
+### Perfis
+
+| Perfil | O que pode fazer |
+| --- | --- |
+| **Administrador** | Tudo, mais a tela **Pessoas** (mudar perfis e bloquear acessos) |
+| **Editor** | Criar, editar e excluir documentos, categorias e termos do glossário |
+| **Só consulta** | Pesquisar, ler, baixar, conversar com a Active AI e avaliar. Os botões de edição não aparecem |
+
+## Glossário
+
+Menu **Glossário**: termos, siglas e sinônimos da Active (ex.: **CT-e** = *CTe, conhecimento de transporte*). Quem pesquisar por um sinônimo encontra os documentos que usam o termo, e a Active AI recebe a explicação dos termos citados na pergunta. Use o filtro para achar um termo; Editores usam **Novo termo** e os ícones de editar e excluir.
+
+## Busca por significado
+
+A busca encontra documentos pelo assunto, mesmo sem as mesmas palavras: "cliente não consegue tirar nota" acha "Erro na emissão de NF-e". Os documentos achados assim aparecem com a etiqueta **≈ significado** e mostram o trecho mais parecido com a pergunta.
 
 ## Layout geral
 

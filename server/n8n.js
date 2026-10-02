@@ -147,12 +147,13 @@ export function extractOptions(body) {
  * Mensagem enxuta para o agente: pergunta + referências curtas aos documentos (id, título, trecho).
  * Cabe no limite do GPTMaker; o conteúdo completo o agente lê pelo MCP da Base de Conhecimento.
  */
-export function buildPrompt({ question, documents, contextItem, maxChars = DEFAULTS.maxPromptChars }) {
+export function buildPrompt({ question, documents, contextItem, glossaryText = '', maxChars = DEFAULTS.maxPromptChars }) {
   const header = [
     '[Consulta feita pela Base de Conhecimento do Suporte]',
     'Para ler o conteúdo completo de um documento, use a ferramenta ler_documento (MCP da Base de Conhecimento) com o id indicado; para procurar outros, use buscar_documentos.',
     'Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta, use seu conhecimento, deixe isso claro e chame registrar_lacuna.',
     contextItem ? `Documento aberto na tela: #${contextItem.id} “${contextItem.title}” — é a ele que “este documento” se refere.` : '',
+    glossaryText ? `Termos da Active citados na pergunta (glossário):\n${glossaryText}` : '',
   ]
     .filter(Boolean)
     .join('\n');
@@ -182,12 +183,17 @@ export function buildPrompt({ question, documents, contextItem, maxChars = DEFAU
  * Active AI via webhook do n8n (por exemplo, um fluxo que chama um agente do GPTMaker).
  * A plataforma pesquisa a base, monta o contexto com os trechos relevantes e envia tudo ao webhook.
  */
-export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
+export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, options = {} }) {
   const cfg = { ...DEFAULTS, ...options };
 
-  function retrieve(question, contextItemId) {
+  async function retrieve(question, contextItemId) {
     const terms = keywords(question);
-    const found = terms.length ? repo.search(terms.join(' '), { limit: cfg.maxDocuments }) : [];
+    // Busca por palavras-chave (com os sinônimos do glossário) e pelo significado da pergunta inteira.
+    const found = !terms.length
+      ? []
+      : search
+        ? await search.search(terms.join(' '), { limit: cfg.maxDocuments, meaningText: question })
+        : repo.search(terms.join(' '), { limit: cfg.maxDocuments });
     const ids = [...new Set([contextItemId, ...found.map((f) => f.id)].filter(Boolean))].slice(0, cfg.maxDocuments);
     const items = ids.map((id) => repo.getItem(id, { full: true })).filter(Boolean);
 
@@ -235,13 +241,15 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
     // Com um documento em foco, a mensagem leva a referência a ele (id e título) para o agente ler pelo MCP.
     const useBase = cfg.includeContext && (mode === 'base' || Boolean(contextItem));
     let documents = [];
-    let prompt = last.content;
+    // Siglas e termos internos citados na pergunta, explicados pelo glossário da Active.
+    const glossaryText = glossary?.describe(last.content) || '';
+    let prompt = glossaryText ? `${last.content}\n\n[Termos da Active citados na pergunta (glossário)]\n${glossaryText}` : last.content;
     if (useBase) {
       emit({ type: 'status', label: 'Pesquisando documentos na base' });
       // Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior na busca.
       const previousUser = messages.filter((m) => m.role === 'user').slice(-2, -1)[0]?.content || '';
-      documents = retrieve(`${last.content} ${keywords(last.content).length < 3 ? previousUser : ''}`, contextItem?.id);
-      prompt = buildPrompt({ question: last.content, documents, contextItem, maxChars: cfg.maxPromptChars });
+      documents = await retrieve(`${last.content} ${keywords(last.content).length < 3 ? previousUser : ''}`, contextItem?.id);
+      prompt = buildPrompt({ question: last.content, documents, contextItem, glossaryText, maxChars: cfg.maxPromptChars });
     }
     const message = prompt;
 

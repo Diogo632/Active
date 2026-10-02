@@ -8,6 +8,11 @@ async function request(method, url, body) {
   const res = await fetch(url, options);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
+  // Sessão expirada (login individual): volta para a página de login e depois para onde estava.
+  if (res.status === 401 && data.login) {
+    location.href = `${data.login}?volta=${encodeURIComponent(location.pathname + location.hash)}`;
+    throw Object.assign(new Error(data.error || 'Faça login para continuar.'), { status: 401 });
+  }
   if (!res.ok) throw Object.assign(new Error(data.error || `Erro ${res.status}`), { status: res.status, data });
   return data;
 }
@@ -20,6 +25,14 @@ const qs = (params) => {
 };
 
 export const api = {
+  me: () => request('GET', '/api/me'),
+  logout: () => request('POST', '/auth/sair'),
+  users: () => request('GET', '/api/usuarios'),
+  updateUser: (id, data) => request('PUT', `/api/usuarios/${id}`, data),
+  glossary: () => request('GET', '/api/glossario'),
+  createTerm: (data) => request('POST', '/api/glossario', data),
+  updateTerm: (id, data) => request('PUT', `/api/glossario/${id}`, data),
+  deleteTerm: (id) => request('DELETE', `/api/glossario/${id}`),
   stats: () => request('GET', '/api/stats'),
   tags: () => request('GET', '/api/tags'),
   categories: () => request('GET', '/api/categories'),
