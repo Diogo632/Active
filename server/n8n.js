@@ -104,6 +104,22 @@ export function splitAnalysis(text) {
   return { analysis: parts.join('\n'), answer };
 }
 
+/** Rascunho de raciocínio que o workflow do n8n separou num campo próprio (ex.: nó remover-analise.js). */
+export function extractAnalysis(body) {
+  if (!body || typeof body !== 'object') return '';
+  if (Array.isArray(body)) return body.map(extractAnalysis).find(Boolean) || '';
+  for (const key of ['analise', 'análise', 'analysis', 'raciocinio', 'raciocínio', 'reasoning']) {
+    if (typeof body[key] === 'string' && body[key].trim()) return body[key].trim();
+  }
+  for (const key of ['json', 'data', 'output', 'response', 'body']) {
+    if (body[key] && typeof body[key] === 'object') {
+      const nested = extractAnalysis(body[key]);
+      if (nested) return nested;
+    }
+  }
+  return '';
+}
+
 /** Opções de resposta (botões) enviadas pelo workflow em um campo próprio, se houver. */
 export function extractOptions(body) {
   if (!body || typeof body !== 'object') return [];
@@ -281,7 +297,7 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       // O rascunho de raciocínio do agente não aparece para a pessoa; fica no log para conferência.
       // (Se o workflow do n8n já tiver removido o rascunho, ele pode vir no campo "analise".)
       const { analysis, answer } = splitAnalysis(reply);
-      const loggedAnalysis = analysis || (typeof body === 'object' && typeof body?.analise === 'string' ? body.analise : '');
+      const loggedAnalysis = analysis || extractAnalysis(body);
       if (loggedAnalysis) {
         console.log(`[active-ai/análise] ${sessionId || '-'} | ${last.content.slice(0, 120).replace(/\s+/g, ' ')} ⇒ ${loggedAnalysis.replace(/\s+/g, ' ').slice(0, 600)}`);
       }

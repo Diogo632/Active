@@ -6,6 +6,10 @@
 // O agente escreve <analise>…</analise> no começo de cada resposta (veja n8n/prompt-raciocinio.md).
 // Este código tira esse bloco do texto (para o chat oficial e a Base de Conhecimento) e guarda o
 // rascunho no campo "analise", para quem quiser conferir no histórico de execuções do n8n.
+//
+// IMPORTANTE: no nó "Responder ao chat", devolva também o campo "analise", por exemplo:
+//   { "message": {{ JSON.stringify($json.message) }}, "analise": {{ JSON.stringify($json.analise || '') }} }
+// A Base de Conhecimento mostra esse rascunho no botão "!" da resposta; o chat oficial ignora o campo.
 
 const ABRE = /<an[aá]lise>/i;
 

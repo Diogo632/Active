@@ -187,3 +187,10 @@ test('splitAnalysis nunca esconde a resposta inteira', async () => {
   assert.equal(splitAnalysis('Sem rascunho.').answer, 'Sem rascunho.');
   assert.equal(splitAnalysis('<analise>Só o rascunho</analise>').answer, 'Só o rascunho');
 });
+
+test('o rascunho separado pelo n8n (campo "analise") também chega à tela', async () => {
+  replyWith = { payload: [{ message: 'Você se refere a qual sistema?', analise: 'Ação: emitir\nDecisão: perguntar antes' }] };
+  const events = await ask('Como emito um CT-e?', { mode: 'livre' });
+  assert.equal(events.find((e) => e.type === 'text').text, 'Você se refere a qual sistema?');
+  assert.equal(events.find((e) => e.type === 'analysis').text, 'Ação: emitir\nDecisão: perguntar antes');
+});
