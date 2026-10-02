@@ -1,6 +1,6 @@
 import { api } from './api.js';
 import { chat } from './chat.js';
-import { esc, icon, renderMarkdown, hydrateIcons } from './util.js';
+import { esc, icon, renderMarkdown, hydrateIcons, analysisToggle, analysisPanel } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { fadeUp, popIn, revealProse, pulse } from './motion.js';
 import { answerActionsHtml, voteAnswer } from './feedback.js';
@@ -27,8 +27,10 @@ export function mountAnswer(container, question) {
         <header>
           <div class="ia-avatar">AI</div>
           <strong>Resposta da Active AI</strong>
+          ${done && state.analysis ? analysisToggle(Boolean(state.showAnalysis)) : ''}
           ${done ? '' : `<span class="answer-status"><span class="spinner"></span>${esc(status || 'Pensando…')}</span>`}
         </header>
+        ${done && state.analysis && state.showAnalysis ? analysisPanel(state.analysis) : ''}
         ${error ? `<div class="msg-error">${esc(error)}</div>` : ''}
         ${text ? `<div class="prose answer-body">${renderMarkdown(text)}</div>` : done || error ? '' : '<div class="answer-skeleton"><span></span><span></span><span></span></div>'}
         ${
@@ -68,6 +70,10 @@ export function mountAnswer(container, question) {
   };
 
   container.addEventListener('click', async (e) => {
+    if (e.target.closest('[data-analysis-toggle]')) {
+      state.showAnalysis = !state.showAnalysis;
+      return render();
+    }
     const vote = e.target.closest('[data-vote]');
     if (vote) {
       if (state.vote) return;
@@ -82,7 +88,7 @@ export function mountAnswer(container, question) {
     if (!option && !e.target.closest('[data-continue]')) return;
     if (option) pulse(option);
     // Continua no chat, na mesma sessão do agente; ao escolher uma opção, ela já é enviada.
-    chat.continueWith({ question, answer: state.text, sources: state.sources, options: state.options, sessionId: state.sessionId });
+    chat.continueWith({ question, answer: state.text, sources: state.sources, options: state.options, analysis: state.analysis, sessionId: state.sessionId });
     document.dispatchEvent(new CustomEvent('open-ia'));
     if (option) setTimeout(() => chat.send(option.dataset.option), 160);
   });
@@ -105,6 +111,7 @@ export function mountAnswer(container, question) {
           else if (event.type === 'text') state.text += event.text;
           else if (event.type === 'sources') state.sources = event.items;
           else if (event.type === 'options') state.options = normalizeOptions(event.items);
+          else if (event.type === 'analysis') state.analysis = event.text;
           else if (event.type === 'error') state.error = event.message;
           render();
         },

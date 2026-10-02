@@ -181,6 +181,7 @@ Resposta em **Server-Sent Events** (`text/event-stream`), um evento por linha `d
 | `text` | `text` | Texto da resposta |
 | `options` | `items` | Opções em botões |
 | `sources` | `items: [{ id, title, kind }]` | Documentos usados |
+| `analysis` | `text` | Rascunho de raciocínio do agente (mostrado só ao clicar no **!**) |
 | `error` | `message` | Erro legível |
 | `done` | | Fim |
 

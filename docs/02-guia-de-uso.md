@@ -176,6 +176,7 @@ Tamanho máximo por arquivo: **2 GB** (ajustável em `MAX_UPLOAD_MB`).
 - **Documento em foco**: uma faixa no topo mostra o documento; o agente recebe o id dele para ler. O **×** tira o documento do foco.
 - **Opções em botões**: quando o agente oferece alternativas (`[OPCOES] A | B | C`), elas viram botões; clicar envia a escolha.
 - **Documentos consultados**: aparecem como links abaixo da resposta.
+- **Raciocínio da Active AI**: quando o agente escreve o rascunho de análise (veja [raciocínio obrigatório](03-active-ai-e-integracoes.md#raciocínio-obrigatório-antes-de-responder)), aparece um **!** pequeno ao lado de *Consultando a Active AI* (e ao lado de *Resposta da Active AI* na busca). Clicar mostra como o agente entendeu a pergunta: ação, objeto, contexto, o que encontrou, se responde exatamente e a decisão. Útil para entender uma resposta errada.
 - **Ajudou? 👍 👎** nas respostas longas (300+ caracteres). No 👎, a pessoa pode dizer o que faltou, e a pergunta vai para o relatório de lacunas.
 - **↻ Nova conversa** começa do zero (nova sessão no agente). A conversa atual fica salva no navegador ao trocar de página ou recarregar.
 - **Enter** envia; **Shift+Enter** quebra a linha; o botão vira **■** para interromper a resposta.

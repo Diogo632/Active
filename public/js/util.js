@@ -178,6 +178,27 @@ export function renderMarkdown(md) {
   return tpl.innerHTML;
 }
 
+/**
+ * Botão "!" e painel com o raciocínio (rascunho <analise>) da Active AI.
+ * O rascunho é texto do agente: sempre escapado; "Rótulo: valor" ganha o rótulo em negrito.
+ */
+export function analysisToggle(open) {
+  return `<button type="button" class="analysis-toggle${open ? ' open' : ''}" data-analysis-toggle aria-expanded="${open}" title="${open ? 'Esconder' : 'Ver'} o raciocínio da Active AI">!</button>`;
+}
+
+export function analysisPanel(text) {
+  const lines = String(text || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^([^:?]{1,40}[:?])\s*(.*)$/);
+      return `<div>${m ? `<strong>${esc(m[1])}</strong> ${esc(m[2])}` : esc(l)}</div>`;
+    })
+    .join('');
+  return `<div class="analysis-panel"><span class="analysis-title">Raciocínio da Active AI</span>${lines}</div>`;
+}
+
 /** Copia texto para a área de transferência (com alternativa para navegadores sem a API). */
 export async function copyText(text) {
   try {

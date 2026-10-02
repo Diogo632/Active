@@ -192,7 +192,7 @@ Para o agente não responder com "o assunto mais parecido" que encontrou, o prom
 | Parte | Onde | O que faz |
 | --- | --- | --- |
 | Trecho do prompt | [`n8n/prompt-raciocinio.md`](../n8n/prompt-raciocinio.md) → colar no prompt do agente no GPTMaker | Exige o rascunho e as regras de decisão |
-| Filtro na plataforma | Automático (`splitAnalysis` em `server/n8n.js`) | Tira o rascunho antes de mostrar a resposta e registra no log: `[active-ai/análise] sessão \| pergunta ⇒ rascunho` |
+| Filtro na plataforma | Automático (`splitAnalysis` em `server/n8n.js`) | Tira o rascunho do texto da resposta, mostra-o só ao clicar no **!** da mensagem e registra no log: `[active-ai/análise] sessão \| pergunta ⇒ rascunho` |
 | Filtro no n8n | [`n8n/remover-analise.js`](../n8n/remover-analise.js) → nó **Code** entre o agente e o "Responder ao chat" | Tira o rascunho para o **chat oficial** também; guarda o rascunho no campo `analise` (a plataforma registra esse campo no log) |
 
 Ordem para ativar: **primeiro** o nó no n8n, **depois** o trecho no prompt (senão o chat oficial mostra o rascunho). Para ver os rascunhos: `grep "active-ai/análise" servidor.log | tail`.

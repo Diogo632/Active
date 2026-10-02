@@ -285,6 +285,8 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
       if (loggedAnalysis) {
         console.log(`[active-ai/análise] ${sessionId || '-'} | ${last.content.slice(0, 120).replace(/\s+/g, ' ')} ⇒ ${loggedAnalysis.replace(/\s+/g, ' ').slice(0, 600)}`);
       }
+      // O rascunho vai à parte: a tela mostra só se a pessoa clicar no botão "!" da mensagem.
+      if (loggedAnalysis) emit({ type: 'analysis', text: loggedAnalysis.trim().slice(0, 4000) });
       emit({ type: 'text', text: answer });
       const options = extractOptions(body);
       if (options.length) emit({ type: 'options', items: options });

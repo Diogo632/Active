@@ -1,5 +1,5 @@
 import { api } from './api.js';
-import { esc, icon, renderMarkdown, storage, hydrateIcons, formatBytes, toast } from './util.js';
+import { esc, icon, renderMarkdown, storage, hydrateIcons, formatBytes, toast, analysisToggle, analysisPanel } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { messageIn, revealProse, popIn, pulse } from './motion.js';
 import { answerActionsHtml, voteAnswer } from './feedback.js';
@@ -52,7 +52,7 @@ function persist() {
     STORAGE_KEY,
     state.messages
       .slice(-40)
-      .map(({ role, content, sources, options, vote, attachments }) => ({ role, content, sources, options, vote, attachments })),
+      .map(({ role, content, sources, options, vote, attachments, analysis }) => ({ role, content, sources, options, vote, attachments, analysis })),
   );
 }
 
@@ -78,11 +78,11 @@ export const chat = {
   },
 
   /** Abre no chat uma conversa iniciada pela resposta da busca, mantendo a mesma sessão no agente. */
-  continueWith({ question, answer, sources = [], options = [], sessionId }) {
+  continueWith({ question, answer, sources = [], options = [], analysis, sessionId }) {
     state.controller?.abort();
     state.messages = [
       { role: 'user', content: question },
-      { role: 'assistant', content: answer, sources, options },
+      { role: 'assistant', content: answer, sources, options, ...(analysis ? { analysis } : {}) },
     ];
     state.sessionId = sessionId || newSessionId();
     persist();
@@ -173,6 +173,9 @@ export const chat = {
             case 'options':
               reply.options = normalizeOptions(event.items);
               break;
+            case 'analysis':
+              reply.analysis = event.text;
+              break;
             case 'error':
               reply.error = event.message;
               break;
@@ -222,10 +225,16 @@ function renderMessage(msg, isLast, index) {
       : '';
     return `<div class="msg msg-user">${files}<div class="bubble">${esc(msg.content)}</div></div>`;
   }
-  const status = msg.status?.length
-    ? `<div class="ia-status">${msg.status
-        .map((s) => `<div>${s.done ? icon('check') : '<span class="spinner"></span>'}<span>${esc(s.label)}</span></div>`)
-        .join('')}</div>`
+  // O "!" fica ao lado da última etapa ("Consultando a Active AI") e abre o raciocínio do agente.
+  const toggle = msg.analysis && !msg.pending ? analysisToggle(Boolean(msg.showAnalysis)) : '';
+  const steps = msg.status?.length ? msg.status : toggle ? [{ label: '', done: true, bare: true }] : [];
+  const status = steps.length
+    ? `<div class="ia-status">${steps
+        .map(
+          (s, i) =>
+            `<div>${s.bare ? '' : `${s.done ? icon('check') : '<span class="spinner"></span>'}<span>${esc(s.label)}</span>`}${i === steps.length - 1 ? toggle : ''}</div>`,
+        )
+        .join('')}</div>${msg.showAnalysis && msg.analysis ? analysisPanel(msg.analysis) : ''}`
     : '';
   const body = msg.content
     ? `<div class="prose">${renderMarkdown(msg.content)}</div>`
@@ -424,6 +433,15 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand, on
   });
 
   container.addEventListener('click', async (e) => {
+    const analysisBtn = e.target.closest('[data-analysis-toggle]');
+    if (analysisBtn) {
+      const msg = state.messages[Number(analysisBtn.closest('[data-index]')?.dataset.index)];
+      if (msg) {
+        msg.showAnalysis = !msg.showAnalysis;
+        notify();
+      }
+      return;
+    }
     const removeAttachment = e.target.closest('[data-remove-attachment]');
     if (removeAttachment) return chat.removeAttachment(removeAttachment.dataset.removeAttachment);
     if (e.target.closest('[data-action="attach"]')) return fileInput.click();

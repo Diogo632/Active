@@ -177,6 +177,8 @@ test('o rascunho <analise> do agente não aparece para a pessoa', async () => {
   assert.doesNotMatch(text, /analise|Objeto:|Decisão/i);
   assert.match(text, /^Você quer alterar o código CST/);
   assert.match(text, /\[OPCOES\] Código CST \| Descrição no DACTE$/);
+  // O rascunho chega à tela separado, para o botão "!" mostrar quando a pessoa quiser.
+  assert.match(events.find((e) => e.type === 'analysis').text, /^Ação: alterar \| Objeto: descrição do CST/);
 });
 
 test('splitAnalysis nunca esconde a resposta inteira', async () => {

@@ -1015,3 +1015,22 @@ dialog.history-dialog { width: min(980px, calc(100vw - 32px)); }
 }
 /* Na tela inicial a busca principal já está no centro: a do topo fica escondida. */
 body.route-home .topbar-search { visibility: hidden; }
+
+/* ---------- Raciocínio da Active AI (botão "!" discreto) ---------- */
+.analysis-toggle {
+  width: 16px; height: 16px; margin-left: 6px; padding: 0; border-radius: 50%; flex: none; cursor: pointer;
+  display: inline-grid; place-items: center; vertical-align: middle;
+  border: 1px solid var(--border); background: none; color: var(--text-muted);
+  font: 700 10px/1 var(--font); opacity: .55; transition: opacity .15s, color .15s, border-color .15s, background .15s;
+}
+.analysis-toggle:hover, .analysis-toggle:focus-visible { opacity: 1; color: var(--brand-accent); border-color: var(--brand-primary); }
+.analysis-toggle.open { opacity: 1; color: #fff; background: var(--brand-primary); border-color: var(--brand-primary); }
+.ia-status > div { align-items: center; }
+.analysis-panel {
+  margin: 2px 0 10px; padding: 8px 10px; border-left: 2px solid var(--brand-primary); border-radius: 0 8px 8px 0;
+  background: var(--surface-2); color: var(--text-muted); font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere;
+}
+.analysis-panel strong { color: var(--text); font-weight: 600; }
+.analysis-title { display: block; margin-bottom: 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-accent); }
+.answer-card > .analysis-panel { margin: 10px 0 4px; }
+.ia-status .analysis-toggle { margin-left: 0; }
