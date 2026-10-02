@@ -21,7 +21,7 @@ Regras gerais:
 | Campo | Descrição |
 | --- | --- |
 | `id` | Número do item |
-| `kind` | `article` (texto), `file` (arquivo), `youtube` ou `teams` (gravação do Teams; `source_url` é o link e `embed_url` o player do SharePoint) |
+| `kind` | `article` (texto), `file` (arquivo) ou `youtube` |
 | `title`, `summary`, `tags` (lista), `author` | Informações do item |
 | `category_id`, `category_name` | Categoria (ou `null`) |
 | `file_name`, `mime_type`, `size` | Arquivos |
@@ -45,7 +45,7 @@ Lista ou pesquisa.
 | --- | --- |
 | `q` | Texto da busca (com `q`, a resposta vem por relevância e cada item tem `snippet`, com os termos entre `[[ ]]`) |
 | `category` | Id da categoria ou `none` (sem categoria) |
-| `kind` | `article`, `file`, `youtube` ou `teams` |
+| `kind` | `article`, `file` ou `youtube` |
 | `tag` | Só itens com a tag |
 | `limit`, `offset` | Paginação (limite até 200, padrão 50) |
 | `sort=views` | Mais acessados primeiro |
@@ -102,20 +102,6 @@ Corpo: `{ url (obrigatório), title, category_id, tags, summary, author, review_
 | 201 | Criado; as legendas são buscadas em segundo plano |
 | 400 | Link inválido, vídeo privado ou inexistente |
 | 409 | O vídeo já está na base (`{ error, item }` com o existente) |
-
-### `POST /api/teams`
-
-Gravação do Teams (multipart). Campos: `url` (obrigatório: link do SharePoint ou do Teams), `embed` (código de inserção ou endereço `embed.aspx`), `transcript` (arquivo .vtt/.srt/.txt/.docx), `title`, `category_id`, `tags`, `summary`, `author`, `review_months`.
-
-| Status | Quando |
-| --- | --- |
-| 201 | Criada; com transcrição, `media_status: "manual"` e capítulos em segundo plano; sem, `media_status: "aguarda"` |
-| 400 | Link que não é da Microsoft, ou código de inserção que não é do SharePoint |
-| 409 | A gravação já está na base (`{ error, item }`) |
-
-### `PUT /api/items/{id}/player`
-
-`{ embed }`: define (ou, vazio, remove) o player do SharePoint de uma gravação do Teams.
 
 ## Vídeos e transcrição
 

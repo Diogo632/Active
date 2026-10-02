@@ -48,32 +48,11 @@ Requisitos e limitações:
   - **Colar a transcrição** (sempre funciona): no YouTube, *…mais* na descrição → **Mostrar transcrição** → copiar o texto do painel → **Colar** na tela do vídeo. Os horários são mantidos; linhas como "1 minuto e 5 segundos" são ignoradas.
   - **yt-dlp** (opcional, no servidor): com o [yt-dlp](https://github.com/yt-dlp/yt-dlp) instalado (`YTDLP_PATH`), a plataforma baixa só o áudio e transcreve com o Whisper.
 
-## Gravações do Teams
-
-As gravações de reuniões do Teams ficam no OneDrive/SharePoint de quem gravou e só abrem para quem está logado na conta Microsoft da empresa. Por isso a plataforma **não baixa o vídeo**: ela guarda o **link** e a **transcrição** baixada do Teams. Sem limite de tamanho e sem ocupar espaço no servidor.
-
-**Adicionar** (em *Enviar arquivos → Gravação do Teams*):
-
-1. Abra a gravação no SharePoint/Stream.
-2. **Link da gravação**: *Compartilhar → Copiar link*. O título é sugerido pelo nome da gravação.
-3. **Transcrição**: no painel *Transcrição*, *Baixar* → **.vtt** (traz o nome de quem fala) ou **.docx**. Também dá para enviar depois, na página da gravação.
-4. **Código de inserção** (opcional): *Compartilhar → Código de inserção*. Com ele, o vídeo **toca dentro da plataforma** para quem estiver logado na conta Microsoft da empresa no navegador. Pode ser incluído ou trocado depois (*Assistir aqui na plataforma* / *Trocar player*).
-
-Como funciona depois:
-
-- A transcrição entra na busca e no MCP (tipo `gravação do Teams (transcrição)`), e a Active AI cria o **resumo e os capítulos**, como nos outros vídeos.
-- Clicar num horário (capítulo ou trecho da transcrição) **abre a gravação no SharePoint naquele momento**, numa nova aba. O player inserido na página não aceita comandos de outra página, por isso não pula sozinho.
-- Sem a transcrição, a gravação aparece com o selo *Falta a transcrição*, e o agente avisa que ainda não tem o conteúdo.
-- Quem não tem acesso à gravação no SharePoint (permissões do Microsoft 365) não consegue assistir, mas lê a transcrição e o resumo na plataforma.
-- Só são aceitos links de `*.sharepoint.com` e do Teams; o player só de `*.sharepoint.com/…/_layouts/15/embed.aspx`.
-
-> Se o player mostrar uma tela de login ou ficar em branco, o navegador está bloqueando o login da Microsoft dentro de outra página (cookies de terceiros). Use *Abrir no SharePoint*.
-
 ## Enviar ou colar uma transcrição pronta
 
 Na tela de qualquer vídeo, no painel *Transcrição*:
 
-- **Enviar**: arquivo `.vtt` ou `.srt` (o Teams, o Meet e o Zoom geram), `.txt` ou `.docx`. Legendas `.vtt` mantêm o nome de quem fala (`Ana: Bom dia…`).
+- **Enviar**: arquivo `.vtt` ou `.srt` (o Teams, o Meet e o Zoom geram), `.txt` ou `.docx` (inclusive o .docx baixado do painel de transcrição do Teams). Legendas `.vtt` e o .docx do Teams mantêm o nome de quem fala (`Ana: Bom dia…`).
 - **Colar**: texto com horários (`0:05` numa linha e o texto na seguinte, ou `0:05 texto`, ou `[00:00:05] texto`) ou texto livre (fica sem horários).
 
 A transcrição enviada **substitui** a automática e também gera resumo e capítulos.

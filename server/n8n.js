@@ -205,7 +205,7 @@ export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, o
       return {
         id: item.id,
         titulo: item.title,
-        tipo: item.kind === 'article' ? 'texto' : item.kind === 'youtube' ? 'vídeo do YouTube' : item.kind === 'teams' ? 'gravação do Teams' : `arquivo ${item.file_name || ''}`.trim(),
+        tipo: item.kind === 'article' ? 'texto' : item.kind === 'youtube' ? 'vídeo do YouTube' : `arquivo ${item.file_name || ''}`.trim(),
         revisao_vencida: item.review_overdue,
         categoria: item.category_name || 'Sem categoria',
         tags: item.tags,

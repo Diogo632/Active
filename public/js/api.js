@@ -50,8 +50,6 @@ export const api = {
   regenerateChapters: (id) => request('POST', `/api/items/${id}/chapters`),
   saveTranscriptText: (id, text) => request('PUT', `/api/items/${id}/transcript`, { text }),
   addYouTube: (data) => request('POST', '/api/youtube', data),
-  addTeams: (formData) => request('POST', '/api/teams', formData),
-  setTeamsPlayer: (id, embed) => request('PUT', `/api/items/${id}/player`, { embed }),
 
   versions: (id) => request('GET', `/api/items/${id}/versions`),
   version: (id, versionId) => request('GET', `/api/items/${id}/versions/${versionId}`),

@@ -10,21 +10,7 @@ const CHAPTERS_WORKING = ['pendente', 'gerando'];
 
 export const isMediaItem = (item) =>
   item.kind === 'youtube' ||
-  item.kind === 'teams' ||
   (item.kind === 'file' && (/^(video|audio)\//.test(item.mime_type || '') || MEDIA_EXT.test(item.file_name || '')));
-
-/** Link da gravação do Teams/SharePoint aberto num momento (o vídeo só toca para quem tem a conta da empresa). */
-export function teamsLinkAt(item, seconds) {
-  try {
-    const url = new URL(item.source_url);
-    if (!/\.sharepoint\.com$/i.test(url.hostname)) return item.source_url;
-    url.searchParams.delete('nav');
-    const nav = encodeURIComponent(JSON.stringify({ playbackOptions: { startTimeInSeconds: Math.max(0, Math.floor(seconds)) } }));
-    return `${url.href}${url.search ? '&' : '?'}nav=${nav}`;
-  } catch {
-    return item.source_url;
-  }
-}
 
 export const youtubeId = (item) => item.source_url?.match(/[?&]v=([\w-]{11})/)?.[1] || null;
 
@@ -41,9 +27,9 @@ export const clock = (seconds) => {
  * embaixo. Vermelho no YouTube, verde nos vídeos enviados.
  */
 export function mediaTile(item, { size = 'md' } = {}) {
-  const name = item.kind === 'youtube' ? 'youtube' : item.kind === 'teams' ? 'teams' : /^audio\//.test(item.mime_type || '') ? 'audio' : 'video';
+  const name = item.kind === 'youtube' ? 'youtube' : /^audio\//.test(item.mime_type || '') ? 'audio' : 'video';
   const duration = item.duration && size !== 'sm' ? `<span class="tile-duration">${clock(item.duration)}</span>` : '';
-  return `<span class="media-tile tile-${size}${item.kind === 'youtube' ? ' is-youtube' : ''}${item.kind === 'teams' ? ' is-teams' : ''}${duration ? ' has-duration' : ''}"
+  return `<span class="media-tile tile-${size}${item.kind === 'youtube' ? ' is-youtube' : ''}${duration ? ' has-duration' : ''}"
     title="${item.duration ? `Duração ${clock(item.duration)}` : ''}">${icon(name)}${duration}</span>`;
 }
 
@@ -64,8 +50,6 @@ export function transcriptBadge(item) {
       return '<span class="badge badge-warn">Na fila para transcrição</span>';
     case 'erro':
       return '<span class="badge badge-danger">Sem transcrição</span>';
-    case 'aguarda':
-      return '<span class="badge badge-warn">Falta a transcrição</span>';
     case 'concluida':
     case 'manual':
     case 'legendas':
@@ -77,20 +61,6 @@ export function transcriptBadge(item) {
 
 /** Player do vídeo/áudio: YouTube incorporado ou o arquivo enviado (quando o navegador toca o formato). */
 export function mediaPlayer(item) {
-  if (item.kind === 'teams') {
-    const open = `<a class="btn btn-sm" href="${esc(item.source_url)}" target="_blank" rel="noopener">${icon('teams')}Abrir no SharePoint</a>`;
-    if (item.embed_url) {
-      return `<div class="card media-card media-teams"><iframe id="media-player" data-teams src="${esc(item.embed_url)}" title="${esc(item.title)}"
-        allow="autoplay; fullscreen; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-        <p class="muted small teams-hint">${icon('lock')} O vídeo fica no SharePoint da Active e só toca para quem está logado na conta Microsoft da empresa neste navegador. Se aparecer uma tela de login ou erro, use ${open}</p>`;
-    }
-    return `<div class="card card-pad teams-card">
-        <div class="teams-card-head">${mediaTile(item)}<div><strong>Gravação do Teams</strong>
-          <span class="muted small">O vídeo fica no SharePoint da Active e abre com a sua conta Microsoft da empresa.</span></div></div>
-        <div class="row">${open.replace('btn btn-sm', 'btn btn-primary')}
-          <button class="btn needs-editor" type="button" data-player>${icon('video')}Assistir aqui na plataforma</button></div>
-      </div>`;
-  }
   if (item.kind === 'youtube') {
     const id = youtubeId(item);
     const src = `https://www.youtube-nocookie.com/embed/${id}?enablejsapi=1&rel=0&origin=${encodeURIComponent(location.origin)}`;
@@ -113,12 +83,6 @@ export function mediaPlayer(item) {
 function playerController() {
   const el = document.getElementById('media-player');
   if (!el) return { seek() {}, onTime: () => () => {} };
-
-  // Gravação do Teams: o player do SharePoint não aceita comandos de outra página; o horário abre a gravação
-  // no SharePoint naquele momento, numa nova aba.
-  if (el.dataset.teams !== undefined) {
-    return { seek() {}, onTime: () => () => {} };
-  }
 
   if (el.tagName !== 'IFRAME') {
     return {
@@ -187,7 +151,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
       .map((m) => ({ time: m[1], seconds: toSeconds(m[1]), text: m[2] }));
   }
 
-  const canRetranscribe = () => item.kind !== 'teams' && (transcriptionEnabled || item.kind === 'youtube');
+  const canRetranscribe = () => transcriptionEnabled || item.kind === 'youtube';
 
   function statusBlock() {
     const retry = canRetranscribe()
@@ -205,16 +169,6 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
       case 'erro':
         return `<div class="msg-error">${item.kind === 'youtube' ? '' : 'Não foi possível transcrever: '}${esc(item.media_error || 'erro desconhecido')}</div>
           <div class="row"><button class="btn btn-sm btn-primary needs-editor" type="button" data-action="paste">${icon('edit')}Colar transcrição</button>${retry}</div>`;
-      case 'aguarda':
-        return `<div class="transcript-status teams-steps">
-            <strong>Falta a transcrição da reunião</strong>
-            <ol>
-              <li><a href="${esc(item.source_url)}" target="_blank" rel="noopener">Abra a gravação no SharePoint</a> e clique em <strong>Transcrição</strong>.</li>
-              <li>Clique em <strong>Baixar</strong> e escolha <strong>.vtt</strong> (ou .docx).</li>
-              <li>Envie o arquivo aqui. A Active AI passa a responder sobre a reunião e cria o resumo e os capítulos.</li>
-            </ol>
-            <div class="row"><label class="btn btn-sm btn-primary needs-editor">${icon('upload')}Enviar transcrição<input type="file" accept=".vtt,.srt,.txt,.docx" hidden data-action="upload" /></label></div>
-          </div>`;
       case 'indisponivel':
         return '<p class="muted">A transcrição automática está desligada neste servidor. Envie a transcrição pronta (por exemplo, o arquivo .vtt gerado pelo Teams, Meet ou Zoom) ou cole o texto.</p>';
       default:
@@ -251,9 +205,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
     const done = READY.includes(item.media_status);
     const visible = filter ? lines.filter((l) => l.text.toLowerCase().includes(filter)) : lines;
     const origin =
-      item.kind === 'teams'
-        ? 'Transcrição do Teams.'
-        : item.media_status === 'manual' ? 'Transcrição enviada manualmente.' : item.media_status === 'legendas' ? 'Legendas do YouTube.' : 'Transcrição automática.';
+      item.media_status === 'manual' ? 'Transcrição enviada manualmente.' : item.media_status === 'legendas' ? 'Legendas do YouTube.' : 'Transcrição automática.';
     container.innerHTML = `
       <section class="card card-pad transcript">
         <header class="transcript-head">
@@ -270,7 +222,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
         ${done ? chaptersBlock() : ''}
         ${
           done
-            ? `<p class="muted small">${origin} A Active AI usa este texto para responder sobre o vídeo. ${item.kind === 'teams' ? 'Clique no horário para abrir a gravação no SharePoint naquele momento.' : 'Clique no horário para ir até o trecho.'}</p>
+            ? `<p class="muted small">${origin} A Active AI usa este texto para responder sobre o vídeo. Clique no horário para ir até o trecho.</p>
                <input class="input transcript-filter" type="search" placeholder="Buscar na transcrição…" value="${esc(filter)}" />
                <div class="transcript-lines">${
                  visible.length
@@ -308,8 +260,7 @@ export function mountTranscript(container, initialItem, { transcriptionEnabled =
   container.addEventListener('click', async (e) => {
     const seek = e.target.closest('[data-seek]');
     if (seek) {
-      if (item.kind === 'teams') window.open(teamsLinkAt(item, Number(seek.dataset.seek)), '_blank', 'noopener');
-      else player.seek(Number(seek.dataset.seek));
+      player.seek(Number(seek.dataset.seek));
       return;
     }
     const action = e.target.closest('[data-action]')?.dataset.action;

@@ -26,9 +26,7 @@ export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
       ? 'texto'
       : i.kind === 'youtube'
         ? 'vídeo do YouTube (transcrição)'
-        : i.kind === 'teams'
-          ? 'gravação do Teams (transcrição)'
-          : isMediaFile(i.file_name, i.mime_type)
+        : isMediaFile(i.file_name, i.mime_type)
           ? 'vídeo/áudio (transcrição)'
           : 'arquivo';
   // Aviso para o agente não repassar um procedimento possivelmente desatualizado sem ressalva.
@@ -121,16 +119,10 @@ export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
           arquivo: item.file_name || undefined,
           ...(item.duration ? { duracao: formatTime(item.duration) } : {}),
           ...(item.media_status && !TRANSCRIPT_READY.includes(item.media_status)
-            ? {
-                observacao:
-                  item.media_status === 'aguarda'
-                    ? 'A transcrição desta gravação do Teams ainda não foi enviada à base. Avise o usuário; o vídeo pode ser assistido pelo link.'
-                    : `Transcrição ainda não disponível (situação: ${item.media_status}).`,
-              }
+            ? { observacao: `Transcrição ainda não disponível (situação: ${item.media_status}).` }
             : {}),
           ...(item.temporary ? { anexo_da_conversa: 'Arquivo enviado pelo usuário na conversa (não faz parte da base de conhecimento).' } : {}),
           ...(item.kind === 'youtube' ? { video_youtube: item.source_url } : {}),
-          ...(item.kind === 'teams' ? { gravacao_teams: item.source_url } : {}),
           ...(item.ai_summary ? { resumo_do_video: item.ai_summary } : {}),
           ...(item.chapters?.length ? { capitulos: item.chapters.map((c) => `${formatTime(c.start)} ${c.title}`) } : {}),
           ...(reviewWarning(item) ? { aviso: reviewWarning(item) } : {}),
