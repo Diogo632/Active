@@ -12,7 +12,7 @@ export const CONTENT_SECURITY_POLICY = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://i.ytimg.com",
   "media-src 'self' blob:",
-  "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com",
+  "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com https://*.sharepoint.com",
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",

@@ -12,6 +12,7 @@ import { createN8nActiveIA } from './n8n.js';
 import { createMcpHandler } from './mcp.js';
 import { isMediaFile, createTranscriptionQueue, createWhisperEngine, normalizeTranscript } from './transcribe.js';
 import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
+import { parseEmbed, parseRecordingLink, titleFromLink } from './sharepoint.js';
 import { createChaptersQueue } from './chapters.js';
 import { looksUnanswered } from './gaps.js';
 import { securityHeaders, blockCrossSiteWrites, createFailureLimiter, CONTENT_SECURITY_POLICY } from './security.js';
@@ -218,6 +219,18 @@ export function createApp({
     fs.promises.unlink(path.join(uploadsDir, storedName)).catch(() => {});
   };
 
+  // Transcrição pronta enviada (.vtt/.srt do Teams, Meet, Zoom; .txt; .docx do Teams), no formato da plataforma.
+  async function readTranscriptFile(file) {
+    const name = originalName(file);
+    try {
+      const ext = path.extname(name).toLowerCase();
+      const raw = ['.vtt', '.srt', '.txt'].includes(ext) ? await fs.promises.readFile(file.path, 'utf8') : (await extractText(file.path, name)).text;
+      return normalizeTranscript(raw, name);
+    } finally {
+      removeStored(file.filename);
+    }
+  }
+
   // ---------- Categorias ----------
   app.get('/api/categories', (req, res) => res.json(repo.listCategories()));
 
@@ -318,7 +331,7 @@ export function createApp({
   app.get('/api/items', async (req, res) => {
     const q = String(req.query.q || '').trim();
     const categoryId = req.query.category === 'none' ? 'none' : parseId(req.query.category) || undefined;
-    const kind = ['article', 'file', 'youtube'].includes(req.query.kind) ? req.query.kind : undefined;
+    const kind = ['article', 'file', 'youtube', 'teams'].includes(req.query.kind) ? req.query.kind : undefined;
     const tag = String(req.query.tag || '').trim().toLowerCase();
     const limit = Math.min(parseId(req.query.limit) || 50, 200);
     const offset = Math.max(Number(req.query.offset) || 0, 0);
@@ -400,6 +413,63 @@ export function createApp({
     });
     transcription.enqueue(item.id);
     res.status(201).json(repo.getItem(item.id));
+  });
+
+  // Gravação do Teams: o vídeo continua no SharePoint (só abre para quem tem a conta da empresa).
+  // A plataforma guarda o link, o player do "Código de inserção" (opcional) e a transcrição baixada do Teams.
+  app.post('/api/teams', upload.single('transcript'), async (req, res) => {
+    const link = parseRecordingLink(req.body.url);
+    const embedUrl = req.body.embed ? parseEmbed(req.body.embed) : null;
+    const cleanup = () => req.file && removeStored(req.file.filename);
+    if (!link) {
+      cleanup();
+      throw httpError(400, 'Cole o link da gravação do SharePoint ou do Teams (em “Compartilhar → Copiar link”).');
+    }
+    if (req.body.embed && !embedUrl) {
+      cleanup();
+      throw httpError(400, 'O código de inserção não é do SharePoint. Copie em “Compartilhar → Código de inserção”.');
+    }
+    const existing = repo.findBySourceUrl(link);
+    if (existing) {
+      cleanup();
+      throw Object.assign(httpError(409, `Esta gravação já está na base: “${existing.title}”.`), { item: existing });
+    }
+    let categoryId;
+    try {
+      categoryId = parseCategory(req.body.category_id);
+    } catch (err) {
+      cleanup();
+      throw err;
+    }
+    const transcript = req.file ? await readTranscriptFile(req.file) : '';
+    const item = repo.createItem({
+      kind: 'teams',
+      title: String(req.body.title || '').trim() || titleFromLink(link) || 'Gravação do Teams',
+      summary: String(req.body.summary || ''),
+      tags: req.body.tags,
+      category_id: categoryId,
+      author: userName(req, req.body.author),
+      source_url: link,
+      embed_url: embedUrl,
+      extract_status: 'media',
+      review_months: Number(req.body.review_months) || null,
+    });
+    if (transcript) {
+      repo.setTranscript(item.id, transcript, 'manual');
+      chapters.enqueue(item.id);
+    } else {
+      repo.setMedia(item.id, { status: 'aguarda', progress: 0, error: null });
+    }
+    res.status(201).json(repo.getItem(item.id));
+  });
+
+  // Player da gravação do Teams (código de inserção), informado ou trocado depois.
+  app.put('/api/items/:id/player', (req, res) => {
+    const item = repo.getItem(parseId(req.params.id));
+    if (!item || item.kind !== 'teams') throw httpError(404, 'Gravação não encontrada.');
+    const embedUrl = req.body.embed ? parseEmbed(req.body.embed) : null;
+    if (req.body.embed && !embedUrl) throw httpError(400, 'O código de inserção não é do SharePoint. Copie em “Compartilhar → Código de inserção”.');
+    res.json(repo.setEmbedUrl(item.id, embedUrl));
   });
 
   app.post('/api/files', upload.array('files'), async (req, res) => {
@@ -580,17 +650,7 @@ export function createApp({
       if (req.file) removeStored(req.file.filename);
       throw httpError(404, 'Documento não encontrado.');
     }
-    let raw = String(req.body?.text || '');
-    let name = '';
-    if (req.file) {
-      name = originalName(req.file);
-      const ext = path.extname(name).toLowerCase();
-      raw = ['.vtt', '.srt', '.txt'].includes(ext)
-        ? await fs.promises.readFile(req.file.path, 'utf8')
-        : (await extractText(req.file.path, name)).text;
-      removeStored(req.file.filename);
-    }
-    const text = normalizeTranscript(raw, name);
+    const text = req.file ? await readTranscriptFile(req.file) : normalizeTranscript(String(req.body?.text || ''));
     if (!text) throw httpError(400, 'A transcrição está vazia.');
     repo.setTranscript(item.id, text, 'manual');
     chapters.enqueue(item.id);

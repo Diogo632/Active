@@ -17,6 +17,8 @@ const ICONS = {
   article: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>',
   file: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+  teams: '<rect x="2" y="6" width="13" height="12" rx="2"/><path d="m15 10.5 6-3.5v10l-6-3.5z"/><path d="M6 10h5M8.5 10v5"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
   video: '<rect x="2" y="5" width="15" height="14" rx="2"/><path d="m17 10 5-3v10l-5-3z"/>',
   audio: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   sheet: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
@@ -123,6 +125,7 @@ export function formatBytes(bytes) {
 export function fileIcon(item) {
   if (item.kind === 'article') return 'article';
   if (item.kind === 'youtube') return 'youtube';
+  if (item.kind === 'teams') return 'teams';
   const mime = item.mime_type || '';
   const name = (item.file_name || '').toLowerCase();
   if (mime.startsWith('image/')) return 'image';
@@ -138,6 +141,7 @@ export function fileIcon(item) {
 export function fileTypeLabel(item) {
   if (item.kind === 'article') return 'Texto';
   if (item.kind === 'youtube') return 'YouTube';
+  if (item.kind === 'teams') return 'Teams';
   const ext = (item.file_name || '').split('.').pop();
   return ext && ext !== item.file_name ? ext.toUpperCase() : 'Arquivo';
 }

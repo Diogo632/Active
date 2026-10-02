@@ -93,6 +93,31 @@ export function parseTimestampedText(raw) {
   return valid.length >= 2 ? valid : [];
 }
 
+/**
+ * Lê a transcrição baixada do Teams/Stream em .docx (ou copiada do painel): o nome de quem fala e o
+ * horário numa linha ("Ana Martins   0:05") e a fala nas linhas seguintes. O cabeçalho (título, data,
+ * duração) e avisos como "começou a transcrição" são ignorados.
+ */
+export function parseSpeakerTranscript(raw) {
+  const toSeconds = (t) => t.split(':').map(Number).reduce((acc, n) => acc * 60 + n, 0);
+  const chunks = [];
+  let current = null;
+  for (const line of String(raw || '').replace(/\r/g, '').split('\n')) {
+    const text = line.trim();
+    if (!text) continue;
+    const head = text.match(/^(\S.{0,79}?)\s+((?:\d{1,2}:)?\d{1,2}:\d{2})$/);
+    // Nomes não têm números: assim a linha da data ("9 de setembro de 2026, 13:00") não vira fala.
+    if (head && /\p{L}/u.test(head[1]) && !/\d/.test(head[1])) {
+      current = { start: toSeconds(head[2]), speaker: head[1].trim(), text: '' };
+      chunks.push(current);
+    } else if (current) {
+      current.text += `${current.text ? ' ' : ''}${text}`;
+    }
+  }
+  const valid = chunks.filter((c) => c.text.trim()).map((c) => ({ start: c.start, text: `${c.speaker}: ${c.text}` }));
+  return valid.length >= 2 ? valid : [];
+}
+
 /** Converte uma transcrição enviada pelo usuário (.vtt, .srt, texto do YouTube ou texto livre) para o formato da plataforma. */
 export function normalizeTranscript(raw, fileName = '') {
   const ext = path.extname(fileName).toLowerCase();
@@ -102,6 +127,8 @@ export function normalizeTranscript(raw, fileName = '') {
   }
   const timed = parseTimestampedText(raw);
   if (timed.length) return formatTranscript(timed);
+  const speakers = parseSpeakerTranscript(raw);
+  if (speakers.length) return formatTranscript(speakers);
   return String(raw || '').replace(/\r\n/g, '\n').trim();
 }
 

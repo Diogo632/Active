@@ -7,7 +7,7 @@ import { TEMPLATES, takeDraft, draftFromGap, openDraft } from './templates.js';
 import { fadeUp } from './motion.js';
 import {
   esc, icon, hydrateIcons, formatDate, relativeDate, formatBytes, fileIcon, fileTypeLabel,
-  renderMarkdown, toast, confirmDialog, storage, CATEGORY_ICONS,
+  renderMarkdown, toast, confirmDialog, promptDialog, storage, CATEGORY_ICONS,
 } from './util.js';
 
 /** Estado compartilhado entre as telas (categorias ficam em cache para formulários e menu). */
@@ -210,6 +210,7 @@ export async function docsView(view, { query }) {
         <option value="article"${kind === 'article' ? ' selected' : ''}>Somente textos</option>
         <option value="file"${kind === 'file' ? ' selected' : ''}>Somente arquivos</option>
         <option value="youtube"${kind === 'youtube' ? ' selected' : ''}>Somente vídeos do YouTube</option>
+        <option value="teams"${kind === 'teams' ? ' selected' : ''}>Somente gravações do Teams</option>
       </select>
       ${tag ? `<input type="hidden" name="tag" value="${esc(tag)}" />` : ''}
       <button class="btn btn-primary" type="submit">${icon('search')}Filtrar</button>
@@ -327,6 +328,8 @@ export async function itemView(view, { params }) {
       ${item.kind === 'file' ? `<a class="btn" href="/api/items/${item.id}/file?download">${icon('download')}Baixar</a>` : ''}
       ${item.kind === 'file' ? `<label class="btn needs-editor">${icon('upload')}Nova versão<input type="file" id="replace" hidden /></label>` : ''}
       ${isYouTube ? `<a class="btn" href="${esc(item.source_url)}" target="_blank" rel="noopener">${icon('youtube')}Abrir no YouTube</a>` : ''}
+      ${item.kind === 'teams' && item.embed_url ? `<a class="btn" href="${esc(item.source_url)}" target="_blank" rel="noopener">${icon('teams')}Abrir no SharePoint</a>` : ''}
+      ${item.kind === 'teams' && item.embed_url ? `<button class="btn needs-editor" type="button" data-player>${icon('video')}Trocar player</button>` : ''}
       ${item.versions_count ? `<button class="btn" id="history" type="button">${icon('history')}Histórico (${item.versions_count})</button>` : ''}
       <button class="btn btn-danger needs-editor" id="delete">${icon('trash')}Excluir</button>
     </div>
@@ -346,6 +349,7 @@ export async function itemView(view, { params }) {
             ${item.file_name ? `<dt>Arquivo</dt><dd>${esc(item.file_name)}</dd>` : ''}
             ${item.duration ? `<dt>Duração</dt><dd>${esc(formatDuration(item.duration))}</dd>` : ''}
             ${isYouTube ? `<dt>Vídeo</dt><dd><a href="${esc(item.source_url)}" target="_blank" rel="noopener">YouTube</a></dd>` : ''}
+            ${item.kind === 'teams' ? `<dt>Gravação</dt><dd><a href="${esc(item.source_url)}" target="_blank" rel="noopener">Teams / SharePoint</a></dd>` : ''}
             <dt>Revisão</dt><dd>${
               item.review_months
                 ? `a cada ${item.review_months} ${item.review_months === 1 ? 'mês' : 'meses'}<br><span class="${item.review_overdue ? 'text-warn' : 'muted'}">${item.review_overdue ? 'vencida em' : 'próxima em'} ${esc(dateBr(item.review_due))}</span>`
@@ -396,6 +400,25 @@ export async function itemView(view, { params }) {
   });
 
   view.querySelector('#history')?.addEventListener('click', () => showHistory(item, () => itemView(view, { params })));
+  // Gravação do Teams: cola o "Código de inserção" do SharePoint para o vídeo tocar dentro da plataforma.
+  const setPlayer = async () => {
+    const embed = await promptDialog({
+      title: 'Assistir na plataforma',
+      message:
+        'Na gravação aberta no SharePoint, clique em Compartilhar → Código de inserção e copie o código. Cole aqui. (Deixe vazio e salve para tirar o player.)',
+      placeholder: '<iframe src="https://…sharepoint.com/…/_layouts/15/embed.aspx?UniqueId=…" …></iframe>',
+      confirmLabel: 'Salvar',
+    });
+    if (embed === null) return;
+    try {
+      await api.setTeamsPlayer(item.id, embed);
+      toast(embed ? 'Player salvo.' : 'Player removido.');
+      itemView(view, { params }).then(() => hydrateIcons(view));
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+  view.querySelectorAll('[data-player]').forEach((btn) => btn.addEventListener('click', setPlayer));
 
   view.querySelector('#delete').addEventListener('click', async () => {
     const ok = await confirmDialog({
@@ -776,6 +799,29 @@ export async function uploadView(view, { query }) {
           <button class="btn btn-primary" type="button" id="yt-add">${icon('plus')}Adicionar vídeo</button>
         </div>
       </div>
+      <div class="card card-pad youtube-add teams-add">
+        <div class="youtube-add-head">${mediaTile({ kind: 'teams' })}<div><strong>Gravação do Teams</strong>
+          <span class="muted small">O vídeo continua no SharePoint (sem limite de tamanho); a plataforma guarda o link e a transcrição da reunião, que a Active AI lê.</span></div></div>
+        <div class="teams-fields">
+          <div class="field">
+            <label for="tm-url">Link da gravação</label>
+            <input class="input" id="tm-url" type="url" inputmode="url" placeholder="No SharePoint: Compartilhar → Copiar link" />
+          </div>
+          <div class="field">
+            <label for="tm-title">Título</label>
+            <input class="input" id="tm-title" placeholder="Usa o nome da gravação se ficar vazio" />
+          </div>
+          <div class="field">
+            <label for="tm-transcript">Transcrição <span class="muted">(Transcrição → Baixar → .vtt ou .docx)</span></label>
+            <input class="input" id="tm-transcript" type="file" accept=".vtt,.srt,.txt,.docx" />
+          </div>
+          <div class="field">
+            <label for="tm-embed">Código de inserção <span class="muted">(opcional, para assistir aqui)</span></label>
+            <input class="input" id="tm-embed" placeholder="Compartilhar → Código de inserção → copiar" />
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end"><button class="btn btn-primary" type="button" id="tm-add">${icon('plus')}Adicionar gravação</button></div>
+      </div>
       <div class="or-divider"><span>ou envie arquivos</span></div>
       <label class="dropzone" id="dropzone">
         ${icon('upload')}
@@ -874,6 +920,33 @@ export async function uploadView(view, { query }) {
     }
   };
   ytAdd.addEventListener('click', addYouTube);
+
+  // Gravação do Teams: link + transcrição baixada do Teams (+ código de inserção, opcional).
+  const tmAdd = view.querySelector('#tm-add');
+  tmAdd.addEventListener('click', async () => {
+    const url = view.querySelector('#tm-url');
+    if (!url.value.trim()) return url.focus();
+    const fd = new FormData();
+    fd.append('url', url.value.trim());
+    fd.append('title', view.querySelector('#tm-title').value);
+    fd.append('embed', view.querySelector('#tm-embed').value.trim());
+    const transcript = view.querySelector('#tm-transcript').files[0];
+    if (transcript) fd.append('transcript', transcript);
+    for (const name of ['category_id', 'tags', 'summary', 'author']) fd.append(name, form[name].value);
+    tmAdd.disabled = true;
+    tmAdd.innerHTML = '<span class="spinner"></span> Adicionando…';
+    try {
+      const item = await api.addTeams(fd);
+      await shared.refreshCategories();
+      toast(transcript ? 'Gravação adicionada. A Active AI já pode usar a transcrição.' : 'Gravação adicionada. Envie a transcrição na página dela.');
+      location.hash = `#/item/${item.id}`;
+    } catch (err) {
+      toast(err.message, 'error');
+      if (err.data?.item) location.hash = `#/item/${err.data.item.id}`;
+      tmAdd.disabled = false;
+      tmAdd.innerHTML = `${icon('plus')}Adicionar gravação`;
+    }
+  });
   ytUrl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();

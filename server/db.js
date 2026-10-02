@@ -19,7 +19,7 @@ export function openDatabase(dataDir) {
 
     CREATE TABLE IF NOT EXISTS items (
       id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      kind           TEXT NOT NULL CHECK (kind IN ('article', 'file', 'youtube')),
+      kind           TEXT NOT NULL CHECK (kind IN ('article', 'file', 'youtube', 'teams')),
       title          TEXT NOT NULL,
       summary        TEXT NOT NULL DEFAULT '',
       content        TEXT NOT NULL DEFAULT '',
@@ -73,18 +73,24 @@ export function openDatabase(dataDir) {
     // Quem fez a última alteração (com login individual) e a versão do conteúdo já indexada pela busca semântica.
     updated_by: 'TEXT',
     embedding_hash: 'TEXT',
+    // Gravação do Teams: endereço do player do SharePoint (código de inserção), quando informado.
+    embed_url: 'TEXT',
   };
   const present = db.prepare('PRAGMA table_info(items)').all().map((c) => c.name);
   for (const [name, type] of Object.entries(NEW_COLUMNS)) {
     if (!present.includes(name)) db.exec(`ALTER TABLE items ADD COLUMN ${name} ${type}`);
   }
 
-  // Bancos antigos só aceitavam os tipos 'article' e 'file': recria a tabela aceitando 'youtube'.
+  // Bancos antigos aceitavam menos tipos (sem 'youtube' ou 'teams'): recria a tabela aceitando todos.
   const { sql } = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'items'").get();
-  if (!sql.includes("'youtube'")) {
+  if (!sql.includes("'teams'")) {
     db.pragma('foreign_keys = OFF');
     db.transaction(() => {
-      db.exec(sql.replace(/CREATE TABLE "?items"?/, 'CREATE TABLE items_new').replace("('article', 'file')", "('article', 'file', 'youtube')"));
+      db.exec(
+        sql
+          .replace(/CREATE TABLE "?items"?/, 'CREATE TABLE items_new')
+          .replace(/CHECK \(kind IN \([^)]*\)\)/, "CHECK (kind IN ('article', 'file', 'youtube', 'teams'))"),
+      );
       db.exec('INSERT INTO items_new SELECT * FROM items');
       db.exec('DROP TABLE items');
       db.exec('ALTER TABLE items_new RENAME TO items');
@@ -199,7 +205,7 @@ const ITEM_COLUMNS = `
   i.id, i.kind, i.title, i.summary, i.tags, i.category_id, i.author,
   i.file_name, i.mime_type, i.size, i.extract_status, i.views, i.created_at, i.updated_at,
   i.media_status, i.media_progress, i.media_error, i.duration,
-  i.temporary, i.expires_at, i.updated_by, i.source_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
+  i.temporary, i.expires_at, i.updated_by, i.source_url, i.embed_url, i.review_months, i.reviewed_at, i.ai_summary, i.chapters, i.chapters_status, i.chapters_error,
   CASE WHEN i.review_months > 0
        THEN date(max(COALESCE(i.reviewed_at, ''), i.updated_at), '+' || i.review_months || ' months') END AS review_due,
   c.name AS category_name
@@ -402,10 +408,10 @@ export function createRepository(db) {
       const info = db
         .prepare(
           `INSERT INTO items (kind, title, summary, content, tags, category_id, author,
-                              file_name, stored_name, mime_type, size, text, extract_status, source_url, review_months,
+                              file_name, stored_name, mime_type, size, text, extract_status, source_url, embed_url, review_months,
                               temporary, expires_at, updated_by)
            VALUES (@kind, @title, @summary, @content, @tags, @category_id, @author,
-                   @file_name, @stored_name, @mime_type, @size, @text, @extract_status, @source_url, @review_months,
+                   @file_name, @stored_name, @mime_type, @size, @text, @extract_status, @source_url, @embed_url, @review_months,
                    @temporary, CASE WHEN @expires_offset IS NULL THEN NULL ELSE datetime('now', @expires_offset) END, @updated_by)`,
         )
         .run({
@@ -423,6 +429,7 @@ export function createRepository(db) {
           text: data.text || '',
           extract_status: data.extract_status || 'ok',
           source_url: data.source_url || null,
+          embed_url: data.embed_url || null,
           review_months: data.review_months > 0 ? Math.round(data.review_months) : null,
           temporary: data.temporary ? 1 : 0,
           updated_by: data.updated_by || null,
@@ -527,6 +534,11 @@ export function createRepository(db) {
         .prepare("SELECT id FROM items WHERE temporary = 1 AND expires_at IS NOT NULL AND expires_at <= datetime('now')")
         .all()
         .map((r) => r.id);
+    },
+
+    setEmbedUrl(id, embedUrl) {
+      db.prepare('UPDATE items SET embed_url = ? WHERE id = ?').run(embedUrl || null, id);
+      return repo.getItem(id);
     },
 
     findBySourceUrl(url) {
