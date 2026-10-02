@@ -1084,3 +1084,14 @@ body.role-leitor .nav { margin-bottom: 18px; }
 .temp-password { display: grid; gap: 10px; padding: 14px; border: 1px dashed var(--brand-accent); border-radius: var(--radius-sm); background: var(--primary-soft); }
 .temp-password div { display: flex; flex-direction: column; gap: 2px; }
 .temp-password code { font-size: 16px; font-weight: 700; letter-spacing: .03em; user-select: all; background: none; padding: 0; }
+
+/* ---------- Aviso de fonte da resposta da Active AI ---------- */
+.origin-notice {
+  display: flex; gap: 10px; align-items: flex-start; margin: 0 0 10px; padding: 10px 12px; border-radius: 10px;
+  font-size: 13px; line-height: 1.45; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted);
+}
+.origin-notice i[data-icon] { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.origin-notice div { display: flex; flex-direction: column; gap: 2px; }
+.origin-notice strong { color: var(--text); font-size: 13px; }
+.origin-general { background: color-mix(in srgb, var(--warning) 12%, transparent); border-color: color-mix(in srgb, var(--warning) 40%, transparent); }
+.origin-general i[data-icon], .origin-general strong { color: var(--warning); }

@@ -5,6 +5,22 @@ import { icon, esc, promptDialog, toast } from './util.js';
 const LONG_ANSWER_CHARS = 300;
 export const isLongAnswer = (text) => String(text || '').trim().length >= LONG_ANSWER_CHARS;
 
+/**
+ * Aviso de fonte da resposta: "geral" quando o agente usou a base própria do GPT Maker (a plataforma não
+ * tinha a resposta); "sem_citacao" quando a resposta é longa e não cita nenhum documento da plataforma.
+ */
+export function originNoticeHtml(origin) {
+  if (origin === 'geral') {
+    return `<div class="origin-notice origin-general">${icon('alert')}<div><strong>Resposta da base geral do GPT Maker</strong>
+      <span>Não foi encontrada na Base de Conhecimento da plataforma. Confira antes de seguir; a pergunta foi registrada nas lacunas.</span></div></div>`;
+  }
+  if (origin === 'sem_citacao') {
+    return `<div class="origin-notice">${icon('alert')}<div><strong>Sem documentos da plataforma</strong>
+      <span>Esta resposta não cita nenhum documento da Base de Conhecimento. Confira antes de usar.</span></div></div>`;
+  }
+  return '';
+}
+
 /** Botões "Ajudou? 👍 👎" de uma resposta longa da Active AI (vazio para respostas curtas). */
 export function answerActionsHtml({ vote = null, content = '' } = {}) {
   if (!isLongAnswer(content)) return '';

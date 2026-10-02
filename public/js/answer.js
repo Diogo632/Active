@@ -3,7 +3,7 @@ import { chat } from './chat.js';
 import { esc, icon, renderMarkdown, hydrateIcons, analysisToggle, analysisPanel } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { fadeUp, popIn, revealProse, pulse } from './motion.js';
-import { answerActionsHtml, voteAnswer } from './feedback.js';
+import { answerActionsHtml, voteAnswer, originNoticeHtml } from './feedback.js';
 
 // Respostas já geradas nesta visita, para não chamar o agente de novo ao voltar à mesma busca.
 const cache = new Map();
@@ -32,6 +32,7 @@ export function mountAnswer(container, question) {
         </header>
         ${done && state.analysis && state.showAnalysis ? analysisPanel(state.analysis) : ''}
         ${error ? `<div class="msg-error">${esc(error)}</div>` : ''}
+        ${done && text ? originNoticeHtml(state.origin) : ''}
         ${text ? `<div class="prose answer-body">${renderMarkdown(text)}</div>` : done || error ? '' : '<div class="answer-skeleton"><span></span><span></span><span></span></div>'}
         ${
           done && options.length
@@ -88,7 +89,7 @@ export function mountAnswer(container, question) {
     if (!option && !e.target.closest('[data-continue]')) return;
     if (option) pulse(option);
     // Continua no chat, na mesma sessão do agente; ao escolher uma opção, ela já é enviada.
-    chat.continueWith({ question, answer: state.text, sources: state.sources, options: state.options, analysis: state.analysis, sessionId: state.sessionId });
+    chat.continueWith({ question, answer: state.text, sources: state.sources, options: state.options, analysis: state.analysis, origin: state.origin, sessionId: state.sessionId });
     document.dispatchEvent(new CustomEvent('open-ia'));
     if (option) setTimeout(() => chat.send(option.dataset.option), 160);
   });
@@ -112,6 +113,7 @@ export function mountAnswer(container, question) {
           else if (event.type === 'sources') state.sources = event.items;
           else if (event.type === 'options') state.options = normalizeOptions(event.items);
           else if (event.type === 'analysis') state.analysis = event.text;
+          else if (event.type === 'origin') state.origin = event.origin;
           else if (event.type === 'error') state.error = event.message;
           render();
         },

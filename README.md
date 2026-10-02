@@ -33,7 +33,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 - **Login próprio** (e-mail e senha): o administrador cria as contas em *Pessoas*, com perfis *Administrador*, *Editor* e *Só consulta*; cada pessoa cria a própria senha no primeiro acesso, e a plataforma registra quem criou e quem editou cada documento. Detalhes em [docs/11](docs/11-login-busca-e-glossario.md).
 - **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta da Active AI** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
 - **Active AI** (agente do GPTMaker, via n8n):
-  - **conversa livre** no chat, usando o conhecimento próprio do agente;
+  - **chat** que prioriza a Base de Conhecimento da plataforma; quando a resposta vem da base geral do GPT Maker, a mensagem mostra um aviso e a pergunta vira lacuna;
   - resumos e dúvidas sobre o documento aberto;
   - **servidor MCP** para o agente pesquisar e ler a base sozinho.
 - **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
@@ -97,7 +97,7 @@ Configurações do `.env`:
 
 | Onde | O que é enviado ao agente | Para quê |
 | --- | --- | --- |
-| **Chat** (botão *Perguntar à Active AI*) | Só a pergunta (**conversa livre**) | O agente responde com o próprio conhecimento (RAG do GPTMaker) e consulta a base pelo **MCP** quando precisa |
+| **Chat** (botão *Perguntar à Active AI*) | Regra de fonte + documentos encontrados + pergunta | O agente usa primeiro a base da plataforma (e o **MCP**); a base própria do GPT Maker só quando a plataforma não tiver a resposta, marcada com aviso |
 | **Busca** (resultados e Ctrl+K) | Pergunta + referências curtas aos documentos encontrados (id, título, trecho) | O cartão *Resposta da Active AI* responde a busca; o agente lê os documentos completos pelo **MCP** |
 | **Documento em foco** (*Perguntar à Active AI* dentro de um documento) | Pergunta + id e título do documento aberto | O agente lê o documento pelo **MCP** (`ler_documento`) para resumir ou tirar dúvidas |
 

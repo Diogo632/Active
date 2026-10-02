@@ -24,19 +24,21 @@ A Active AI da plataforma é **o mesmo agente do GPTMaker** usado no chat oficia
 
 ### Modos
 
-| Modo | Usado em | Mensagem enviada ao agente |
-| --- | --- | --- |
-| `livre` | Chat (painel e página Active AI) | A pergunta como foi digitada (mais a referência dos anexos e do documento em foco, se houver) |
-| `base` | Resposta da busca | Cabeçalho de instruções + referências curtas aos documentos encontrados + a pergunta |
+| Modo | Usado em |
+| --- | --- |
+| `livre` | Chat (painel e página Active AI) |
+| `base` | Resposta da busca |
 
-No modo `base` (ou no `livre` com documento em foco), a plataforma pesquisa a base com as palavras-chave da pergunta (sem palavras comuns como "como", "para", "o"), pega até **5 documentos** e monta uma mensagem de no máximo **3.500 caracteres** (`N8N_MAX_PROMPT_CHARS`):
+Nos dois modos a mensagem leva a **regra de fonte**, os documentos da plataforma encontrados e a pergunta. A **base da plataforma vem primeiro**: o agente só usa a base própria do GPT Maker quando a plataforma não tiver a resposta, e nesse caso marca a resposta (veja [Fonte da resposta](#fonte-da-resposta)). Com `N8N_INCLUDE_CONTEXT=false`, vai só a pergunta.
+
+A plataforma pesquisa a base com as palavras-chave da pergunta (sem palavras comuns como "como", "para", "o"), pega até **5 documentos** e monta uma mensagem de no máximo **3.500 caracteres** (`N8N_MAX_PROMPT_CHARS`):
 
 ```text
 [Consulta feita pela Base de Conhecimento do Suporte]
-Para ler o conteúdo completo de um documento, use a ferramenta ler_documento (MCP da Base de Conhecimento) com o id indicado; para procurar outros, use buscar_documentos.
-Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta, use seu conhecimento, deixe isso claro e chame registrar_lacuna.
+REGRA DE FONTE: responda com a Base de Conhecimento do Suporte (esta plataforma). Antes de responder sobre processos, clientes ou sistemas, pesquise com buscar_documentos e leia com ler_documento (MCP). Cite os documentos usados como [Título](#/item/ID).
+Só se a plataforma não tiver a resposta, use a sua base própria do GPT Maker: nesse caso comece a resposta com a linha [FONTE: BASE GERAL], não misture com os processos da plataforma e chame registrar_lacuna. Saudações e conversa casual não precisam de fonte.
 
-Documentos da base relacionados:
+Documentos da plataforma relacionados (use estes primeiro):
 - #12 [Emissão de CT-e](#/item/12) · Fiscal · 18200 caracteres (leia com ler_documento)
   "…trecho mais relevante para a pergunta…"
 - #7 [Cancelamento de CT-e](#/item/7) · Fiscal · REVISÃO VENCIDA (pode estar desatualizado; avise o usuário)
@@ -44,7 +46,19 @@ Documentos da base relacionados:
 Pergunta: Como emito um CT-e?
 ```
 
-Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior para pesquisar.
+Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior para pesquisar. Sem documentos encontrados, a lista é trocada pelo aviso "A busca da plataforma não encontrou documentos para esta pergunta: tente buscar_documentos com outros termos antes de usar a base própria."
+
+### Fonte da resposta
+
+A plataforma confere de onde veio cada resposta:
+
+| Situação | O que a pessoa vê |
+| --- | --- |
+| A resposta começa com `[FONTE: BASE GERAL]` (o agente usou a base própria do GPT Maker) | A marcação some e aparece o aviso amarelo **Resposta da base geral do GPT Maker**. A pergunta entra no relatório de **lacunas** |
+| Resposta longa (300+ caracteres) sem citar nenhum documento (`#/item/ID`) | Aviso cinza **Sem documentos da plataforma**: confira antes de usar |
+| Resposta citando documentos da plataforma | Sem aviso |
+
+No log: `grep "active-ai/fonte" servidor.log`.
 
 ### Anexos na mensagem
 
@@ -193,7 +207,7 @@ Os links (`link`) usam o `PUBLIC_URL` do `.env` (ex.: `https://base.activecorp.c
 
 Acrescente ao prompt do agente no GPTMaker:
 
-> Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento ou arquivo por id (ex.: "Documento aberto na tela: #12" ou `{"id": 45}`), leia-o com `ler_documento`, continuando com `inicio` enquanto a resposta indicar que há mais partes. Cite os documentos usados como [Título](#/item/ID). Em vídeos, cite o minuto do trecho. Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado. Quando quiser oferecer alternativas, termine com a linha `[OPCOES] Opção A | Opção B | Opção C`.
+> Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Ela é a **fonte principal**: sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise nela antes de responder e use só o que estiver nela. Só se ela não tiver a resposta, use a sua base de treinamento; nesse caso comece a resposta com a linha `[FONTE: BASE GERAL]` e nunca misture processos das duas bases na mesma resposta. Quando a mensagem citar um documento ou arquivo por id (ex.: "Documento aberto na tela: #12" ou `{"id": 45}`), leia-o com `ler_documento`, continuando com `inicio` enquanto a resposta indicar que há mais partes. Cite os documentos usados como [Título](#/item/ID). Em vídeos, cite o minuto do trecho. Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado. Quando quiser oferecer alternativas, termine com a linha `[OPCOES] Opção A | Opção B | Opção C`.
 
 ### Raciocínio obrigatório antes de responder
 

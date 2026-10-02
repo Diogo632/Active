@@ -195,7 +195,7 @@ Tamanho máximo por arquivo: **2 GB** (ajustável em `MAX_UPLOAD_MB`).
 
 ### O chat
 
-- **Conversa livre**: a Active AI responde com o conhecimento próprio (o mesmo agente do chat oficial) e consulta a base pelo MCP quando precisa.
+- **Base da plataforma primeiro**: a Active AI responde com os documentos da Base de Conhecimento. Se a plataforma não tiver a resposta, ela usa a base geral do GPT Maker e a mensagem mostra o aviso amarelo **Resposta da base geral do GPT Maker** (a pergunta vai para as lacunas do relatório). Respostas longas que não citam nenhum documento mostram o aviso **Sem documentos da plataforma**.
 - **Documento em foco**: uma faixa no topo mostra o documento; o agente recebe o id dele para ler. O **×** tira o documento do foco.
 - **Opções em botões**: quando o agente oferece alternativas (`[OPCOES] A | B | C`), elas viram botões; clicar envia a escolha.
 - **Documentos consultados**: aparecem como links abaixo da resposta.

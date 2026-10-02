@@ -57,7 +57,7 @@ Pontos importantes:
 
 - **A mensagem enviada ao agente é curta** (no máximo ~3.500 caracteres). O GPTMaker só enxerga ~4.000 caracteres por mensagem; por isso a plataforma nunca manda documentos inteiros na mensagem. Ela manda **referências** (id e título) e o agente lê o conteúdo completo pelo MCP.
 - **A conversa é contínua**: cada conversa tem um `contextId` próprio, e o GPTMaker guarda o histórico por esse id.
-- **Na busca**, a plataforma já pesquisa a base e manda ao agente as referências e trechos curtos dos documentos encontrados (modo `base`). **No chat**, manda só a pergunta (modo `livre`); o agente decide quando consultar a base.
+- **Na busca e no chat**, a plataforma já pesquisa a base e manda ao agente as referências e trechos curtos dos documentos encontrados, com a regra de fonte: a base da plataforma primeiro; a base própria do GPT Maker só quando a plataforma não tiver a resposta, com aviso na tela.
 
 ## Fluxo de um vídeo
 

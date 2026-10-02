@@ -147,19 +147,47 @@ export function extractOptions(body) {
  * Mensagem enxuta para o agente: pergunta + referências curtas aos documentos (id, título, trecho).
  * Cabe no limite do GPTMaker; o conteúdo completo o agente lê pelo MCP da Base de Conhecimento.
  */
+/**
+ * Marcação que o agente põe no início da resposta quando ela vem da base própria do GPT Maker
+ * (e não da Base de Conhecimento da plataforma). A plataforma remove a marcação e mostra um aviso.
+ */
+export const GENERAL_SOURCE_TAG = '[FONTE: BASE GERAL]';
+const GENERAL_SOURCE_RE = /\[\s*fonte\s*:\s*base\s+geral[^\]\n]*\]\s*/gi;
+
+/**
+ * Separa a marcação de fonte da resposta. `general` indica que o agente usou a base própria do
+ * GPT Maker; `uncited` indica uma resposta longa que não cita nenhum documento da plataforma.
+ */
+export function splitSource(text) {
+  const raw = String(text || '');
+  const general = GENERAL_SOURCE_RE.test(raw);
+  GENERAL_SOURCE_RE.lastIndex = 0;
+  const answer = general ? raw.replace(GENERAL_SOURCE_RE, '').trim() : raw.trim();
+  const uncited = !general && answer.length >= 300 && !/#\/item\/\d+/.test(answer);
+  return { answer, origin: general ? 'geral' : uncited ? 'sem_citacao' : 'base' };
+}
+
+// Regra de fonte enviada em toda mensagem: a base da plataforma vem primeiro; a base própria do
+// GPT Maker só quando a plataforma não tiver a resposta, sinalizada e sem misturar as duas.
+const SOURCE_RULES = [
+  'REGRA DE FONTE: responda com a Base de Conhecimento do Suporte (esta plataforma). Antes de responder sobre processos, clientes ou sistemas, pesquise com buscar_documentos e leia com ler_documento (MCP). Cite os documentos usados como [Título](#/item/ID).',
+  `Só se a plataforma não tiver a resposta, use a sua base própria do GPT Maker: nesse caso comece a resposta com a linha ${GENERAL_SOURCE_TAG}, não misture com os processos da plataforma e chame registrar_lacuna. Saudações e conversa casual não precisam de fonte.`,
+].join('\n');
+
 export function buildPrompt({ question, documents, contextItem, glossaryText = '', maxChars = DEFAULTS.maxPromptChars }) {
   const header = [
     '[Consulta feita pela Base de Conhecimento do Suporte]',
-    'Para ler o conteúdo completo de um documento, use a ferramenta ler_documento (MCP da Base de Conhecimento) com o id indicado; para procurar outros, use buscar_documentos.',
-    'Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta, use seu conhecimento, deixe isso claro e chame registrar_lacuna.',
+    SOURCE_RULES,
     contextItem ? `Documento aberto na tela: #${contextItem.id} “${contextItem.title}” — é a ele que “este documento” se refere.` : '',
     glossaryText ? `Termos da Active citados na pergunta (glossário):\n${glossaryText}` : '',
   ]
     .filter(Boolean)
     .join('\n');
   const tail = `\n\nPergunta: ${question}`;
+  const docsTitle = '\n\nDocumentos da plataforma relacionados (use estes primeiro):\n';
+  const noDocs = '\n\nA busca da plataforma não encontrou documentos para esta pergunta: tente buscar_documentos com outros termos antes de usar a base própria.';
 
-  let budget = maxChars - header.length - tail.length - 40;
+  let budget = maxChars - header.length - tail.length - Math.max(docsTitle.length, noDocs.length) - 10;
   const lines = [];
   for (const d of documents) {
     const meta = `- #${d.id} [${d.titulo}](${d.link}) · ${d.categoria}${d.revisao_vencida ? ' · REVISÃO VENCIDA (pode estar desatualizado; avise o usuário)' : ''}${d.parcial ? ` · ${d.total_caracteres} caracteres (leia com ler_documento)` : ''}`;
@@ -175,7 +203,7 @@ export function buildPrompt({ question, documents, contextItem, glossaryText = '
     }
     lines.push(line);
   }
-  const docs = lines.length ? `\n\nDocumentos da base relacionados:\n${lines.join('\n')}` : '';
+  const docs = lines.length ? `${docsTitle}${lines.join('\n')}` : noDocs;
   return `${header}${docs}${tail}`;
 }
 
@@ -239,7 +267,10 @@ export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, o
 
     const contextItem = contextItemId ? repo.getItem(contextItemId) : null;
     // Com um documento em foco, a mensagem leva a referência a ele (id e título) para o agente ler pelo MCP.
-    const useBase = cfg.includeContext && (mode === 'base' || Boolean(contextItem));
+    // A base da plataforma vem primeiro também na conversa livre (modo "livre", usado no chat):
+    // a mensagem leva a regra de fonte e os documentos encontrados, para o agente não misturar com a
+    // base própria do GPT Maker. Só com N8N_INCLUDE_CONTEXT=false vai a pergunta pura.
+    const useBase = cfg.includeContext;
     let documents = [];
     // Siglas e termos internos citados na pergunta, explicados pelo glossário da Active.
     const glossaryText = glossary?.describe(last.content) || '';
@@ -311,7 +342,13 @@ export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, o
       }
       // O rascunho vai à parte: a tela mostra só se a pessoa clicar no botão "!" da mensagem.
       if (loggedAnalysis) emit({ type: 'analysis', text: loggedAnalysis.trim().slice(0, 4000) });
-      emit({ type: 'text', text: answer });
+      // De onde veio a resposta: base da plataforma ou base própria do GPT Maker (com aviso na tela).
+      const source = splitSource(answer);
+      if (source.origin !== 'base') {
+        console.log(`[active-ai/fonte] ${sessionId || '-'} | ${source.origin === 'geral' ? 'base geral do GPT Maker' : 'resposta sem citar documentos'} | ${last.content.slice(0, 120).replace(/\s+/g, ' ')}`);
+        emit({ type: 'origin', origin: source.origin });
+      }
+      emit({ type: 'text', text: source.answer });
       const options = extractOptions(body);
       if (options.length) emit({ type: 'options', items: options });
       if (documents.length) {

@@ -2,7 +2,7 @@ import { api } from './api.js';
 import { esc, icon, renderMarkdown, storage, hydrateIcons, formatBytes, toast, analysisToggle, analysisPanel } from './util.js';
 import { parseOptions, normalizeOptions } from './options.js';
 import { messageIn, revealProse, popIn, pulse } from './motion.js';
-import { answerActionsHtml, voteAnswer } from './feedback.js';
+import { answerActionsHtml, voteAnswer, originNoticeHtml } from './feedback.js';
 
 const STORAGE_KEY = 'kb-ia-conversation';
 const SESSION_KEY = 'kb-ia-session';
@@ -78,11 +78,11 @@ export const chat = {
   },
 
   /** Abre no chat uma conversa iniciada pela resposta da busca, mantendo a mesma sessão no agente. */
-  continueWith({ question, answer, sources = [], options = [], analysis, sessionId }) {
+  continueWith({ question, answer, sources = [], options = [], analysis, origin, sessionId }) {
     state.controller?.abort();
     state.messages = [
       { role: 'user', content: question },
-      { role: 'assistant', content: answer, sources, options, ...(analysis ? { analysis } : {}) },
+      { role: 'assistant', content: answer, sources, options, ...(analysis ? { analysis } : {}), ...(origin ? { origin } : {}) },
     ];
     state.sessionId = sessionId || newSessionId();
     persist();
@@ -176,6 +176,9 @@ export const chat = {
             case 'analysis':
               reply.analysis = event.text;
               break;
+            case 'origin':
+              reply.origin = event.origin;
+              break;
             case 'error':
               reply.error = event.message;
               break;
@@ -251,7 +254,7 @@ function renderMessage(msg, isLast, index) {
   return `
     <div class="msg msg-ai" data-index="${index}">
       <div class="ia-avatar">AI</div>
-      <div class="bubble">${status}${body}${error}${
+      <div class="bubble">${status}${msg.content && !msg.pending ? originNoticeHtml(msg.origin) : ''}${body}${error}${
         msg.options?.length && isLast && !msg.pending ? renderOptions(msg.options, state.streaming) : ''
       }${sources}${actions}</div>
     </div>`;

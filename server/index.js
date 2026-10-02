@@ -647,8 +647,10 @@ export function createApp({
     });
 
     let replyText = '';
+    let replyOrigin = 'base';
     const emit = (event) => {
       if (event.type === 'text') replyText += event.text;
+      if (event.type === 'origin') replyOrigin = event.origin;
       if (!res.writableEnded) res.write(`data: ${JSON.stringify(event)}\n\n`);
     };
 
@@ -671,8 +673,10 @@ export function createApp({
     });
     // Resposta dizendo que não encontrou a informação: registra a pergunta como lacuna da base.
     const question = [...(Array.isArray(req.body.messages) ? req.body.messages : [])].reverse().find((m) => m?.role === 'user')?.content;
-    if (question && looksUnanswered(replyText)) {
-      repo.addGap({ source: 'ia', query: String(question), detail: replyText.replace(/\s+/g, ' ').slice(0, 400) });
+    // Respondida com a base própria do GPT Maker: a plataforma não tinha a resposta, também é lacuna.
+    if (question && (looksUnanswered(replyText) || replyOrigin === 'geral')) {
+      const prefix = replyOrigin === 'geral' ? 'Respondida com a base geral do GPT Maker: ' : '';
+      repo.addGap({ source: 'ia', query: String(question), detail: `${prefix}${replyText.replace(/\s+/g, ' ')}`.slice(0, 400) });
     }
     emit({ type: 'done' });
     res.end();

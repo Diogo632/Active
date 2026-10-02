@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { openDatabase, createRepository } from '../server/db.js';
-import { createN8nActiveIA, extractReply, extractOptions, keywords, bestExcerpts } from '../server/n8n.js';
+import { createN8nActiveIA, extractReply, extractOptions, keywords, bestExcerpts, splitSource } from '../server/n8n.js';
 
 let dataDir;
 let repo;
@@ -143,12 +143,42 @@ test('mensagem respeita o limite mesmo com muitos documentos encontrados', async
   assert.match(received.body.prompt, /Manual zebra/);
 });
 
-test('modo livre envia só a pergunta, sem documentos', async () => {
-  replyWith = { payload: { message: 'Resposta do RAG do GPTMaker' } };
-  const events = await ask('Qual o prazo de SLA do cliente X?', { mode: 'livre' });
-  assert.equal(received.body.prompt, 'Qual o prazo de SLA do cliente X?');
-  assert.deepEqual(received.body.documentos, []);
-  assert.ok(!events.some((e) => e.type === 'sources'));
+test('conversa livre também prioriza a base da plataforma: vai a regra de fonte e os documentos', async () => {
+  replyWith = { payload: { message: 'ok' } };
+  await ask('Qual o prazo de SLA do cliente X?', { mode: 'livre' });
+  const prompt = received.body.prompt;
+  assert.match(prompt, /REGRA DE FONTE/);
+  assert.match(prompt, /\[FONTE: BASE GERAL\]/);
+  assert.match(prompt, /não encontrou documentos/);
+  assert.match(prompt, /Pergunta: Qual o prazo de SLA do cliente X\?$/);
+
+  await ask('Como configurar a impressora fiscal?', { mode: 'livre' });
+  assert.match(received.body.prompt, /Documentos da plataforma relacionados \(use estes primeiro\)/);
+  assert.ok(received.body.documentos.length > 0);
+});
+
+test('resposta da base própria do GPT Maker: a marcação some do texto e vira aviso', async () => {
+  replyWith = { payload: { message: '[FONTE: BASE GERAL]\nO SLA padrão do cliente X é de 4 horas.' } };
+  const events = await ask('Qual o SLA do cliente X?', { mode: 'livre' });
+  assert.deepEqual(events.find((e) => e.type === 'origin'), { type: 'origin', origin: 'geral' });
+  assert.equal(events.find((e) => e.type === 'text').text, 'O SLA padrão do cliente X é de 4 horas.');
+
+  // Resposta longa sem citar nenhum documento da plataforma: aviso para conferir.
+  replyWith = { payload: { message: `Para emitir, siga os passos. ${'Detalhe do procedimento. '.repeat(20)}` } };
+  const uncited = await ask('Como emitir?', { mode: 'livre' });
+  assert.equal(uncited.find((e) => e.type === 'origin').origin, 'sem_citacao');
+
+  // Citando a base: sem aviso.
+  replyWith = { payload: { message: `Veja [Manual](#/item/1). ${'Detalhe do procedimento. '.repeat(20)}` } };
+  const cited = await ask('Como emitir?', { mode: 'livre' });
+  assert.ok(!cited.some((e) => e.type === 'origin'));
+});
+
+test('splitSource reconhece a marcação com variações', () => {
+  assert.equal(splitSource('[Fonte: Base geral do GPT Maker] Resposta.').origin, 'geral');
+  assert.equal(splitSource('[Fonte: Base geral do GPT Maker] Resposta.').answer, 'Resposta.');
+  assert.equal(splitSource('[ FONTE : BASE GERAL ]\n\nTexto').answer, 'Texto');
+  assert.equal(splitSource('Oi! Como posso ajudar?').origin, 'base');
 });
 
 test('modo livre com documento em foco envia o documento', async () => {
