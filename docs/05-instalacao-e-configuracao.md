@@ -51,13 +51,16 @@ Na inicialização, o terminal mostra o endereço, o motor da Active AI e **avis
 
 | Variável | Padrão | Descrição |
 | --- | --- | --- |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | vazio | Usuário e senha de acesso. **Obrigatório** com a porta exposta. Senha com 12+ caracteres |
+| `SESSION_DAYS` | `30` | Dias até a pessoa precisar entrar de novo |
+| `LOGIN` | `on` | `off` desliga o login. **Só para testes locais** |
 | `INTEGRATION_TOKEN` | vazio | Token do MCP e da API de integração. Sem ele, o MCP fica desligado. Gere com `npm run gerar-token` |
 | `TRUST_PROXY` | vazio | Atrás de nginx/Traefik, quantos proxies há na frente (ex.: `1`), para o limite de tentativas ver o IP real |
 
-### Login individual e busca por significado
+### Login e busca por significado
 
-Login com a conta Microsoft ou Google da empresa (`MICROSOFT_*`, `GOOGLE_*`, `OIDC_*`, `AUTH_ALLOWED_DOMAINS`, `ADMIN_EMAILS`, `AUTH_DEFAULT_ROLE`, `SESSION_DAYS`) e busca por significado (`SEMANTIC_SEARCH`, `SEMANTIC_MODEL`, `SEMANTIC_DTYPE`, `SEMANTIC_MIN_SCORE`): veja a tabela completa e o passo a passo de registro na Microsoft e no Google em [11. Login, busca por significado e glossário](11-login-busca-e-glossario.md). Com o login ligado, a senha única (`BASIC_AUTH_*`) deixa de ser usada e o `PUBLIC_URL` passa a ser obrigatório.
+O login é próprio da plataforma: no **primeiro acesso** ela pede para criar o administrador, que depois cria as contas em **Pessoas** (detalhes em [11. Login, busca por significado e glossário](11-login-busca-e-glossario.md)). Crie o administrador logo depois de instalar: enquanto não houver conta, quem abrir o endereço primeiro o cria. Pelo terminal: `npm run admin -- email@empresa.com.br "Nome"` (também recupera o acesso de um administrador que esqueceu a senha).
+
+Busca por significado (`SEMANTIC_SEARCH`, `SEMANTIC_MODEL`, `SEMANTIC_DTYPE`, `SEMANTIC_MIN_SCORE`): veja a tabela no mesmo documento.
 
 ### Active AI (n8n + GPTMaker)
 

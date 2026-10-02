@@ -78,6 +78,8 @@ export function createFailureLimiter({ max = 10, windowMs = 10 * 60 * 1000 } = {
       res.status(429).json({ error: 'Muitas tentativas com senha ou token errados. Aguarde alguns minutos e tente de novo.' });
       return true;
     },
+    /** Igual a blocked(), sem responder (para quem monta a própria resposta, como a página de login). */
+    isBlocked: (req) => entry(req).count >= max,
     fail(req) {
       entry(req).count += 1;
     },

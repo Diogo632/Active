@@ -1,82 +1,92 @@
-# 11. Login individual, busca por significado e glossário
+# 11. Login, busca por significado e glossário
 
 Três recursos que trabalham juntos:
 
-- **Login individual**: cada pessoa entra com a conta **Microsoft** ou **Google** da empresa. A plataforma registra quem criou e quem editou cada documento, e cada pessoa tem um perfil (*Administrador*, *Editor* ou *Só consulta*).
+- **Login próprio**: cada pessoa entra com e-mail e senha, em contas criadas pelo administrador. A plataforma registra quem criou e quem editou cada documento, e cada pessoa tem um perfil (*Administrador*, *Editor* ou *Só consulta*).
 - **Busca por significado**: encontra documentos que falam do assunto mesmo sem as mesmas palavras ("cliente não consegue tirar nota" acha "Erro na emissão de NF-e"). Roda **no próprio servidor**, sem custo e sem mandar texto para fora.
 - **Glossário da Active**: tabela de termos, siglas e sinônimos. Amplia a busca e explica os termos internos à Active AI.
 
 ---
 
-## Login individual (Microsoft ou Google)
+## Login próprio (e-mail e senha)
 
-### Como funciona
+A plataforma tem login próprio: não depende de Microsoft, Google ou outro serviço, e não tem custo.
 
-1. Quem abre a plataforma sem estar logado vai para a página **Entrar**, com um botão para cada provedor configurado.
-2. O login é feito na Microsoft ou no Google (padrão OpenID Connect, com PKCE, `state` e `nonce`). A plataforma **nunca vê a senha** da pessoa.
-3. Na volta, a plataforma confere o e-mail e o domínio (`AUTH_ALLOWED_DOMAINS`) e cria uma sessão: um cookie `kb_sessao` (HttpOnly, SameSite=Lax, Secure em HTTPS) que vale `SESSION_DAYS` dias e é renovado com o uso. No banco fica só o hash do cookie.
-4. A pessoa aparece em **Pessoas** no primeiro login. **A primeira pessoa a entrar vira Administrador**; as seguintes recebem o perfil `AUTH_DEFAULT_ROLE` (padrão *Editor*), exceto os e-mails em `ADMIN_EMAILS`, que entram como Administrador.
+### Primeiro acesso
 
-Com o login ligado, a senha única (`BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`) deixa de ser usada. O MCP e a API de integração continuam usando o `INTEGRATION_TOKEN`.
+Ao abrir a plataforma pela primeira vez (sem nenhuma conta criada), aparece a página **Primeiro acesso**: informe nome, e-mail e senha e você vira o **administrador**.
+
+> ⚠️ Enquanto não houver conta, **quem abrir o endereço primeiro cria o administrador**. Crie a sua conta logo depois de instalar ou de deixar a porta pública. O terminal avisa ao iniciar enquanto não houver conta.
+
+Alternativa pelo terminal do servidor (também serve para **recuperar o acesso** se o administrador esquecer a senha):
+
+```bash
+npm run admin -- seu.email@activecorp.com.br "Seu Nome"
+```
+
+O comando cria o administrador (ou, se o e-mail já existe, torna a pessoa administradora, libera o acesso e gera uma senha nova) e mostra uma **senha provisória**.
+
+### Criar as contas da equipe
+
+1. Menu **Pessoas** → **Nova pessoa**.
+2. Informe nome, e-mail e perfil.
+3. A plataforma mostra uma **senha provisória** (ex.: `5mgw-ajs6-gdrf`) **uma única vez**. Use **Copiar acesso** e envie para a pessoa por um canal seguro (Teams, pessoalmente).
+4. No primeiro login, a pessoa precisa **criar a própria senha** antes de usar a plataforma. Até lá, a conta aparece com a etiqueta *senha provisória*.
+
+Em **Pessoas**, o administrador também:
+
+| Ação | Como |
+| --- | --- |
+| Mudar o perfil | Lista *Perfil* |
+| Bloquear / liberar o acesso | Caixa *Acesso*. Bloquear desconecta a pessoa na hora |
+| Corrigir nome ou e-mail | Ícone de lápis |
+| **Esqueceu a senha** | Ícone de chave → gera uma nova senha provisória (a antiga para de valer e a pessoa é desconectada) |
+| Excluir a conta | Lixeira. Os documentos da pessoa continuam na base, com o nome dela como autor |
+
+Um administrador não pode tirar o próprio acesso de administrador, bloquear-se nem excluir a própria conta.
+
+Cada pessoa troca a própria senha pelo ícone de chave no rodapé do menu (pede a senha atual). Trocar a senha desconecta os outros aparelhos.
 
 ### Perfis
 
 | Perfil | Pode |
 | --- | --- |
-| **Administrador** | Tudo o que o Editor faz, mais a tela **Pessoas**: mudar perfis e bloquear acessos |
+| **Administrador** | Tudo o que o Editor faz, mais a tela **Pessoas** |
 | **Editor** | Criar, editar, excluir e enviar documentos; categorias; glossário; transcrições; resolver lacunas |
 | **Só consulta** | Pesquisar, ler, baixar, conversar com a Active AI (inclusive anexar arquivos à conversa) e avaliar 👍👎 |
 
 O servidor recusa (403) qualquer alteração que o perfil não permita; a interface só esconde os botões.
 
-Bloquear uma pessoa em **Pessoas** encerra na hora todas as sessões dela. Um administrador não pode tirar o próprio acesso de administrador (para a plataforma nunca ficar sem nenhum).
-
 ### Quem criou e quem editou
 
-- **Autor**: quem criou o documento (preenchido pelo login; o campo "Autor" some dos formulários).
+- **Autor**: quem criou o documento (vem do login; o campo "Autor" some dos formulários).
 - **Atualizado por**: quem fez a última alteração, mostrado no painel lateral do documento.
 - O **histórico de versões** guarda quem tinha salvo cada versão, e restaurar uma versão registra quem restaurou.
 - As avaliações "não ajudou" das respostas da Active AI mostram quem avaliou, no relatório.
 
-### Registrar a plataforma na Microsoft (Entra ID / Azure AD)
+### Como as senhas e sessões são protegidas
 
-1. Acesse o [portal do Azure](https://portal.azure.com) → **Microsoft Entra ID** → **Registros de aplicativo** → **Novo registro**.
-2. Nome: `Base de Conhecimento`. Tipos de conta: **somente contas deste diretório organizacional**.
-3. **URI de redirecionamento**: plataforma **Web**, endereço `https://SEU-ENDERECO/auth/microsoft/callback` (o mesmo `PUBLIC_URL` do `.env`).
-4. Depois de criar, copie **ID do aplicativo (cliente)** → `MICROSOFT_CLIENT_ID` e **ID do diretório (locatário)** → `MICROSOFT_TENANT_ID`.
-5. **Certificados e segredos** → **Novo segredo do cliente** → copie o **Valor** → `MICROSOFT_CLIENT_SECRET`. Anote a data de validade: quando o segredo vencer, o login para de funcionar até ser trocado.
-6. Em **Permissões de API**, as permissões `openid`, `email` e `profile` (Microsoft Graph, delegadas) já bastam.
+- Senhas guardadas com **scrypt** e sal individual; nem o administrador vê as senhas das pessoas.
+- Mínimo de 10 caracteres; senhas óbvias (`1234567890`, o próprio e-mail ou nome) são recusadas. Dica para a equipe: uma frase de 3 ou 4 palavras (`cavalo bateria grampo azul`) é fácil de lembrar e difícil de adivinhar.
+- **10 tentativas erradas em 10 minutos** bloqueiam o endereço até a janela passar. A mensagem de erro é a mesma para e-mail inexistente e senha errada (não revela quem tem conta).
+- Sessão num cookie `kb_sessao` (HttpOnly, SameSite=Lax, Secure em HTTPS) que vale `SESSION_DAYS` dias e é renovada com o uso. No banco fica só o hash do cookie.
+- Os formulários de login só são aceitos vindos da própria plataforma.
 
-### Registrar a plataforma no Google (Google Workspace)
-
-1. Acesse o [Google Cloud Console](https://console.cloud.google.com) → crie ou escolha um projeto.
-2. **APIs e serviços** → **Tela de consentimento OAuth** → tipo **Interno** (só contas do Workspace da empresa).
-3. **Credenciais** → **Criar credenciais** → **ID do cliente OAuth** → tipo **Aplicativo da Web**.
-4. **URIs de redirecionamento autorizados**: `https://SEU-ENDERECO/auth/google/callback`.
-5. Copie o **ID do cliente** → `GOOGLE_CLIENT_ID` e a **chave secreta** → `GOOGLE_CLIENT_SECRET`.
-
-Os dois provedores podem ficar ligados ao mesmo tempo (a página Entrar mostra os dois botões). Qualquer outro provedor OpenID Connect (Keycloak, Okta, Authentik…) funciona com `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` e `OIDC_LABEL`, com o retorno em `/auth/oidc/callback`.
+O MCP e a API de integração não usam login: continuam com o `INTEGRATION_TOKEN`.
 
 ### Variáveis
 
 | Variável | Padrão | Descrição |
 | --- | --- | --- |
-| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_TENANT_ID` | vazio | Liga o botão "Entrar com Microsoft" |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | vazio | Liga o botão "Entrar com Google" |
-| `OIDC_ISSUER` / `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` / `OIDC_LABEL` | vazio | Outro provedor OpenID Connect |
-| `AUTH_ALLOWED_DOMAINS` | vazio | Domínios aceitos, separados por vírgula (ex.: `activecorp.com.br`). **Recomendado**, principalmente com o Google |
-| `ADMIN_EMAILS` | vazio | E-mails que sempre entram como Administrador |
-| `AUTH_DEFAULT_ROLE` | `editor` | Perfil de quem entra pela primeira vez: `editor` ou `leitor` |
 | `SESSION_DAYS` | `30` | Dias até a pessoa precisar entrar de novo (sem uso) |
-| `PUBLIC_URL` | vazio | **Obrigatório em produção**: o endereço usado nas URIs de retorno |
-
-Se nenhum provedor estiver configurado, a plataforma funciona como antes (senha única ou aberta).
+| `PUBLIC_URL` | vazio | Endereço público; quando começa com `https://`, o cookie sai com `Secure` |
+| `LOGIN` | `on` | `off` desliga o login (qualquer pessoa com o endereço acessa tudo). **Só para testes locais** |
 
 ### Testar no Codespace
 
-1. Use o endereço público do Codespace como `PUBLIC_URL` (ex.: `https://NOME-3001.app.github.dev`) e cadastre `https://NOME-3001.app.github.dev/auth/microsoft/callback` como URI de redirecionamento no Azure (pode ficar junto da URI de produção).
-2. Reinicie a plataforma, abra o endereço e entre. A primeira conta vira Administrador.
-3. Teste o perfil *Só consulta* com uma segunda conta: em **Pessoas**, mude o perfil dela e recarregue a página dela.
+1. `git pull`, reinicie a plataforma e abra o endereço público: aparece **Primeiro acesso**. Crie a sua conta.
+2. Em **Pessoas**, crie uma conta de teste com o perfil *Só consulta*.
+3. Abra uma janela anônima, entre com a conta de teste e a senha provisória, crie a senha e confira que os botões de edição não aparecem.
 
 ---
 

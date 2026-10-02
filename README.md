@@ -30,7 +30,7 @@ Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, c
 - **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
 - **Busca por significado**: encontra documentos pelo assunto, mesmo sem as mesmas palavras ("cliente não consegue tirar nota" acha "Erro na emissão de NF-e"). O modelo (multilingual-e5) roda no próprio servidor, sem custo; os resultados achados assim têm a etiqueta *≈ significado*.
 - **Glossário da Active** (menu *Glossário*): termos, siglas e sinônimos. A busca também procura pelos sinônimos, e a Active AI recebe a explicação dos termos citados (e tem a ferramenta MCP `consultar_glossario`).
-- **Login individual** com a conta **Microsoft** ou **Google** da empresa: perfis *Administrador*, *Editor* e *Só consulta* (tela *Pessoas*), e registro de quem criou e quem editou cada documento. Passo a passo em [docs/11](docs/11-login-busca-e-glossario.md).
+- **Login próprio** (e-mail e senha): o administrador cria as contas em *Pessoas*, com perfis *Administrador*, *Editor* e *Só consulta*; cada pessoa cria a própria senha no primeiro acesso, e a plataforma registra quem criou e quem editou cada documento. Detalhes em [docs/11](docs/11-login-busca-e-glossario.md).
 - **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta da Active AI** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
 - **Active AI** (agente do GPTMaker, via n8n):
   - **conversa livre** no chat, usando o conhecimento próprio do agente;
@@ -90,7 +90,7 @@ Configurações do `.env`:
 | `CHAT_ATTACHMENT_HOURS` | Por quantas horas os arquivos anexados na conversa com a Active AI ficam guardados (padrão `72`). |
 | `TRUST_PROXY` | Quando a plataforma roda atrás de um proxy (nginx, Traefik), informe quantos proxies há na frente (ex.: `1`), para o limite de tentativas enxergar o IP real de cada pessoa. |
 | `REVIEW_MONTHS_DEFAULT` | Prazo de revisão padrão dos textos novos, em meses (padrão `6`; `0` desliga). |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | Opcional: exige usuário e senha para acessar a plataforma. |
+| `SESSION_DAYS` | Dias até a pessoa precisar entrar de novo (padrão `30`). As contas são criadas na própria plataforma (*Pessoas*). |
 | `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
 
 ## Como a Active AI funciona na plataforma
@@ -123,7 +123,7 @@ Ferramentas disponíveis:
 
 1. Gere um token com `npm run gerar-token`. No `.env`, defina:
    - `INTEGRATION_TOKEN=<token gerado>`;
-   - `BASIC_AUTH_USER` e `BASIC_AUTH_PASSWORD`, para proteger as telas enquanto a porta estiver pública.
+   - e, logo ao abrir a plataforma, crie a conta de administrador (*Primeiro acesso*), para proteger as telas enquanto a porta estiver pública.
 2. Inicie a plataforma com `PORT=3001 npm start`.
 3. Em outro terminal, rode `npm run mcp:testar -- "" "" palavra`. Ele testa o MCP localmente, com busca e leitura de um documento.
 4. Na aba **Portas**, clique com o botão direito na 3001 e escolha **Visibilidade da Porta → Pública**. Copie o endereço (`https://…-3001.app.github.dev`), coloque-o em `PUBLIC_URL` no `.env` e reinicie.
@@ -225,8 +225,7 @@ O YouTube às vezes bloqueia a leitura das legendas a partir de servidores de nu
 
 O que a plataforma já faz:
 
-- **Login individual** com Microsoft ou Google (OpenID Connect), domínios restritos e perfis verificados no servidor. Sem ele, vale a senha única abaixo.
-- **Senha de acesso** (`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`). Sem login nem senha, o servidor avisa no terminal ao iniciar: qualquer pessoa com o endereço teria acesso total.
+- **Login próprio**: senhas guardadas com scrypt, senha provisória trocada no primeiro acesso, sessões em cookie HttpOnly e perfis verificados no servidor. Enquanto não houver nenhuma conta, o servidor avisa no terminal: crie o administrador logo depois de instalar.
 - **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam aquele endereço por alguns minutos.
 - **Proteção contra CSRF**: ações (criar, editar, excluir, enviar) vindas de outro site com a sessão de quem está logado são recusadas.
 - **Cabeçalhos de segurança** e **política de conteúdo (CSP)**: a página só executa scripts da própria plataforma, não pode ser embutida em outros sites e não envia dados para outros endereços.
@@ -242,7 +241,7 @@ Antes de colocar em produção:
 4. **Atualize as dependências** de tempos em tempos (`npm audit`), principalmente as que leem arquivos enviados (officeparser, ffmpeg).
 5. Lembre que o conteúdo consultado pela Active AI (documentos, transcrições e anexos) é enviado ao **n8n e ao GPTMaker**; documentos com dados pessoais de clientes seguem para esses serviços.
 
-Limitações conhecidas: sem o login individual configurado, todos usam o mesmo usuário e senha; mesmo com ele, quem entra vê todos os documentos (não há permissão por categoria), inclusive os anexos temporários da conversa pelo link.
+Limitações conhecidas: quem entra vê todos os documentos (não há permissão por categoria), inclusive os anexos temporários da conversa pelo link; não há recuperação de senha por e-mail (o administrador gera uma senha provisória).
 
 ## Cores (identidade visual da Active AI)
 

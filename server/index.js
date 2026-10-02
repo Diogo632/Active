@@ -15,7 +15,7 @@ import { createYouTubeClient, parseYouTubeId, watchUrl } from './youtube.js';
 import { createChaptersQueue } from './chapters.js';
 import { looksUnanswered } from './gaps.js';
 import { securityHeaders, blockCrossSiteWrites, createFailureLimiter, CONTENT_SECURITY_POLICY } from './security.js';
-import { createAuth, providersFromEnv, ROLES } from './auth.js';
+import { createAuth, ROLES } from './auth.js';
 import { createGlossary } from './glossary.js';
 import { createSemanticIndex, createE5Embedder } from './semantic.js';
 import { createSearchService } from './search.js';
@@ -36,8 +36,8 @@ export function createApp({
   reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
   // Motor da busca semântica (os testes passam um simulado). SEMANTIC_SEARCH=off desliga.
   embedder,
-  // Provedores de login individual (por padrão, os configurados no .env).
-  authProviders,
+  // Login próprio (e-mail e senha). LOGIN=off desliga (só para testes e desenvolvimento local).
+  login = String(process.env.LOGIN || 'on').toLowerCase() !== 'off',
 } = {}) {
   const uploadsDir = path.join(dataDir, 'uploads');
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -60,7 +60,6 @@ export function createApp({
   const search = createSearchService({ repo, semantic, glossary });
 
   const ai = aiOverride || createAssistant({ repo, uploadsDir, model, search, glossary });
-  const auth = createAuth({ db, providers: authProviders ?? providersFromEnv() });
 
   // Transcrição de vídeos/áudios (Whisper local por padrão; TRANSCRIPTION=off desliga).
   const transcriptionEnabled = (process.env.TRANSCRIPTION || 'local').toLowerCase() !== 'off';
@@ -99,6 +98,7 @@ export function createApp({
   app.use(securityHeaders);
   // Senha ou token errados: no máximo 10 tentativas a cada 10 minutos por endereço.
   const failures = createFailureLimiter();
+  const auth = createAuth({ db, enabled: login, failures });
 
   // ---------- Integração (n8n / GPTMaker) ----------
   // Endpoints somente leitura, protegidos por token, para fluxos externos consultarem a base.
@@ -152,26 +152,10 @@ export function createApp({
   app.get('/mcp/sse', requireIntegrationToken, mcp.sse);
   app.post('/mcp/messages', requireIntegrationToken, express.json({ limit: '1mb' }), mcp.sseMessage);
 
-  // ---------- Autenticação opcional (HTTP Basic) ----------
-  // Login individual (Microsoft/Google): substitui a senha única quando está configurado.
+  // ---------- Login (e-mail e senha de cada pessoa) ----------
   if (auth.enabled) {
     auth.routes(app);
     app.use(auth.requireUser);
-  }
-  const authUser = process.env.BASIC_AUTH_USER;
-  const authPass = process.env.BASIC_AUTH_PASSWORD;
-  if (!auth.enabled && authUser && authPass) {
-    const expected = Buffer.from(`${authUser}:${authPass}`);
-    app.use((req, res, next) => {
-      const header = req.headers.authorization || '';
-      if (header && failures.blocked(req, res)) return;
-      const given = Buffer.from(header.startsWith('Basic ') ? Buffer.from(header.slice(6), 'base64').toString() : '');
-      if (given.length === expected.length && crypto.timingSafeEqual(given, expected)) return next();
-      // O primeiro acesso do navegador vem sem senha (é o que abre a janela de login): só conta como erro se veio com senha.
-      if (header) failures.fail(req);
-      res.set('WWW-Authenticate', 'Basic realm="Base de Conhecimento Active", charset="UTF-8"');
-      res.status(401).send('Autenticação necessária');
-    });
   }
 
   // Ações disparadas por outros sites com a sessão de quem está logado (CSRF) são recusadas.
@@ -268,18 +252,41 @@ export function createApp({
 
   // ---------- Itens ----------
   // ---------- Pessoa logada e perfis ----------
-  app.get('/api/me', (req, res) =>
-    res.json({ user: req.user || null, auth: { enabled: auth.enabled, providers: auth.providers, roles: ROLES } }),
-  );
+  app.get('/api/me', (req, res) => {
+    const user = req.user ? { id: req.user.id, email: req.user.email, name: req.user.name, role: req.user.role } : null;
+    res.json({ user, auth: { enabled: auth.enabled, roles: ROLES } });
+  });
+  // Pessoas: só administradores criam contas, mudam perfis, bloqueiam e geram senhas provisórias.
   app.get('/api/usuarios', requireAdmin, (req, res) => res.json(auth.users.list()));
-  app.put('/api/usuarios/:id', requireAdmin, (req, res) => {
+  app.post('/api/usuarios', requireAdmin, (req, res) => {
+    const { user, password } = auth.users.create({ name: req.body.name, email: req.body.email, role: req.body.role || 'editor' });
+    console.log(`[login] ${req.user.email} criou a conta de ${user.email} (perfil ${user.role})`);
+    res.status(201).json({ user, password });
+  });
+  const otherUser = (req) => {
     const id = parseId(req.params.id);
-    if (id === req.user.id && (req.body.role !== undefined && req.body.role !== 'admin' || req.body.active === false)) {
+    if (!id || !auth.users.get(id)) throw httpError(404, 'Pessoa não encontrada.');
+    return id;
+  };
+  app.put('/api/usuarios/:id', requireAdmin, (req, res) => {
+    const id = otherUser(req);
+    if (id === req.user.id && ((req.body.role !== undefined && req.body.role !== 'admin') || req.body.active === false)) {
       throw httpError(400, 'Você não pode tirar o seu próprio acesso de administrador.');
     }
-    const user = id && auth.users.update(id, { role: req.body.role, active: req.body.active });
-    if (!user) throw httpError(404, 'Pessoa não encontrada.');
-    res.json(user);
+    res.json(auth.users.update(id, { name: req.body.name, email: req.body.email, role: req.body.role, active: req.body.active }));
+  });
+  app.post('/api/usuarios/:id/senha', requireAdmin, (req, res) => {
+    const id = otherUser(req);
+    if (id === req.user.id) throw httpError(400, 'Para trocar a sua própria senha, use “Trocar senha”.');
+    const password = auth.users.resetPassword(id);
+    console.log(`[login] ${req.user.email} gerou uma senha provisória para a pessoa #${id}`);
+    res.json({ password });
+  });
+  app.delete('/api/usuarios/:id', requireAdmin, (req, res) => {
+    const id = otherUser(req);
+    if (id === req.user.id) throw httpError(400, 'Você não pode excluir a sua própria conta.');
+    auth.users.remove(id);
+    res.status(204).end();
   });
 
   // ---------- Glossário ----------
@@ -757,13 +764,14 @@ if (isMain) {
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
     const { ai } = createdInfo;
     if (ai.provider === 'n8n') console.log(`Active AI: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
-    if (!process.env.BASIC_AUTH_USER || !process.env.BASIC_AUTH_PASSWORD) {
+    const { auth } = createdInfo;
+    if (!auth.enabled) {
+      console.warn('ATENÇÃO: o login está DESLIGADO (LOGIN=off). Qualquer pessoa com o endereço pode ver, enviar e excluir documentos.');
+    } else if (auth.users.count() === 0) {
       console.warn(
-        'ATENÇÃO: a plataforma está SEM SENHA (BASIC_AUTH_USER/BASIC_AUTH_PASSWORD vazios no .env). ' +
-          'Qualquer pessoa com o endereço pode ver, enviar e excluir documentos. Defina usuário e senha antes de expor a porta.',
+        `ATENÇÃO: nenhuma conta criada ainda. Abra http://localhost:${port}/entrar e crie o administrador AGORA ` +
+          '(enquanto não houver conta, quem abrir o endereço primeiro cria o administrador). Alternativa: npm run admin -- seu@email "Seu nome"',
       );
-    } else if (String(process.env.BASIC_AUTH_PASSWORD).length < 12) {
-      console.warn('Aviso: a senha da plataforma (BASIC_AUTH_PASSWORD) tem menos de 12 caracteres. Use uma senha mais longa.');
     }
     if (process.env.INTEGRATION_TOKEN && String(process.env.INTEGRATION_TOKEN).length < 32) {
       console.warn('Aviso: o INTEGRATION_TOKEN é curto. Gere um novo com "npm run gerar-token".');

@@ -23,8 +23,11 @@ Este guia cobre todas as telas da plataforma, na ordem em que aparecem no menu.
 
 Abra o endereço da plataforma no navegador.
 
-- **Com o login individual** (recomendado): clique em **Entrar com Microsoft** ou **Entrar com Google** e use a sua conta da empresa. Seu nome e perfil aparecem no rodapé do menu, com o botão para sair. O que você cria e edita fica registrado no seu nome.
-- **Com a senha única**: o navegador pede **usuário e senha**, os mesmos para toda a equipe.
+Entre com o seu **e-mail e senha**. A conta é criada por um administrador, que passa uma **senha provisória**; no primeiro acesso, a plataforma pede para você criar a sua senha (mínimo 10 caracteres).
+
+Seu nome e perfil aparecem no rodapé do menu, com os botões **Trocar senha** (chave) e **Sair**. O que você cria e edita fica registrado no seu nome. Esqueceu a senha? Peça a um administrador uma nova senha provisória.
+
+Administradores gerenciam as contas no menu **Pessoas** (criar, mudar perfil, bloquear, gerar senha provisória, excluir).
 
 ### Perfis
 

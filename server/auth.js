@@ -1,124 +1,158 @@
 import crypto from 'node:crypto';
-import * as oidc from 'openid-client';
+import express from 'express';
 
 /**
- * Login individual com a conta Microsoft (Entra ID) ou Google da empresa, por OpenID Connect.
- * Cada pessoa tem um perfil: "leitor" (consulta e usa a Active AI), "editor" (também cria e edita
- * documentos) ou "admin" (também gerencia as pessoas). Sessões em cookie HttpOnly, guardadas no banco.
+ * Login próprio da plataforma: cada pessoa tem e-mail e senha, criados por um administrador.
+ * Perfis: "leitor" (consulta e usa a Active AI), "editor" (também cria e edita documentos) e
+ * "admin" (também gerencia as pessoas). Senhas guardadas com scrypt; sessões em cookie HttpOnly,
+ * guardadas no banco só como hash.
  */
 
 export const ROLES = ['leitor', 'editor', 'admin'];
+export const MIN_PASSWORD = 10;
 const rank = (role) => ROLES.indexOf(role);
 const COOKIE = 'kb_sessao';
-const STATE_COOKIE = 'kb_login';
-
-const list = (v) =>
-  String(v || '')
-    .split(/[,;\s]+/)
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
 
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const normEmail = (v) => String(v || '').trim().toLowerCase().slice(0, 200);
+const validEmail = (v) => /^[^\s@]+@[^\s@]+$/.test(v);
+
+// ---------- Senhas ----------
+const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
+
+export function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const hash = crypto.scryptSync(String(password), salt, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p });
+  return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString('base64')}$${hash.toString('base64')}`;
+}
+
+export function verifyPassword(password, stored) {
+  const [kind, N, r, p, salt, hash] = String(stored || '').split('$');
+  if (kind !== 'scrypt' || !salt || !hash) return false;
+  const expected = Buffer.from(hash, 'base64');
+  const given = crypto.scryptSync(String(password), Buffer.from(salt, 'base64'), expected.length, { N: Number(N), r: Number(r), p: Number(p) });
+  return crypto.timingSafeEqual(given, expected);
+}
+
+// Usado quando o e-mail não existe, para a resposta demorar o mesmo tempo (não revela quem tem conta).
+const DUMMY_HASH = hashPassword(crypto.randomBytes(16).toString('hex'));
+
+/** Senha provisória fácil de ditar: 3 grupos de 4 letras/números (sem 0/O, 1/l/I). */
+export function temporaryPassword() {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.randomBytes(12);
+  const s = [...bytes].map((b) => chars[b % chars.length]).join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8, 12)}`;
+}
+
+/** Motivo para recusar uma senha nova, ou '' se ela serve. */
+export function passwordProblem(password, { email = '', name = '' } = {}) {
+  const p = String(password || '');
+  if (p.length < MIN_PASSWORD) return `A senha precisa ter pelo menos ${MIN_PASSWORD} caracteres.`;
+  if (p.length > 200) return 'A senha é longa demais.';
+  const lower = p.toLowerCase();
+  if (email && lower.includes(email.split('@')[0].toLowerCase()) && email.split('@')[0].length >= 4) return 'A senha não pode conter o seu e-mail.';
+  if (/^(.)\1+$/.test(p) || ['1234567890', 'senha12345', 'password12', 'qwertyuiop'].some((w) => lower.includes(w))) return 'Escolha uma senha menos óbvia.';
+  if (name && name.length >= 4 && lower.includes(name.toLowerCase())) return 'A senha não pode ser o seu nome.';
+  return '';
+}
 
 function parseCookies(header) {
   const out = {};
   for (const part of String(header || '').split(';')) {
     const i = part.indexOf('=');
-    if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    if (i > 0) {
+      try {
+        out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+      } catch {
+        /* cookie malformado: ignora */
+      }
+    }
   }
   return out;
 }
 
-/** Provedores configurados pelo .env. */
-export function providersFromEnv(env = process.env) {
-  const providers = [];
-  if (env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET && env.MICROSOFT_TENANT_ID) {
-    providers.push({
-      id: 'microsoft',
-      label: 'Microsoft',
-      issuer: `https://login.microsoftonline.com/${env.MICROSOFT_TENANT_ID}/v2.0`,
-      clientId: env.MICROSOFT_CLIENT_ID,
-      clientSecret: env.MICROSOFT_CLIENT_SECRET,
-    });
-  }
-  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-    providers.push({ id: 'google', label: 'Google', issuer: 'https://accounts.google.com', clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET });
-  }
-  if (env.OIDC_ISSUER && env.OIDC_CLIENT_ID) {
-    providers.push({ id: 'oidc', label: env.OIDC_LABEL || 'conta da empresa', issuer: env.OIDC_ISSUER, clientId: env.OIDC_CLIENT_ID, clientSecret: env.OIDC_CLIENT_SECRET || '' });
-  }
-  return providers;
-}
-
-export function createAuth({ db, providers = providersFromEnv(), publicUrl = process.env.PUBLIC_URL || '', env = process.env, log = console }) {
-  const enabled = providers.length > 0;
-  const allowedDomains = list(env.AUTH_ALLOWED_DOMAINS);
-  const admins = list(env.ADMIN_EMAILS);
-  const defaultRole = ['editor', 'leitor'].includes(env.AUTH_DEFAULT_ROLE) ? env.AUTH_DEFAULT_ROLE : 'editor';
-  const sessionDays = Math.max(1, Number(env.SESSION_DAYS) || 30);
-  const pending = new Map(); // state -> { provider, verifier, nonce, returnTo, expires }
-  const configs = new Map();
-
-  const baseUrl = (req) => (publicUrl || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-  const isHttps = (req) => req.secure || baseUrl(req).startsWith('https://');
-  const safeReturn = (v) => (typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') && !v.startsWith('/\\') ? v : '/');
-
-  async function configFor(provider) {
-    if (!configs.has(provider.id)) {
-      const url = new URL(provider.issuer);
-      const insecure = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
-      configs.set(
-        provider.id,
-        oidc.discovery(url, provider.clientId, provider.clientSecret || undefined, undefined, insecure ? { execute: [oidc.allowInsecureRequests] } : undefined).catch((err) => {
-          configs.delete(provider.id);
-          throw err;
-        }),
-      );
-    }
-    return configs.get(provider.id);
-  }
-
-  // ---------- Pessoas e sessões ----------
+// ---------- Pessoas (banco) ----------
+export function createUsers(db) {
+  const COLUMNS = 'id, email, name, role, active, must_change_password, created_at, last_login_at';
   const users = {
-    list: () => db.prepare('SELECT id, email, name, provider, role, active, created_at, last_login_at FROM users ORDER BY name COLLATE NOCASE, email').all(),
-    get: (id) => db.prepare('SELECT id, email, name, provider, role, active, created_at, last_login_at FROM users WHERE id = ?').get(id),
-    update(id, { role, active }) {
+    count: () => db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+    list: () => db.prepare(`SELECT ${COLUMNS} FROM users ORDER BY name COLLATE NOCASE, email`).all(),
+    get: (id) => db.prepare(`SELECT ${COLUMNS} FROM users WHERE id = ?`).get(id),
+    byEmail: (email) => db.prepare('SELECT * FROM users WHERE email = ?').get(normEmail(email)),
+
+    /** Cria a pessoa. Sem `password`, gera uma senha provisória (trocada no primeiro login). */
+    create({ name, email, role = 'editor', password }) {
+      email = normEmail(email);
+      name = String(name || '').trim().slice(0, 120);
+      if (!name) throw Object.assign(new Error('Informe o nome.'), { status: 400 });
+      if (!validEmail(email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400 });
+      if (!ROLES.includes(role)) throw Object.assign(new Error('Perfil inválido.'), { status: 400 });
+      if (users.byEmail(email)) throw Object.assign(new Error('Já existe uma pessoa com este e-mail.'), { status: 409 });
+      const temporary = !password;
+      const secret = password || temporaryPassword();
+      const id = db
+        .prepare("INSERT INTO users (email, name, provider, role, password_hash, must_change_password) VALUES (?, ?, 'local', ?, ?, ?)")
+        .run(email, name, role, hashPassword(secret), temporary ? 1 : 0).lastInsertRowid;
+      return { user: users.get(id), password: temporary ? secret : undefined };
+    },
+
+    update(id, { name, email, role, active }) {
       const current = users.get(id);
       if (!current) return null;
-      db.prepare('UPDATE users SET role = ?, active = ? WHERE id = ?').run(
-        ROLES.includes(role) ? role : current.role,
-        active === undefined ? current.active : active ? 1 : 0,
-        id,
-      );
-      if (active === false) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      const next = {
+        name: name === undefined ? current.name : String(name).trim().slice(0, 120) || current.name,
+        email: email === undefined ? current.email : normEmail(email),
+        role: ROLES.includes(role) ? role : current.role,
+        active: active === undefined ? current.active : active ? 1 : 0,
+      };
+      if (!validEmail(next.email)) throw Object.assign(new Error('Informe um e-mail válido.'), { status: 400 });
+      const other = users.byEmail(next.email);
+      if (other && other.id !== id) throw Object.assign(new Error('Já existe uma pessoa com este e-mail.'), { status: 409 });
+      db.prepare('UPDATE users SET name = ?, email = ?, role = ?, active = ? WHERE id = ?').run(next.name, next.email, next.role, next.active, id);
+      if (!next.active) users.endSessions(id);
       return users.get(id);
     },
-    /** Cria ou atualiza a pessoa no login. Quem está em ADMIN_EMAILS é sempre admin. */
-    upsert({ email, name, provider }) {
-      const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
-      const isAdmin = admins.includes(email);
-      if (existing) {
-        db.prepare("UPDATE users SET name = ?, provider = ?, role = ?, last_login_at = datetime('now') WHERE id = ?").run(
-          name || existing.name,
-          provider,
-          isAdmin ? 'admin' : existing.role,
-          existing.id,
-        );
-        return users.get(existing.id);
-      }
-      // A primeira pessoa a entrar vira admin, para alguém conseguir gerenciar os perfis.
-      const first = db.prepare('SELECT COUNT(*) AS n FROM users').get().n === 0;
-      const id = db
-        .prepare("INSERT INTO users (email, name, provider, role, last_login_at) VALUES (?, ?, ?, ?, datetime('now'))")
-        .run(email, name || email, provider, isAdmin || first ? 'admin' : defaultRole).lastInsertRowid;
-      return users.get(id);
+
+    /** Nova senha provisória (o administrador repassa; a pessoa troca no próximo login). */
+    resetPassword(id) {
+      if (!users.get(id)) return null;
+      const password = temporaryPassword();
+      db.prepare('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?').run(hashPassword(password), id);
+      users.endSessions(id);
+      return password;
     },
+
+    setPassword(id, password, { keepSession } = {}) {
+      db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?').run(hashPassword(password), id);
+      // Trocar a senha desconecta os outros aparelhos.
+      if (keepSession) db.prepare('DELETE FROM sessions WHERE user_id = ? AND token_hash <> ?').run(id, keepSession);
+      else users.endSessions(id);
+    },
+
+    remove: (id) => db.prepare('DELETE FROM users WHERE id = ?').run(id).changes > 0,
+    endSessions: (id) => db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id),
+    admins: () => db.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin' AND active = 1").get().n,
   };
+  return users;
+}
+
+// ---------- Login, sessões e páginas ----------
+export function createAuth({ db, enabled = true, publicUrl = process.env.PUBLIC_URL || '', env = process.env, failures, log = console }) {
+  const sessionDays = Math.max(1, Number(env.SESSION_DAYS) || 30);
+  const users = createUsers(db);
+
+  const isHttps = (req) => req.secure || String(publicUrl).startsWith('https://');
+  const safeReturn = (v) => (typeof v === 'string' && v.startsWith('/') && !v.startsWith('//') && !v.startsWith('/\\') ? v : '/');
+  const cookie = (req, value, maxAgeSeconds) =>
+    `${COOKIE}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${isHttps(req) ? '; Secure' : ''}`;
 
   function createSession(userId) {
     const token = crypto.randomBytes(32).toString('base64url');
     db.prepare(`INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, datetime('now', ?))`).run(sha256(token), userId, `+${sessionDays} days`);
     db.prepare("DELETE FROM sessions WHERE expires_at <= datetime('now')").run();
+    db.prepare("UPDATE users SET last_login_at = datetime('now') WHERE id = ?").run(userId);
     return token;
   }
 
@@ -127,7 +161,7 @@ export function createAuth({ db, providers = providersFromEnv(), publicUrl = pro
     if (!token) return null;
     const row = db
       .prepare(
-        `SELECT u.id, u.email, u.name, u.role, u.active, s.expires_at, s.token_hash FROM sessions s JOIN users u ON u.id = s.user_id
+        `SELECT u.id, u.email, u.name, u.role, u.active, u.must_change_password, s.expires_at, s.token_hash FROM sessions s JOIN users u ON u.id = s.user_id
           WHERE s.token_hash = ? AND s.expires_at > datetime('now')`,
       )
       .get(sha256(token));
@@ -137,129 +171,169 @@ export function createAuth({ db, providers = providersFromEnv(), publicUrl = pro
     if (remainingDays < sessionDays / 2) {
       db.prepare(`UPDATE sessions SET expires_at = datetime('now', ?) WHERE token_hash = ?`).run(`+${sessionDays} days`, row.token_hash);
     }
-    return { id: row.id, email: row.email, name: row.name, role: row.role };
+    return { id: row.id, email: row.email, name: row.name, role: row.role, mustChangePassword: Boolean(row.must_change_password), sessionHash: row.token_hash };
   }
 
-  const cookie = (req, name, value, maxAgeSeconds) =>
-    `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSeconds}${isHttps(req) ? '; Secure' : ''}`;
-
-  // ---------- Página de login ----------
-  const domainsText = () => allowedDomains.map((d) => `@${d}`).join(', ');
-  const loginError = (code, providerId) =>
-    ({
-      expirado: 'O login expirou ou não foi iniciado nesta página. Tente de novo.',
-      cancelado: 'O login foi cancelado. Tente de novo.',
-      'sem-email': 'A conta não informou um e-mail.',
-      'nao-verificado': 'O e-mail desta conta não está verificado.',
-      dominio: `Esta conta não é da empresa. Entre com a sua conta ${domainsText()}.`,
-      bloqueado: 'Seu acesso à Base de Conhecimento está desativado. Fale com um administrador.',
-      falha: 'Não foi possível concluir o login. Tente de novo.',
-      conexao: `Não foi possível conectar ao login${providers.find((p) => p.id === providerId) ? ` da ${providers.find((p) => p.id === providerId).label}` : ''}. Tente de novo em instantes.`,
-    })[code] || '';
-
-  const loginPage = (req, message = '') => {
-    const volta = safeReturn(req.query.volta);
-    const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    return `<!doctype html>
+  // Páginas de login renderizadas no servidor (sem JavaScript: funcionam com a política de conteúdo).
+  const page = (title, body) => `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Entrar · Base de Conhecimento Active</title><link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<title>${esc(title)} · Base de Conhecimento Active</title><link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="/css/styles.css" /></head>
 <body class="login-body"><main class="login-card">
   <span class="brand-mark" aria-hidden="true">A</span>
-  <h1>Base de Conhecimento</h1>
-  <p class="muted">Suporte · Active Corp</p>
-  ${message ? `<div class="msg-error">${esc(message)}</div>` : ''}
-  <div class="login-buttons">${providers
-    .map((p) => `<a class="btn btn-primary btn-block" href="/auth/${p.id}?volta=${encodeURIComponent(volta)}">Entrar com ${esc(p.label)}</a>`)
-    .join('')}</div>
-  <p class="muted small">Use a sua conta da empresa${allowedDomains.length ? ` (${esc(allowedDomains.map((d) => `@${d}`).join(', '))})` : ''}.</p>
+  ${body}
 </main></body></html>`;
+  const errorBox = (message) => (message ? `<div class="msg-error" role="alert">${esc(message)}</div>` : '');
+  const field = (label, attrs) => `<label class="login-field"><span>${esc(label)}</span><input class="input" ${attrs} /></label>`;
+
+  const ERRORS = {
+    senha: 'E-mail ou senha incorretos.',
+    bloqueado: 'Muitas tentativas erradas. Aguarde alguns minutos e tente de novo.',
+    origem: 'Pedido recusado: ele veio de outro site.',
   };
 
-  // ---------- Rotas ----------
+  const loginPage = (req, message = '') =>
+    page(
+      'Entrar',
+      `<h1>Base de Conhecimento</h1>
+  <p class="muted">Suporte · Active Corp</p>
+  ${errorBox(message)}
+  <form class="login-form" method="post" action="/entrar">
+    <input type="hidden" name="volta" value="${esc(safeReturn(req.query.volta || req.body?.volta))}" />
+    ${field('E-mail', `type="email" name="email" autocomplete="username" required autofocus value="${esc(req.body?.email || '')}"`)}
+    ${field('Senha', 'type="password" name="senha" autocomplete="current-password" required')}
+    <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+  </form>
+  <p class="muted small">Esqueceu a senha ou ainda não tem acesso? Fale com um administrador da plataforma.</p>`,
+    );
+
+  const setupPage = (req, message = '') =>
+    page(
+      'Primeiro acesso',
+      `<h1>Primeiro acesso</h1>
+  <p class="muted">Crie a conta de administrador. Depois, você cadastra a equipe em <strong>Pessoas</strong>.</p>
+  ${errorBox(message)}
+  <form class="login-form" method="post" action="/primeiro-acesso">
+    ${field('Seu nome', `name="nome" autocomplete="name" required autofocus maxlength="120" value="${esc(req.body?.nome || '')}"`)}
+    ${field('E-mail', `type="email" name="email" autocomplete="username" required value="${esc(req.body?.email || '')}"`)}
+    ${field(`Senha (mínimo ${MIN_PASSWORD} caracteres)`, `type="password" name="senha" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`)}
+    ${field('Repita a senha', `type="password" name="confirmacao" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`)}
+    <button class="btn btn-primary btn-block" type="submit">Criar administrador e entrar</button>
+  </form>`,
+    );
+
+  const changePage = (req, user, message = '') =>
+    page(
+      'Trocar senha',
+      `<h1>${user.mustChangePassword ? 'Crie a sua senha' : 'Trocar senha'}</h1>
+  <p class="muted">${user.mustChangePassword ? `Olá, ${esc(user.name)}! Você entrou com uma senha provisória. Escolha a sua senha para continuar.` : esc(user.email)}</p>
+  ${errorBox(message)}
+  <form class="login-form" method="post" action="/trocar-senha">
+    <input type="hidden" name="volta" value="${esc(safeReturn(req.query.volta || req.body?.volta))}" />
+    <input type="email" name="email" autocomplete="username" value="${esc(user.email)}" hidden />
+    ${user.mustChangePassword ? '' : field('Senha atual', 'type="password" name="atual" autocomplete="current-password" required')}
+    ${field(`Nova senha (mínimo ${MIN_PASSWORD} caracteres)`, `type="password" name="senha" autocomplete="new-password" required minlength="${MIN_PASSWORD}" ${user.mustChangePassword ? 'autofocus' : ''}`)}
+    ${field('Repita a nova senha', `type="password" name="confirmacao" autocomplete="new-password" required minlength="${MIN_PASSWORD}"`)}
+    <button class="btn btn-primary btn-block" type="submit">Salvar senha</button>
+  </form>
+  ${user.mustChangePassword ? '' : '<p class="small"><a href="/">← Voltar para a plataforma</a></p>'}`,
+    );
+
+  const send = (res, html, status = 200) => res.status(status).set('Cache-Control', 'no-store').type('html').send(html);
+  // Formulários de login só valem vindos da própria plataforma (impede login forçado por outro site).
+  const crossSite = (req) => {
+    const site = req.headers['sec-fetch-site'];
+    return Boolean(site && site !== 'same-origin' && site !== 'none');
+  };
+
   function routes(app) {
+    const form = express.urlencoded({ extended: false, limit: '10kb' });
+
     app.get('/entrar', (req, res) => {
-      // Só mensagens conhecidas: um link com texto livre no ?erro= não aparece na página de login.
-      res.set('Cache-Control', 'no-store').type('html').send(loginPage(req, loginError(String(req.query.erro || ''), String(req.query.provedor || ''))));
+      if (users.count() === 0) return send(res, setupPage(req));
+      if (userFromRequest(req)) return res.redirect(safeReturn(req.query.volta));
+      send(res, loginPage(req, ERRORS[req.query.erro] || ''));
     });
 
-    app.get('/auth/:provider', async (req, res) => {
-      const provider = providers.find((p) => p.id === req.params.provider);
-      if (!provider) return res.redirect('/entrar');
+    app.post('/entrar', form, (req, res) => {
+      if (crossSite(req)) return send(res, loginPage(req, ERRORS.origem), 403);
+      if (failures?.isBlocked(req)) return send(res, loginPage(req, ERRORS.bloqueado), 429);
+      const email = normEmail(req.body?.email);
+      const password = String(req.body?.senha || '');
+      const row = email ? users.byEmail(email) : null;
+      const ok = verifyPassword(password, row?.password_hash || DUMMY_HASH) && row && row.active;
+      if (!ok) {
+        failures?.fail(req);
+        log.log(`[login] Falha ao entrar: ${email || '(sem e-mail)'}${row && !row.active ? ' (acesso bloqueado)' : ''}`);
+        return send(res, loginPage(req, row && !row.active && verifyPassword(password, row.password_hash) ? 'Seu acesso está bloqueado. Fale com um administrador.' : ERRORS.senha), 401);
+      }
+      const token = createSession(row.id);
+      log.log(`[login] ${row.email} entrou (perfil ${row.role})`);
+      res.set('Set-Cookie', cookie(req, token, sessionDays * 86400));
+      const volta = safeReturn(req.body?.volta);
+      res.redirect(303, row.must_change_password ? `/trocar-senha?volta=${encodeURIComponent(volta)}` : volta);
+    });
+
+    app.post('/primeiro-acesso', form, (req, res) => {
+      if (users.count() > 0) return res.redirect(303, '/entrar');
+      if (crossSite(req)) return send(res, setupPage(req, ERRORS.origem), 403);
+      const { nome, email, senha, confirmacao } = req.body || {};
+      const problem = senha !== confirmacao ? 'As senhas não são iguais.' : passwordProblem(senha, { email: normEmail(email), name: nome });
+      if (problem) return send(res, setupPage(req, problem), 400);
       try {
-        const config = await configFor(provider);
-        const verifier = oidc.randomPKCECodeVerifier();
-        const state = oidc.randomState();
-        const nonce = oidc.randomNonce();
-        const now = Date.now();
-        for (const [k, v] of pending) if (v.expires < now) pending.delete(k);
-        pending.set(state, { provider: provider.id, verifier, nonce, returnTo: safeReturn(req.query.volta), expires: now + 10 * 60_000 });
-        const url = oidc.buildAuthorizationUrl(config, {
-          redirect_uri: `${baseUrl(req)}/auth/${provider.id}/callback`,
-          scope: 'openid email profile',
-          code_challenge: await oidc.calculatePKCECodeChallenge(verifier),
-          code_challenge_method: 'S256',
-          state,
-          nonce,
-          ...(provider.id === 'microsoft' || provider.id === 'google' ? { prompt: 'select_account' } : {}),
-        });
-        res.set('Set-Cookie', cookie(req, STATE_COOKIE, state, 600));
-        res.redirect(url.href);
+        const { user } = users.create({ name: nome, email, role: 'admin', password: senha });
+        log.log(`[login] Administrador criado no primeiro acesso: ${user.email}`);
+        res.set('Set-Cookie', cookie(req, createSession(user.id), sessionDays * 86400));
+        res.redirect(303, '/');
       } catch (err) {
-        log.error(`[login] Falha ao iniciar o login com ${provider.label}:`, err.message);
-        res.redirect(`/entrar?erro=conexao&provedor=${encodeURIComponent(provider.id)}`);
+        send(res, setupPage(req, err.message), err.status || 400);
       }
     });
 
-    app.get('/auth/:provider/callback', async (req, res) => {
-      const provider = providers.find((p) => p.id === req.params.provider);
-      const state = String(req.query.state || '');
-      const flow = pending.get(state);
-      const fail = (code) => res.redirect(`/entrar?erro=${code}`);
-      if (!provider || !flow || flow.provider !== provider.id || flow.expires < Date.now() || parseCookies(req.headers.cookie)[STATE_COOKIE] !== state) {
-        return fail('expirado');
-      }
-      pending.delete(state);
-      if (req.query.error) {
-        log.error(`[login] ${provider.label} recusou o login: ${String(req.query.error_description || req.query.error).slice(0, 300)}`);
-        return fail('cancelado');
-      }
-      try {
-        const config = await configFor(provider);
-        const current = new URL(`${baseUrl(req)}${req.originalUrl}`);
-        const tokens = await oidc.authorizationCodeGrant(config, current, { pkceCodeVerifier: flow.verifier, expectedState: state, expectedNonce: flow.nonce });
-        const claims = tokens.claims() || {};
-        const email = String(claims.email || claims.preferred_username || claims.upn || '').toLowerCase();
-        if (!email.includes('@')) return fail('sem-email');
-        if (claims.email_verified === false) return fail('nao-verificado');
-        if (allowedDomains.length && !allowedDomains.includes(email.split('@')[1])) {
-          log.log(`[login] ${email} recusado: fora dos domínios permitidos`);
-          return fail('dominio');
+    app.get('/trocar-senha', (req, res) => {
+      const user = userFromRequest(req);
+      if (!user) return res.redirect('/entrar');
+      send(res, changePage(req, user));
+    });
+
+    app.post('/trocar-senha', form, (req, res) => {
+      const user = userFromRequest(req);
+      if (!user) return res.redirect(303, '/entrar');
+      if (crossSite(req)) return send(res, changePage(req, user, ERRORS.origem), 403);
+      if (failures?.isBlocked(req)) return send(res, changePage(req, user, ERRORS.bloqueado), 429);
+      const { atual, senha, confirmacao } = req.body || {};
+      if (!user.mustChangePassword) {
+        const row = users.byEmail(user.email);
+        if (!verifyPassword(String(atual || ''), row.password_hash)) {
+          failures?.fail(req);
+          return send(res, changePage(req, user, 'A senha atual está incorreta.'), 400);
         }
-        const user = users.upsert({ email, name: String(claims.name || claims.given_name || email.split('@')[0]), provider: provider.id });
-        if (!user.active) return fail('bloqueado');
-        const token = createSession(user.id);
-        log.log(`[login] ${user.email} entrou (${provider.label}, perfil ${user.role})`);
-        res.set('Set-Cookie', [cookie(req, COOKIE, token, sessionDays * 86400), cookie(req, STATE_COOKIE, '', 0)]);
-        res.redirect(flow.returnTo);
-      } catch (err) {
-        log.error(`[login] Falha no retorno do login com ${provider.label}:`, err.message);
-        fail('falha');
+        if (atual === senha) return send(res, changePage(req, user, 'A nova senha precisa ser diferente da atual.'), 400);
       }
+      const problem = senha !== confirmacao ? 'As senhas não são iguais.' : passwordProblem(senha, user);
+      if (problem) return send(res, changePage(req, user, problem), 400);
+      users.setPassword(user.id, senha, { keepSession: user.sessionHash });
+      log.log(`[login] ${user.email} trocou a senha`);
+      res.redirect(303, safeReturn(req.body?.volta));
     });
 
     app.post('/auth/sair', (req, res) => {
       const token = parseCookies(req.headers.cookie)[COOKIE];
       if (token) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(sha256(token));
-      res.set('Set-Cookie', cookie(req, COOKIE, '', 0));
+      res.set('Set-Cookie', cookie(req, '', 0));
       res.json({ ok: true, login: '/entrar' });
     });
   }
 
-  /** Exige login em tudo, exceto a página de login e os arquivos dela. */
+  /** Exige login em tudo, exceto as páginas de login e os arquivos delas. */
+  const OPEN = new Set(['/entrar', '/primeiro-acesso', '/favicon.svg']);
   function requireUser(req, res, next) {
-    if (req.path === '/entrar' || req.path.startsWith('/auth/') || req.path.startsWith('/css/') || req.path === '/favicon.svg') return next();
+    if (OPEN.has(req.path) || req.path.startsWith('/css/')) return next();
     const user = userFromRequest(req);
+    if (user?.mustChangePassword && req.path !== '/trocar-senha' && req.path !== '/auth/sair') {
+      if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Crie a sua senha para continuar.', login: '/trocar-senha' });
+      return res.redirect('/trocar-senha');
+    }
     if (user) {
       req.user = user;
       return next();
@@ -269,8 +343,8 @@ export function createAuth({ db, providers = providersFromEnv(), publicUrl = pro
     res.status(401).send('Faça login para continuar.');
   }
 
-  /** Perfil mínimo para a rota (sem login individual configurado, todos podem tudo). */
+  /** Perfil mínimo para a rota (com o login desligado, todos podem tudo). */
   const allows = (req, role) => !enabled || (req.user && rank(req.user.role) >= rank(role));
 
-  return { enabled, providers: providers.map(({ id, label }) => ({ id, label })), routes, requireUser, allows, users, createSession, userFromRequest };
+  return { enabled, routes, requireUser, allows, users, createSession, userFromRequest };
 }

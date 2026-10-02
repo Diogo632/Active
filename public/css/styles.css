@@ -1064,7 +1064,6 @@ body.auth-sso .manual-author { display: none; }
 .login-card .brand-mark { margin: 0 auto 14px; }
 .login-card h1 { font-size: 22px; margin: 0 0 4px; }
 .login-card .msg-error { margin: 16px 0 0; text-align: left; }
-.login-buttons { display: flex; flex-direction: column; gap: 10px; margin: 24px 0 16px; }
 
 .badge-meaning { color: var(--brand-accent); background: var(--primary-soft); font-weight: 500; }
 
@@ -1076,5 +1075,12 @@ body.auth-sso .manual-author { display: none; }
 .role-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--text-muted); margin: 0 0 14px; }
 .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
 .switch input { accent-color: var(--brand-primary); width: 16px; height: 16px; }
-.login-buttons .btn { justify-content: center; }
 body.role-leitor .nav { margin-bottom: 18px; }
+.user-box .user-logout { width: 30px; height: 30px; flex: none; }
+.login-form { display: flex; flex-direction: column; gap: 12px; margin: 22px 0 14px; text-align: left; }
+.login-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; }
+.login-form .btn { margin-top: 6px; justify-content: center; }
+.login-card .msg-error + .login-form { margin-top: 14px; }
+.temp-password { display: grid; gap: 10px; padding: 14px; border: 1px dashed var(--brand-accent); border-radius: var(--radius-sm); background: var(--primary-soft); }
+.temp-password div { display: flex; flex-direction: column; gap: 2px; }
+.temp-password code { font-size: 16px; font-weight: 700; letter-spacing: .03em; user-select: all; background: none; padding: 0; }

@@ -277,7 +277,8 @@ function applyUser(me) {
   box.innerHTML = `
     <span class="user-avatar" title="${esc(shared.user.email)}">${esc(initials || '?')}</span>
     <span class="user-text label"><strong>${esc(shared.user.name)}</strong><small>${esc(ROLE_LABELS[shared.user.role] || shared.user.role)}</small></span>
-    <button type="button" class="icon-btn user-logout" id="logout" title="Sair">${icon('back')}</button>`;
+    <a class="icon-btn user-logout" href="/trocar-senha" title="Trocar senha">${icon('key')}</a>
+    <button type="button" class="icon-btn user-logout" id="logout" title="Sair">${icon('logout')}</button>`;
   box.querySelector('#logout').addEventListener('click', async () => {
     const res = await api.logout().catch(() => ({ login: '/entrar' }));
     location.href = res?.login || '/entrar';

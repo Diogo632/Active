@@ -4,15 +4,15 @@
 
 ### Acesso
 
-- **Login individual** (quando configurado, veja [11](11-login-busca-e-glossario.md)): conta Microsoft ou Google da empresa via OpenID Connect com PKCE, `state` e `nonce`; domínios restritos por `AUTH_ALLOWED_DOMAINS`; sessão em cookie HttpOnly, SameSite=Lax e Secure (em HTTPS), guardada no banco só como hash; perfis verificados no servidor (403); bloquear uma pessoa derruba as sessões dela na hora. As mensagens de erro da página de login são fixas (um link com `?erro=` não consegue mostrar texto inventado).
-- **Senha da plataforma** (HTTP Basic, usada só quando o login individual está desligado, `BASIC_AUTH_USER`/`BASIC_AUTH_PASSWORD`) em todas as telas e rotas `/api`. A comparação é feita em tempo constante.
+- **Login próprio** em todas as telas e rotas `/api` (veja [11](11-login-busca-e-glossario.md)): senhas com **scrypt** e sal individual; mínimo de 10 caracteres e recusa de senhas óbvias; senha provisória obrigatoriamente trocada no primeiro acesso; mesma mensagem para e-mail inexistente e senha errada (e o mesmo tempo de resposta); sessão em cookie HttpOnly, SameSite=Lax e Secure (em HTTPS), guardada no banco só como hash; perfis verificados no servidor (403); bloquear, excluir ou gerar senha nova derruba as sessões da pessoa na hora; formulários de login só aceitos da própria plataforma.
+- **Primeiro acesso**: enquanto não houver nenhuma conta, quem abrir o endereço cria o administrador. O servidor avisa no terminal; crie a conta logo depois de instalar (ou use `npm run admin`).
 - **Token de integração** (`INTEGRATION_TOKEN`) separado para o MCP e a API de integração; sem ele, essas rotas ficam desligadas.
-- **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam o endereço (429) até a janela passar. O primeiro acesso do navegador, que vem sem senha para abrir a janela de login, não conta. Atrás de proxy, configure `TRUST_PROXY` para o bloqueio valer por pessoa e não para o proxy inteiro.
-- **Avisos ao iniciar**: sem senha, senha com menos de 12 caracteres ou token curto.
+- **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam o endereço (429) até a janela passar. Atrás de proxy, configure `TRUST_PROXY` para o bloqueio valer por pessoa e não para o proxy inteiro.
+- **Avisos ao iniciar**: login desligado, nenhuma conta criada ou token curto.
 
 ### Navegador
 
-- **CSRF**: ações (POST, PUT, DELETE em `/api`) vindas de outro site são recusadas pelo cabeçalho `Sec-Fetch-Site`. Sem isso, um site malicioso aberto por alguém logado poderia usar a senha guardada pelo navegador.
+- **CSRF**: ações (POST, PUT, DELETE em `/api`) vindas de outro site são recusadas pelo cabeçalho `Sec-Fetch-Site`. Sem isso, um site malicioso aberto por alguém logado poderia agir com a sessão da pessoa.
 - **Política de conteúdo (CSP)** na página: só scripts da própria plataforma (nenhum script embutido no HTML), estilos e fontes do Google Fonts, vídeos do YouTube; sem plugins (`object-src 'none'`); a página não pode ser embutida em outros sites (`frame-ancestors 'self'`).
 - **Cabeçalhos** em todas as respostas: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (sem câmera, microfone, localização), `Cross-Origin-Opener-Policy`.
 - **Conteúdo sanitizado**: todo texto vindo de documentos, nomes de arquivo, buscas e respostas da Active AI é escapado; o Markdown é convertido e passa pelo **DOMPurify**. Links que abrem em nova aba recebem `rel="noopener noreferrer"`.
@@ -37,8 +37,8 @@
 
 ## Checklist para produção
 
-1. **Login individual** com `AUTH_ALLOWED_DOMAINS` e `PUBLIC_URL` (recomendado), ou **senha forte** (12+ caracteres) e **token novo** (`npm run gerar-token`). Troque os valores usados nos testes e atualize o token no GPTMaker.
-2. **HTTPS** obrigatório (nginx/Traefik com certificado). Com HTTP, a senha trafega sem criptografia.
+1. **Administrador criado** logo depois de instalar, `LOGIN` sem `off` e **token novo** (`npm run gerar-token`). Troque os valores usados nos testes e atualize o token no GPTMaker.
+2. **HTTPS** obrigatório (nginx/Traefik com certificado) e `PUBLIC_URL` com `https://`. Com HTTP, as senhas trafegam sem criptografia.
 3. **`TRUST_PROXY=1`** quando houver um proxy na frente.
 4. **Backup** periódico de `data/` e teste de restauração.
 5. **Atualizações**: `npm audit` e `npm ci` periodicamente, principalmente das bibliotecas que leem arquivos enviados (officeparser, ffmpeg) e do DOMPurify.
@@ -47,9 +47,9 @@
 
 ## Limitações conhecidas
 
-- **Sem login individual configurado**, todos usam a mesma senha e o campo *autor* é preenchido à mão. Configure o login com Microsoft ou Google para ter perfis e o registro de quem criou e editou cada documento.
+- **Sem recuperação de senha por e-mail** nem verificação em duas etapas: quem esquece a senha pede ao administrador uma senha provisória.
 - **Perfil Só consulta** vê todos os documentos: não há permissão por categoria ou documento.
-- **Visibilidade total**: quem tem a senha vê todos os documentos, inclusive os anexos temporários do chat (pelo link).
+- **Visibilidade total**: quem tem conta vê todos os documentos, inclusive os anexos temporários do chat (pelo link).
 - **Dados para terceiros**: o conteúdo lido pela Active AI vai para o n8n e o GPTMaker. Documentos com dados pessoais de clientes devem considerar a LGPD.
 - **Instruções em documentos**: um documento ou anexo pode conter texto tentando instruir o agente ("ignore as instruções…"). O impacto é limitado porque as ferramentas do agente só leem dados e registram lacunas, mas a resposta do agente pode ser influenciada.
-- **Processamento de arquivos enviados**: PDFs, documentos Office e vídeos são lidos por bibliotecas de terceiros; um arquivo malicioso pode explorar falhas delas. Por isso a importância de manter as dependências atualizadas e restringir quem tem a senha.
+- **Processamento de arquivos enviados**: PDFs, documentos Office e vídeos são lidos por bibliotecas de terceiros; um arquivo malicioso pode explorar falhas delas. Por isso a importância de manter as dependências atualizadas e restringir quem tem conta.

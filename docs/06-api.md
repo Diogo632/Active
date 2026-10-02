@@ -1,6 +1,6 @@
 # 6. Referência da API
 
-API HTTP usada pela interface. Todas as rotas `/api/*` (exceto `/api/integracao/*`) exigem a **senha da plataforma** (HTTP Basic) quando ela está configurada. As respostas são JSON; erros vêm como `{ "error": "mensagem" }` com o status HTTP correspondente.
+API HTTP usada pela interface. Todas as rotas `/api/*` (exceto `/api/integracao/*`) exigem **login** (cookie de sessão `kb_sessao`, criado em `POST /entrar`). As respostas são JSON; erros vêm como `{ "error": "mensagem" }` com o status HTTP correspondente.
 
 Regras gerais:
 
@@ -205,24 +205,28 @@ Resposta em **Server-Sent Events** (`text/event-stream`), um evento por linha `d
 
 | Rota | Perfil | Descrição |
 | --- | --- | --- |
-| `GET /api/me` | todos | `{ user: { id, email, name, provider, role } \| null, auth: { enabled, providers, roles } }` |
-| `GET /api/usuarios` | admin | `[{ id, email, name, provider, role, active, created_at, last_login_at }]` |
-| `PUT /api/usuarios/{id}` | admin | `{ role?: "admin" \| "editor" \| "leitor", active?: boolean }`. Bloquear encerra as sessões da pessoa |
+| `GET /api/me` | todos | `{ user: { id, email, name, role } \| null, auth: { enabled, roles } }` |
+| `GET /api/usuarios` | admin | `[{ id, email, name, role, active, must_change_password, created_at, last_login_at }]` |
+| `POST /api/usuarios` | admin | `{ name, email, role }` → 201 `{ user, password }` (senha provisória, mostrada só aqui) |
+| `PUT /api/usuarios/{id}` | admin | `{ name?, email?, role?: "admin" \| "editor" \| "leitor", active?: boolean }`. Bloquear encerra as sessões da pessoa |
+| `POST /api/usuarios/{id}/senha` | admin | Gera nova senha provisória → `{ password }` e encerra as sessões da pessoa |
+| `DELETE /api/usuarios/{id}` | admin | Exclui a conta → 204 |
 | `GET /api/glossario` | todos | `[{ id, term, synonyms: [], description, created_at, updated_at }]` |
 | `POST /api/glossario` | editor | `{ term, synonyms: "a, b" \| ["a","b"], description }` → 201 |
 | `PUT /api/glossario/{id}` | editor | Mesmos campos, todos opcionais |
 | `DELETE /api/glossario/{id}` | editor | 204 |
-| `GET /entrar` | — | Página de login (`?volta=` para onde voltar) |
-| `GET /auth/{provedor}` e `/auth/{provedor}/callback` | — | Início e retorno do login (`microsoft`, `google` ou `oidc`) |
+| `GET /entrar` · `POST /entrar` | — | Página de login (formulário `email`, `senha`, `volta`). Sem nenhuma conta, mostra o *Primeiro acesso* |
+| `POST /primeiro-acesso` | — | Cria o administrador (`nome`, `email`, `senha`, `confirmacao`); só funciona enquanto não houver conta |
+| `GET /trocar-senha` · `POST /trocar-senha` | logado | Troca a senha (`atual`, `senha`, `confirmacao`); obrigatória depois de uma senha provisória |
 | `POST /auth/sair` | — | Encerra a sessão → `{ ok, login }` |
 
-Com o login ligado, chamadas sem sessão recebem `401 { error, login: "/entrar" }`, e alterações que o perfil não permite recebem `403`. *Só consulta* pode usar `POST /api/feedback`, `POST /api/chat/anexos` e `POST /api/ai/chat`. Os campos `author` (na criação) e `updated_by` vêm da pessoa logada; o `author` enviado pelo cliente é ignorado.
+Chamadas sem sessão recebem `401 { error, login: "/entrar" }` (ou `login: "/trocar-senha"` enquanto a pessoa não criar a senha), e alterações que o perfil não permite recebem `403`. *Só consulta* pode usar `POST /api/feedback`, `POST /api/chat/anexos` e `POST /api/ai/chat`. Os campos `author` (na criação) e `updated_by` vêm da pessoa logada; o `author` enviado pelo cliente é ignorado.
 
 Resultados de busca (`GET /api/items?q=`) achados só pelo significado vêm com `by_meaning: true` e o trecho mais parecido em `snippet`.
 
 ## Integração e MCP
 
-Protegidos pelo `INTEGRATION_TOKEN` (não pela senha da plataforma). Detalhes em [3. Active AI e integrações](03-active-ai-e-integracoes.md).
+Protegidos pelo `INTEGRATION_TOKEN` (não pelo login). Detalhes em [3. Active AI e integrações](03-active-ai-e-integracoes.md).
 
 | Rota | Descrição |
 | --- | --- |

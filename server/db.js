@@ -154,7 +154,7 @@ export function openDatabase(dataDir) {
       PRIMARY KEY (item_id, idx)
     );
 
-    -- Login individual: pessoas, perfis e sessões.
+    -- Login próprio: pessoas (e-mail e senha), perfis e sessões.
     CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
       email         TEXT NOT NULL UNIQUE,
@@ -172,6 +172,9 @@ export function openDatabase(dataDir) {
       expires_at TEXT NOT NULL
     );
   `);
+  const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!userColumns.includes('password_hash')) db.exec("ALTER TABLE users ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+  if (!userColumns.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
   const feedbackColumns = db.prepare('PRAGMA table_info(feedback)').all().map((c) => c.name);
   if (!feedbackColumns.includes('user_name')) db.exec("ALTER TABLE feedback ADD COLUMN user_name TEXT NOT NULL DEFAULT ''");
 

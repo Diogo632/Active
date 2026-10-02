@@ -79,15 +79,15 @@ No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Err
 | Resultados *≈ significado* sem relação | Aumente `SEMANTIC_MIN_SCORE` (ex.: `0.82`) olhando as notas no log `[busca semântica]` |
 | Sinônimo não encontra o documento | Cadastre o termo e o sinônimo no **Glossário** (o termo tem de aparecer como palavra inteira na busca) |
 
-## Login individual
+## Login
 
 | Sintoma | Causa provável | O que fazer |
 | --- | --- | --- |
-| Microsoft: *AADSTS50011 … redirect URI … does not match* | URI de retorno não cadastrada ou `PUBLIC_URL` diferente do endereço aberto | Cadastre exatamente `PUBLIC_URL` + `/auth/microsoft/callback` no Azure (no Codespace, o endereço `…-3001.app.github.dev`) |
-| Google: *Erro 400: redirect_uri_mismatch* | O mesmo, no Google | Cadastre `PUBLIC_URL` + `/auth/google/callback` |
-| *Esta conta não é da empresa* | E-mail fora do `AUTH_ALLOWED_DOMAINS` | Entre com a conta da empresa ou inclua o domínio |
-| *Não foi possível conectar ao login* | O servidor não alcança `login.microsoftonline.com` / `accounts.google.com` | Veja o log `[login]`; libere a saída HTTPS do servidor |
-| *Não foi possível concluir o login* | Segredo do cliente errado ou vencido (Azure) | Veja o log `[login] Falha no retorno`; gere um novo segredo |
-| *O login expirou* | Mais de 10 minutos na tela da Microsoft/Google, ou a plataforma reiniciou no meio | Clique em entrar de novo |
-| Não aparece o menu Pessoas | Só administradores veem | A primeira pessoa a entrar é administradora; inclua o e-mail em `ADMIN_EMAILS` e entre de novo |
+| Aparece *Primeiro acesso* | Ainda não há nenhuma conta (banco novo ou pasta `data/` trocada) | Crie o administrador. Se esperava ver contas, confira o `DATA_DIR` |
+| *E-mail ou senha incorretos* | Senha errada, e-mail com outro endereço ou conta excluída | Administrador: **Pessoas** → chave → nova senha provisória |
+| *Seu acesso está bloqueado* | Conta bloqueada em **Pessoas** | Administrador libera a caixa *Acesso* |
+| *Muitas tentativas erradas* | 10 erros em 10 minutos do mesmo endereço | Aguarde 10 minutos. Atrás de proxy, configure `TRUST_PROXY=1` (senão todos dividem o mesmo limite) |
+| O administrador esqueceu a senha | — | No servidor: `npm run admin -- email@empresa.com.br` gera uma senha provisória |
+| Volta para o login a cada página | Cookie não está sendo guardado (ex.: `PUBLIC_URL` com `https://` mas acesso por `http://`) | Acesse pelo mesmo endereço do `PUBLIC_URL` |
+| Não aparece o menu Pessoas | Só administradores veem | Um administrador muda o seu perfil |
 | Botões de editar sumiram | Perfil *Só consulta* | Um administrador muda o perfil em **Pessoas**; recarregue a página |

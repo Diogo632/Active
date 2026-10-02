@@ -28,7 +28,7 @@ server/
   youtube.js      Links, título, legendas e áudio (yt-dlp) do YouTube
   chapters.js     Resumo e capítulos dos vídeos pedidos à Active AI
   gaps.js         Detecta respostas em que a Active AI não encontrou a informação
-  auth.js         Login individual (OpenID Connect: Microsoft, Google), sessões, pessoas e perfis
+  auth.js         Login próprio (senhas scrypt), páginas de login, sessões, pessoas e perfis
   search.js       Busca da plataforma: junta palavras (FTS5), sinônimos do glossário e significado (RRF)
   semantic.js     Busca por significado: trechos, vetores (multilingual-e5) e índice em memória
   glossary.js     Glossário: termos, sinônimos, variações da busca e explicação para a Active AI
@@ -50,6 +50,7 @@ public/
     util.js       Ícones, Markdown, datas, diálogos, armazenamento local
     theme-init.js Aplica o tema salvo antes da página aparecer
 scripts/testar-mcp.js   Teste do MCP pela linha de comando (npm run mcp:testar)
+scripts/admin.js        Cria administrador ou recupera acesso (npm run admin)
 n8n/                    Exemplo de workflow, nó que remove o rascunho <analise> e trecho de prompt do agente
 test/                   Testes automatizados
 docs/                   Esta documentação
@@ -64,6 +65,7 @@ docs/                   Esta documentação
 | `npm test` | Roda todos os testes |
 | `npm run mcp:testar -- [url] [token] [palavra]` | Testa o MCP como um agente faria |
 | `npm run gerar-token` | Gera um token aleatório para o `INTEGRATION_TOKEN` |
+| `npm run admin -- email "Nome"` | Cria um administrador ou gera senha provisória para recuperar o acesso |
 
 ## Testes
 
@@ -79,9 +81,9 @@ npm test
 | `test/transcribe.test.js` | Formatação de transcrição, legendas, transcrição em segundo plano com ffmpeg real e motor simulado |
 | `test/melhorias.test.js` | Versões, revisão, lacunas, avaliações, capítulos, YouTube (simulado), anexos do chat |
 | `test/seguranca.test.js` | Senha, cabeçalhos, CSP, CSRF e limite de tentativas |
-| `test/conta-e-busca.test.js` | Login completo com um provedor OpenID simulado, domínios, perfis, autor/atualizado por, glossário, busca por significado (vetores simulados) |
+| `test/conta-e-busca.test.js` | Primeiro acesso, login, senha provisória e troca, perfis, bloqueio e exclusão, autor/atualizado por, glossário, busca por significado (vetores simulados) |
 
-Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, authProviders })`. O `npm test` roda com `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores.
+Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, login })`. O `npm test` roda com `LOGIN=off` (os testes de login passam `login: true`) e `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores.
 
 ## Como estender
 

@@ -1,73 +1,11 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { generateKeyPair, exportJWK, SignJWT } from 'jose';
 import { createApp } from '../server/index.js';
 import { chunkText } from '../server/semantic.js';
-
-// ---------- Provedor de login (OpenID Connect) simulado, no lugar da Microsoft/Google ----------
-let idp;
-let idpUrl;
-let nextLogin = { email: 'ana@activecorp.com.br', name: 'Ana Souza' };
-const codes = new Map();
-
-async function startIdp() {
-  const { publicKey, privateKey } = await generateKeyPair('RS256');
-  const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'RS256', use: 'sig' };
-  idp = http.createServer(async (req, res) => {
-    const url = new URL(req.url, idpUrl);
-    if (url.pathname === '/.well-known/openid-configuration') {
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(
-        JSON.stringify({
-          issuer: idpUrl,
-          authorization_endpoint: `${idpUrl}/authorize`,
-          token_endpoint: `${idpUrl}/token`,
-          jwks_uri: `${idpUrl}/jwks`,
-          response_types_supported: ['code'],
-          subject_types_supported: ['public'],
-          id_token_signing_alg_values_supported: ['RS256'],
-          code_challenge_methods_supported: ['S256'],
-          token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
-        }),
-      );
-    }
-    if (url.pathname === '/jwks') {
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ keys: [jwk] }));
-    }
-    if (url.pathname === '/authorize') {
-      const code = Math.random().toString(36).slice(2);
-      codes.set(code, { nonce: url.searchParams.get('nonce'), ...nextLogin });
-      const back = new URL(url.searchParams.get('redirect_uri'));
-      back.searchParams.set('code', code);
-      back.searchParams.set('state', url.searchParams.get('state'));
-      res.writeHead(302, { Location: back.href });
-      return res.end();
-    }
-    if (url.pathname === '/token') {
-      let body = '';
-      for await (const c of req) body += c;
-      const login = codes.get(new URLSearchParams(body).get('code'));
-      const idToken = await new SignJWT({ email: login.email, name: login.name, nonce: login.nonce, email_verified: true })
-        .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
-        .setIssuer(idpUrl)
-        .setAudience('plataforma')
-        .setSubject(login.email)
-        .setIssuedAt()
-        .setExpirationTime('5m')
-        .sign(privateKey);
-      res.setHeader('Content-Type', 'application/json');
-      return res.end(JSON.stringify({ access_token: 'at', token_type: 'Bearer', expires_in: 300, id_token: idToken }));
-    }
-    res.writeHead(404).end();
-  });
-  await new Promise((r) => idp.listen(0, '127.0.0.1', r));
-  idpUrl = `http://127.0.0.1:${idp.address().port}`;
-}
+import { hashPassword, verifyPassword, passwordProblem, temporaryPassword } from '../server/auth.js';
 
 // ---------- Busca por significado simulada: vetores por "conceito" ----------
 const CONCEPTS = [
@@ -92,41 +30,26 @@ let base;
 let app;
 
 before(async () => {
-  await startIdp();
-  process.env.AUTH_ALLOWED_DOMAINS = 'activecorp.com.br';
-  process.env.AUTH_DEFAULT_ROLE = 'leitor';
   process.env.INTEGRATION_TOKEN = 'token-de-teste-com-mais-de-trinta-e-dois-caracteres';
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-conta-'));
-  app = createApp({
-    dataDir,
-    ai: { configured: false, chat: async () => {} },
-    embedder: fakeEmbedder,
-    authProviders: [{ id: 'oidc', label: 'conta da empresa', issuer: idpUrl, clientId: 'plataforma', clientSecret: 'segredo' }],
-  });
+  app = createApp({ dataDir, login: true, ai: { configured: false, chat: async () => {} }, embedder: fakeEmbedder });
   await new Promise((r) => (server = app.app.listen(0, '127.0.0.1', r)));
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
 after(() => {
   server?.close();
-  idp?.close();
   fs.rmSync(dataDir, { recursive: true, force: true });
-  delete process.env.AUTH_ALLOWED_DOMAINS;
-  delete process.env.AUTH_DEFAULT_ROLE;
 });
 
-const cookieOf = (res, name) => (res.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).find((c) => c.startsWith(`${name}=`));
+const cookieOf = (res, name = 'kb_sessao') => (res.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).find((c) => c.startsWith(`${name}=`));
+const post = (url, fields, headers = {}) =>
+  fetch(base + url, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/x-www-form-urlencoded', ...headers }, body: new URLSearchParams(fields) });
 
-/** Faz o login completo (plataforma → provedor → retorno) e devolve o cookie da sessão. */
-async function login(as) {
-  nextLogin = as;
-  const start = await fetch(`${base}/auth/oidc?volta=${encodeURIComponent('/#/docs')}`, { redirect: 'manual' });
-  assert.equal(start.status, 302);
-  const stateCookie = cookieOf(start, 'kb_login');
-  const atIdp = await fetch(start.headers.get('location'), { redirect: 'manual' });
-  const callback = await fetch(atIdp.headers.get('location'), { redirect: 'manual', headers: { Cookie: stateCookie } });
-  assert.equal(callback.status, 302);
-  return { location: callback.headers.get('location'), session: cookieOf(callback, 'kb_sessao') };
+/** Entra com e-mail e senha; devolve o redirecionamento e o cookie da sessão. */
+async function login(email, senha, volta = '/') {
+  const res = await post('/entrar', { email, senha, volta });
+  return { status: res.status, location: res.headers.get('location'), session: cookieOf(res), html: res.status === 303 ? '' : await res.text() };
 }
 
 const api = (cookie, method, url, body) =>
@@ -138,48 +61,101 @@ const api = (cookie, method, url, body) =>
 
 let admin;
 let reader;
+let readerId;
 
-test('login individual: sem sessão vai para a página de login; o primeiro a entrar é admin', async () => {
+test('senhas: scrypt com sal, senha provisória e regras mínimas', () => {
+  const h = hashPassword('uma senha comprida');
+  assert.match(h, /^scrypt\$/);
+  assert.notEqual(h, hashPassword('uma senha comprida'), 'cada hash tem o seu sal');
+  assert.ok(verifyPassword('uma senha comprida', h));
+  assert.ok(!verifyPassword('outra senha comprida', h));
+  assert.ok(!verifyPassword('x', 'lixo'));
+  assert.match(temporaryPassword(), /^[a-z2-9]{4}-[a-z2-9]{4}-[a-z2-9]{4}$/);
+  assert.match(passwordProblem('curta'), /pelo menos/);
+  assert.match(passwordProblem('1234567890'), /óbvia/);
+  assert.match(passwordProblem('ana.souza-2026', { email: 'ana.souza@activecorp.com.br' }), /e-mail/);
+  assert.equal(passwordProblem('cavalo bateria grampo'), '');
+});
+
+test('primeiro acesso: sem nenhuma conta, quem abre cria o administrador (uma vez só)', async () => {
   assert.equal((await fetch(`${base}/api/items`)).status, 401);
   const page = await fetch(`${base}/`, { redirect: 'manual' });
   assert.equal(page.status, 302);
   assert.match(page.headers.get('location'), /^\/entrar\?volta=/);
-  assert.match(await (await fetch(`${base}/entrar`)).text(), /Entrar com conta da empresa/);
+  assert.match(await (await fetch(`${base}/entrar`)).text(), /Primeiro acesso/);
 
-  const first = await login({ email: 'ana@activecorp.com.br', name: 'Ana Souza' });
-  assert.equal(first.location, '/#/docs', 'volta para onde a pessoa estava');
-  admin = first.session;
+  const fields = { nome: 'Ana Souza', email: 'Ana@ActiveCorp.com.br', senha: 'cavalo bateria grampo', confirmacao: 'cavalo bateria grampo' };
+  assert.equal((await post('/primeiro-acesso', { ...fields, confirmacao: 'outra coisa qualquer' })).status, 400);
+  const created = await post('/primeiro-acesso', fields);
+  assert.equal(created.status, 303);
+  admin = cookieOf(created);
   const me = await (await api(admin, 'GET', '/api/me')).json();
-  assert.equal(me.user.email, 'ana@activecorp.com.br');
-  assert.equal(me.user.role, 'admin');
+  assert.deepEqual([me.user.email, me.user.role], ['ana@activecorp.com.br', 'admin']);
+
+  // Depois disso, ninguém mais cria administrador por ali.
+  const again = await post('/primeiro-acesso', { ...fields, email: 'intruso@x.com' });
+  assert.equal(again.headers.get('location'), '/entrar');
+  assert.equal(app.auth.users.count(), 1);
+  assert.match(await (await fetch(`${base}/entrar`)).text(), /name="senha"/);
 });
 
-test('conta de fora do domínio da empresa é recusada', async () => {
-  const outside = await login({ email: 'alguem@gmail.com', name: 'Fora' });
-  assert.equal(outside.location, '/entrar?erro=dominio');
-  const page = await (await fetch(`${base}/entrar?erro=dominio`)).text();
-  assert.match(page, /Esta conta não é da empresa/);
-  const forged = await (await fetch(`${base}/entrar?erro=${encodeURIComponent('Ligue para 0800 e informe sua senha')}`)).text();
-  assert.doesNotMatch(forged, /0800/);
-  assert.equal(outside.session, undefined);
+test('login: senha errada é recusada sem dizer se o e-mail existe; pedido de outro site é bloqueado', async () => {
+  const wrong = await login('ana@activecorp.com.br', 'senha errada demais');
+  assert.equal(wrong.status, 401);
+  assert.match(wrong.html, /E-mail ou senha incorretos/);
+  const unknown = await login('ninguem@activecorp.com.br', 'senha errada demais');
+  assert.match(unknown.html, /E-mail ou senha incorretos/);
+  const cross = await post('/entrar', { email: 'ana@activecorp.com.br', senha: 'cavalo bateria grampo' }, { 'Sec-Fetch-Site': 'cross-site' });
+  assert.equal(cross.status, 403);
+  const ok = await login('ANA@activecorp.com.br', 'cavalo bateria grampo', '/#/docs');
+  assert.equal(ok.location, '/#/docs', 'volta para onde a pessoa estava');
+  assert.ok(ok.session);
+  // Volta só para endereços da própria plataforma.
+  assert.equal((await login('ana@activecorp.com.br', 'cavalo bateria grampo', '//site-malicioso.com')).location, '/');
+});
+
+test('admin cria a conta; a pessoa entra com a senha provisória e precisa criar a dela', async () => {
+  const res = await api(admin, 'POST', '/api/usuarios', { name: 'Bruno Lima', email: 'bruno@activecorp.com.br', role: 'leitor' });
+  assert.equal(res.status, 201);
+  const { user, password } = await res.json();
+  readerId = user.id;
+  assert.equal(user.must_change_password, 1);
+  assert.equal((await api(admin, 'POST', '/api/usuarios', { name: 'Outro', email: 'bruno@activecorp.com.br' })).status, 409);
+  assert.ok(!JSON.stringify(await (await api(admin, 'GET', '/api/usuarios')).json()).includes('password_hash'), 'a lista nunca traz a senha');
+
+  const first = await login('bruno@activecorp.com.br', password);
+  assert.match(first.location, /^\/trocar-senha/);
+  reader = first.session;
+  const blocked = await api(reader, 'GET', '/api/items');
+  assert.equal(blocked.status, 401);
+  assert.equal((await blocked.json()).login, '/trocar-senha');
+  assert.match(await (await api(reader, 'GET', '/trocar-senha')).text(), /Crie a sua senha/);
+
+  const change = (fields) => fetch(`${base}/trocar-senha`, { method: 'POST', redirect: 'manual', headers: { Cookie: reader, 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) });
+  assert.equal((await change({ senha: 'curta', confirmacao: 'curta' })).status, 400);
+  assert.equal((await change({ senha: 'girassol amarelo 7', confirmacao: 'girassol amarelo 7' })).status, 303);
+  assert.equal((await api(reader, 'GET', '/api/items')).status, 200, 'a sessão continua depois de criar a senha');
+  assert.equal((await login('bruno@activecorp.com.br', password)).status, 401, 'a provisória não vale mais');
+
+  // Trocar de novo exige a senha atual.
+  assert.equal((await change({ atual: 'errada errada', senha: 'outra senha boa 8', confirmacao: 'outra senha boa 8' })).status, 400);
 });
 
 test('perfis: leitor só consulta; admin promove a editor; autor e quem editou ficam registrados', async () => {
-  reader = (await login({ email: 'bruno@activecorp.com.br', name: 'Bruno Lima' })).session;
   assert.equal((await (await api(reader, 'GET', '/api/me')).json()).user.role, 'leitor');
   assert.equal((await api(reader, 'POST', '/api/articles', { title: 'Tentativa' })).status, 403);
-  assert.equal((await api(reader, 'GET', '/api/items')).status, 200);
+  assert.equal((await api(reader, 'POST', '/api/glossario', { term: 'X' })).status, 403);
   const doc = await (await api(admin, 'POST', '/api/articles', { title: 'Emissão de NF-e', content: 'Erro na emissão de NF-e: verifique o certificado digital.', author: 'Ignorado' })).json();
   assert.equal(doc.author, 'Ana Souza', 'o autor vem do login, não do formulário');
   assert.equal((await api(reader, 'POST', '/api/feedback', { target: 'documento', item_id: doc.id, helpful: true })).status, 201);
 
-  // Só admin vê e muda perfis; ninguém tira o próprio admin.
+  // Só admin vê e muda pessoas; ninguém tira o próprio admin nem se exclui.
   assert.equal((await api(reader, 'GET', '/api/usuarios')).status, 403);
-  const people = await (await api(admin, 'GET', '/api/usuarios')).json();
-  const bruno = people.find((p) => p.email === 'bruno@activecorp.com.br');
-  const anaId = people.find((p) => p.email === 'ana@activecorp.com.br').id;
+  assert.equal((await api(reader, 'POST', '/api/usuarios', { name: 'X', email: 'x@x.com' })).status, 403);
+  const anaId = (await (await api(admin, 'GET', '/api/me')).json()).user.id;
   assert.equal((await api(admin, 'PUT', `/api/usuarios/${anaId}`, { role: 'leitor' })).status, 400);
-  assert.equal((await (await api(admin, 'PUT', `/api/usuarios/${bruno.id}`, { role: 'editor' })).json()).role, 'editor');
+  assert.equal((await api(admin, 'DELETE', `/api/usuarios/${anaId}`)).status, 400);
+  assert.equal((await (await api(admin, 'PUT', `/api/usuarios/${readerId}`, { role: 'editor' })).json()).role, 'editor');
 
   await api(reader, 'PUT', `/api/items/${doc.id}`, { content: 'Erro na emissão de NF-e: renove o certificado A1.' });
   const versions = await (await api(admin, 'GET', `/api/items/${doc.id}/versions`)).json();
@@ -187,14 +163,27 @@ test('perfis: leitor só consulta; admin promove a editor; autor e quem editou f
   const updated = await (await api(admin, 'GET', `/api/items/${doc.id}`)).json();
   assert.equal(updated.updated_by, 'Bruno Lima');
   assert.equal(updated.author, 'Ana Souza');
+});
 
-  // Pessoa desativada perde a sessão na hora.
-  await api(admin, 'PUT', `/api/usuarios/${bruno.id}`, { active: false });
+test('bloquear, gerar senha provisória e excluir encerram as sessões na hora', async () => {
+  await api(admin, 'PUT', `/api/usuarios/${readerId}`, { active: false });
   assert.equal((await api(reader, 'GET', '/api/items')).status, 401);
+  const refused = await login('bruno@activecorp.com.br', 'girassol amarelo 7');
+  assert.equal(refused.status, 401);
+  assert.match(refused.html, /bloqueado/);
+  await api(admin, 'PUT', `/api/usuarios/${readerId}`, { active: true });
+
+  reader = (await login('bruno@activecorp.com.br', 'girassol amarelo 7')).session;
+  const { password } = await (await api(admin, 'POST', `/api/usuarios/${readerId}/senha`)).json();
+  assert.equal((await api(reader, 'GET', '/api/items')).status, 401, 'a senha nova derruba a sessão antiga');
+  assert.match((await login('bruno@activecorp.com.br', password)).location, /^\/trocar-senha/);
+
+  assert.equal((await api(admin, 'DELETE', `/api/usuarios/${readerId}`)).status, 204);
+  assert.equal((await login('bruno@activecorp.com.br', password)).status, 401);
 });
 
 test('sair encerra a sessão; MCP e integração continuam pelo token', async () => {
-  const s = (await login({ email: 'carla@activecorp.com.br', name: 'Carla' })).session;
+  const s = (await login('ana@activecorp.com.br', 'cavalo bateria grampo')).session;
   assert.equal((await api(s, 'GET', '/api/me')).status, 200);
   await api(s, 'POST', '/auth/sair');
   assert.equal((await api(s, 'GET', '/api/items')).status, 401);

@@ -140,7 +140,7 @@ export async function homeView(view) {
               'library',
               'A base ainda está vazia',
               'Comece escrevendo um texto ou enviando documentos (PDF, Word, Excel, PowerPoint, imagens, vídeos de treinamento e qualquer outro tipo).',
-              '<div class="row" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
+              '<div class="row needs-editor" style="justify-content:center"><a class="btn btn-primary" href="#/new">Escrever texto</a><a class="btn" href="#/upload">Enviar arquivos</a></div>',
             )
           : `<section class="home-list">
               <div class="home-tabs" role="tablist">
@@ -1314,15 +1314,46 @@ const ROLE_INFO = {
   editor: { label: 'Editor', text: 'cria e edita documentos' },
   leitor: { label: 'Só consulta', text: 'pesquisa e conversa com a Active AI' },
 };
-const PROVIDER_LABELS = { microsoft: 'Microsoft', google: 'Google' };
+
+/** Mostra a senha provisória uma única vez, com botão de copiar, para o administrador repassar. */
+function showPassword({ title, user, password }) {
+  const dialog = document.createElement('dialog');
+  dialog.innerHTML = `
+    <form method="dialog" class="dialog-body form">
+      <h3>${esc(title)}</h3>
+      <p class="muted">Envie para <strong>${esc(user.name)}</strong> por um canal seguro (Teams, pessoalmente). No primeiro login, a plataforma pede para a pessoa criar a própria senha.</p>
+      <div class="temp-password">
+        <div><span class="muted small">E-mail</span><code>${esc(user.email)}</code></div>
+        <div><span class="muted small">Senha provisória</span><code id="temp-pass">${esc(password)}</code></div>
+      </div>
+      <p class="muted small">${icon('alert')} Esta senha não aparece de novo. Se ela se perder, gere outra em “Nova senha”.</p>
+      <div class="form-actions">
+        <button class="btn" type="button" id="copy-pass">${icon('copy')}Copiar acesso</button>
+        <button class="btn btn-primary" value="ok">Pronto</button>
+      </div>
+    </form>`;
+  document.body.appendChild(dialog);
+  hydrateIcons(dialog);
+  dialog.querySelector('#copy-pass').addEventListener('click', async () => {
+    const text = `Base de Conhecimento Active\nEndereço: ${location.origin}\nE-mail: ${user.email}\nSenha provisória: ${password}\n(no primeiro acesso você cria a sua senha)`;
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Acesso copiado.');
+    } catch {
+      toast('Não foi possível copiar. Selecione o texto e copie.', 'error');
+    }
+  });
+  dialog.addEventListener('close', () => dialog.remove());
+  dialog.showModal();
+}
 
 export async function usersView(view) {
   if (!shared.authEnabled) {
-    view.innerHTML = emptyState('users', 'Login individual desligado', 'Configure o login com a conta Microsoft ou Google da empresa para cada pessoa entrar com a própria conta. Veja docs/05-configuracao.md.');
+    view.innerHTML = emptyState('users', 'Login desligado', 'A plataforma está rodando com LOGIN=off. Remova essa opção do .env para cada pessoa entrar com o próprio e-mail e senha.');
     return;
   }
   if (shared.user?.role !== 'admin') {
-    view.innerHTML = emptyState('shield', 'Somente administradores', 'Peça a um administrador para mudar perfis de acesso.');
+    view.innerHTML = emptyState('shield', 'Somente administradores', 'Peça a um administrador para criar contas ou mudar perfis.');
     return;
   }
   view.innerHTML = skeleton('list');
@@ -1331,26 +1362,116 @@ export async function usersView(view) {
   const render = () => {
     view.innerHTML = `
       <div class="page-header">
-        <div><h1>Pessoas</h1><p>Quem já entrou na plataforma. Cada pessoa aparece aqui no primeiro login; defina o que ela pode fazer.</p></div>
+        <div><h1>Pessoas</h1><p>Contas de acesso à plataforma. Cada pessoa entra com o próprio e-mail e senha.</p></div>
+        <button class="btn btn-primary" id="new-user" type="button">${icon('plus')}Nova pessoa</button>
       </div>
       <div class="role-legend">${Object.values(ROLE_INFO).map((r) => `<span><strong>${r.label}</strong> — ${r.text}</span>`).join('')}</div>
       <div class="card"><table class="cat-table users-table">
-        <thead><tr><th>Pessoa</th><th>Perfil</th><th class="hide-sm">Último acesso</th><th>Acesso</th></tr></thead>
+        <thead><tr><th>Pessoa</th><th>Perfil</th><th class="hide-sm">Último acesso</th><th>Acesso</th><th></th></tr></thead>
         <tbody>${users
           .map((u) => {
             const me = u.id === shared.user.id;
             return `<tr class="${u.active ? '' : 'user-inactive'}" data-user="${u.id}">
-              <td><strong>${esc(u.name || u.email)}</strong>${me ? ' <span class="badge badge-file">você</span>' : ''}<br><span class="muted small">${esc(u.email)} · ${esc(PROVIDER_LABELS[u.provider] || u.provider)}</span></td>
+              <td><strong>${esc(u.name || u.email)}</strong>${me ? ' <span class="badge badge-file">você</span>' : ''}${u.must_change_password ? ' <span class="badge badge-warn" title="Ainda não criou a própria senha">senha provisória</span>' : ''}<br><span class="muted small">${esc(u.email)}</span></td>
               <td><select class="select select-sm" data-role${me ? ' disabled title="Você não pode mudar o seu próprio perfil"' : ''}>${Object.entries(ROLE_INFO)
                 .map(([value, r]) => `<option value="${value}"${u.role === value ? ' selected' : ''}>${r.label}</option>`)
                 .join('')}</select></td>
-              <td class="hide-sm muted small">${u.last_login_at ? esc(relativeDate(u.last_login_at)) : '—'}</td>
+              <td class="hide-sm muted small">${u.last_login_at ? esc(relativeDate(u.last_login_at)) : 'nunca entrou'}</td>
               <td><label class="switch"${me ? ' title="Você não pode bloquear o seu próprio acesso"' : ''}><input type="checkbox" data-active${u.active ? ' checked' : ''}${me ? ' disabled' : ''} /><span>${u.active ? 'Liberado' : 'Bloqueado'}</span></label></td>
+              <td style="text-align:right;white-space:nowrap">${
+                me
+                  ? `<a class="icon-btn" href="/trocar-senha" title="Trocar a minha senha">${icon('key')}</a>`
+                  : `<button class="icon-btn" type="button" data-edit title="Editar nome e e-mail">${icon('edit')}</button>
+                     <button class="icon-btn" type="button" data-reset title="Gerar nova senha provisória">${icon('key')}</button>
+                     <button class="icon-btn" type="button" data-remove title="Excluir conta">${icon('trash')}</button>`
+              }</td>
             </tr>`;
           })
           .join('')}</tbody></table></div>`;
     hydrateIcons(view);
   };
+
+  const form = (user) => {
+    const dialog = document.createElement('dialog');
+    dialog.innerHTML = `
+      <form method="dialog" class="dialog-body form">
+        <h3>${user ? 'Editar pessoa' : 'Nova pessoa'}</h3>
+        <div class="field"><label>Nome</label><input class="input" name="name" required maxlength="120" autocomplete="off" value="${esc(user?.name || '')}" /></div>
+        <div class="field"><label>E-mail</label><input class="input" name="email" type="email" required autocomplete="off" placeholder="nome@activecorp.com.br" value="${esc(user?.email || '')}" /></div>
+        ${
+          user
+            ? ''
+            : `<div class="field"><label>Perfil</label><select class="select" name="role">${Object.entries(ROLE_INFO)
+                .map(([value, r]) => `<option value="${value}"${value === 'editor' ? ' selected' : ''}>${r.label} — ${r.text}</option>`)
+                .join('')}</select></div>
+               <p class="muted small">A plataforma gera uma senha provisória para você repassar. No primeiro login, a pessoa cria a própria senha.</p>`
+        }
+        <div class="form-actions">
+          <button class="btn" value="cancel" formnovalidate>Cancelar</button>
+          <button class="btn btn-primary" value="ok">${user ? 'Salvar' : 'Criar conta'}</button>
+        </div>
+      </form>`;
+    document.body.appendChild(dialog);
+    const f = dialog.querySelector('form');
+    f.addEventListener('submit', async (e) => {
+      if (e.submitter?.value !== 'ok') return;
+      e.preventDefault();
+      try {
+        if (user) {
+          const updated = await api.updateUser(user.id, { name: f.name.value, email: f.email.value });
+          users = users.map((u) => (u.id === user.id ? updated : u));
+          dialog.close();
+          toast('Dados salvos.');
+        } else {
+          const created = await api.createUser({ name: f.name.value, email: f.email.value, role: f.role.value });
+          users = await api.users();
+          dialog.close();
+          showPassword({ title: 'Conta criada', user: created.user, password: created.password });
+        }
+        render();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+    dialog.addEventListener('close', () => dialog.remove());
+    dialog.showModal();
+  };
+
+  view.addEventListener('click', async (e) => {
+    if (e.target.closest('#new-user')) return form(null);
+    const row = e.target.closest('[data-user]');
+    if (!row) return;
+    const user = users.find((u) => u.id === Number(row.dataset.user));
+    try {
+      if (e.target.closest('[data-edit]')) return form(user);
+      if (e.target.closest('[data-reset]')) {
+        const ok = await confirmDialog({
+          title: 'Gerar nova senha provisória?',
+          message: `A senha atual de ${user.name} deixa de valer e a pessoa é desconectada. Ela vai criar uma senha nova no próximo login.`,
+          confirmLabel: 'Gerar senha',
+        });
+        if (!ok) return;
+        const { password } = await api.resetPassword(user.id);
+        users = await api.users();
+        render();
+        showPassword({ title: 'Nova senha provisória', user, password });
+      } else if (e.target.closest('[data-remove]')) {
+        const ok = await confirmDialog({
+          title: 'Excluir conta?',
+          message: `${user.name} perde o acesso. Os documentos que a pessoa escreveu continuam na base. Para só suspender o acesso, use “Bloqueado”.`,
+          confirmLabel: 'Excluir',
+          danger: true,
+        });
+        if (!ok) return;
+        await api.deleteUser(user.id);
+        users = users.filter((u) => u.id !== user.id);
+        render();
+        toast('Conta excluída.');
+      }
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  });
 
   view.addEventListener('change', async (e) => {
     const row = e.target.closest('[data-user]');
