@@ -3,11 +3,14 @@
 Comandos úteis (no servidor ou no terminal do Codespace):
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/   # 200 ou 401 = plataforma no ar; 000 = parada
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:3001/entrar   # 200 = plataforma no ar; 000 = parada
 tail -f servidor.log                                                # log ao vivo (Ctrl+C sai sem desligar)
 grep "\[mcp" servidor.log | tail -20                                # chamadas do agente ao MCP
 grep "active-ai/n8n" servidor.log | tail -20                        # erros na conversa com o n8n
 grep "\[transcrição\]\|\[capítulos\]" servidor.log | tail -20       # vídeos
+grep "active-ai/fonte" servidor.log | tail -20                      # respostas da base geral do GPT Maker
+grep "busca semântica" servidor.log | tail -20                      # busca por significado
+grep "\[login\]" servidor.log | tail -20                            # entradas, falhas e contas criadas
 npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MCP como o agente faria
 ```
 
@@ -16,7 +19,9 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 | Sintoma | Causa provável | O que fazer |
 | --- | --- | --- |
 | **404** no endereço do Codespace | A plataforma não está rodando (o Codespace reiniciou) | `PORT=3001 nohup npm start > servidor.log 2>&1 &` |
-| 404 mesmo com a plataforma rodando | Encaminhamento da porta travou | Aba Portas → parar o encaminhamento da 3001 → adicionar de novo → Pública → abrir pelo globo |
+| 404 mesmo com a plataforma rodando (`curl …/entrar` dá `200`) | Encaminhamento da porta travou | Aba Portas → remover a 3001 → adicionar de novo → Pública → abrir pelo globo. Se continuar, use o túnel: `npx -y cloudflared tunnel --url http://localhost:3001` (veja [5. Instalação](05-instalacao-e-configuracao.md#se-o-endereço-do-codespace-der-404)) |
+| `[3]+ Exit 1` logo depois de iniciar | Já havia outra cópia ocupando a porta | `pkill -f server/index.js`, inicie de novo e confira com `tail servidor.log` |
+| Envio de vídeo falha pelo túnel `trycloudflare` | O túnel não aceita arquivos acima de 100 MB | Teste com vídeos curtos; em produção o limite é o `MAX_UPLOAD_MB` |
 | Pede login do GitHub | Porta 3001 está *Private* | Aba Portas → botão direito → Visibilidade → **Pública** |
 | `Erro: a porta 3001 já está em uso` | Outra cópia já está rodando | `pkill -f server/index.js` e inicie de novo |
 | `curl` responde `000` | A plataforma parou (por exemplo, Ctrl+C no terminal dela) | Inicie em segundo plano com `nohup` (acima) |
@@ -35,6 +40,9 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 | *O fluxo do n8n retornou erro 4xx/5xx* | Workflow inativo ou com erro | Confira se o workflow está **ativo** e a URL é a de **produção** (não a de teste) |
 | *O n8n respondeu, mas sem texto* | O nó *Respond to Webhook* devolve outro formato | Faça ele responder `{ "message": "…" }` (veja [formatos aceitos](03-active-ai-e-integracoes.md#resposta-esperada-do-n8n)) |
 | O chat oficial mostra `<analise>…` | O trecho do prompt foi ativado sem o nó do n8n | Adicione o nó `n8n/remover-analise.js` antes do "Responder ao chat" |
+| Resposta mistura processos da plataforma com outros | O agente usou a base própria do GPT Maker junto com a da plataforma | Confira se o prompt do agente no GPT Maker tem a [regra de fonte](03-active-ai-e-integracoes.md#prompt-recomendado-para-o-agente) e se `N8N_INCLUDE_CONTEXT` não está `false`. Veja `grep "active-ai/fonte" servidor.log` |
+| Aviso amarelo *Resposta da base geral do GPT Maker* | A plataforma não tinha a resposta | Escreva o documento que falta (a pergunta já está em **Relatório → Lacunas**) |
+| Aviso *Sem documentos da plataforma* em respostas certas | O agente respondeu com a base, mas sem citar `[Título](#/item/ID)` | Reforce no prompt do agente que ele deve citar os documentos usados |
 | Resposta "parecida mas errada" | O agente respondeu o assunto mais próximo sem conferir | Ative o [raciocínio obrigatório](03-active-ai-e-integracoes.md#raciocínio-obrigatório-antes-de-responder) e confira o rascunho no log (`grep "active-ai/análise" servidor.log`) |
 | `[OPCOES] A \| B` aparece como texto | Formato diferente do esperado | A linha precisa começar com `[OPCOES]` (ou `[OPÇÕES]`) e as opções separadas por `\|` |
 

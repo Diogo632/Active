@@ -13,7 +13,7 @@
 ### Navegador
 
 - **CSRF**: ações (POST, PUT, DELETE em `/api`) vindas de outro site são recusadas pelo cabeçalho `Sec-Fetch-Site`. Sem isso, um site malicioso aberto por alguém logado poderia agir com a sessão da pessoa.
-- **Política de conteúdo (CSP)** na página: só scripts da própria plataforma (nenhum script embutido no HTML), estilos e fontes do Google Fonts, vídeos do YouTube; sem plugins (`object-src 'none'`); a página não pode ser embutida em outros sites (`frame-ancestors 'self'`).
+- **Política de conteúdo (CSP)** na página (as páginas de login também não têm JavaScript): só scripts da própria plataforma (nenhum script embutido no HTML), estilos e fontes do Google Fonts, vídeos do YouTube; sem plugins (`object-src 'none'`); a página não pode ser embutida em outros sites (`frame-ancestors 'self'`).
 - **Cabeçalhos** em todas as respostas: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (sem câmera, microfone, localização), `Cross-Origin-Opener-Policy`.
 - **Conteúdo sanitizado**: todo texto vindo de documentos, nomes de arquivo, buscas e respostas da Active AI é escapado; o Markdown é convertido e passa pelo **DOMPurify**. Links que abrem em nova aba recebem `rel="noopener noreferrer"`.
 
@@ -34,6 +34,8 @@
 
 - A plataforma nunca manda o conteúdo inteiro dos documentos na mensagem; o agente lê pelo MCP com token.
 - As ferramentas do MCP só leem a base, exceto `registrar_lacuna` (que só cria registros no relatório).
+- **Fonte das respostas**: a base da plataforma vem primeiro; quando o agente usa a base geral do GPT Maker, a tela avisa, para ninguém seguir um processo que não é da Active achando que é.
+- O MCP e a API de integração usam o `INTEGRATION_TOKEN`, não o login das pessoas: quem tem o token lê toda a base.
 
 ## Checklist para produção
 

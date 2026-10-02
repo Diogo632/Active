@@ -10,6 +10,8 @@
 | Leitura de arquivos | `officeparser` (PDF, Office, LibreOffice, RTF, EPUB) |
 | MCP | `@modelcontextprotocol/sdk` (Streamable HTTP e SSE) |
 | Transcrição | `@huggingface/transformers` (Whisper) e `@ffmpeg-installer/ffmpeg` (opcionais) |
+| Busca por significado | `@huggingface/transformers` (multilingual-e5), vetores no SQLite e busca em memória, juntada ao FTS5 por *Reciprocal Rank Fusion* |
+| Login | Próprio: `node:crypto` (scrypt para senhas, tokens aleatórios para sessões), páginas renderizadas no servidor |
 | Interface | JavaScript puro em módulos ES, sem framework nem etapa de build; `marked` + `DOMPurify` para Markdown; animações com a Web Animations API |
 | Testes | `node:test` (sem dependências extras) |
 
@@ -76,11 +78,11 @@ npm test
 | Arquivo | Cobre |
 | --- | --- |
 | `test/app.test.js` | API, categorias, textos, upload e extração, busca, integração, MCP (os dois transportes), Active AI pela Anthropic (com servidor simulado) |
-| `test/n8n.test.js` | Mensagem para o agente (limite de tamanho, modos), leitura das respostas e opções |
+| `test/n8n.test.js` | Mensagem para o agente (limite de tamanho, regra de fonte, documentos encontrados), aviso de base geral do GPT Maker, raciocínio `<analise>`, leitura das respostas e opções |
 | `test/options.test.js` | Opções em botões |
 | `test/transcribe.test.js` | Formatação de transcrição, legendas, transcrição em segundo plano com ffmpeg real e motor simulado |
-| `test/melhorias.test.js` | Versões, revisão, lacunas, avaliações, capítulos, YouTube (simulado), anexos do chat |
-| `test/seguranca.test.js` | Senha, cabeçalhos, CSP, CSRF e limite de tentativas |
+| `test/melhorias.test.js` | Versões, revisão, lacunas, avaliações, capítulos, YouTube (simulado), anexos do chat, transcrição .docx do Teams |
+| `test/seguranca.test.js` | Login, cookie de sessão, cabeçalhos, CSP, CSRF e limite de tentativas (token e senha) |
 | `test/conta-e-busca.test.js` | Primeiro acesso, login, senha provisória e troca, perfis, bloqueio e exclusão, autor/atualizado por, glossário, busca por significado (vetores simulados) |
 
 Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, login })`. O `npm test` roda com `LOGIN=off` (os testes de login passam `login: true`) e `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores.

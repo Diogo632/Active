@@ -4,6 +4,7 @@ A Active AI da plataforma é **o mesmo agente do GPTMaker** usado no chat oficia
 
 - [Visão geral das duas direções](#visão-geral-das-duas-direções)
 - [Plataforma → n8n (webhook)](#plataforma--n8n-webhook)
+- [Workflow no n8n](#workflow-no-n8n)
 - [Agente → plataforma (MCP)](#agente--plataforma-mcp)
 - [Configurar o MCP no GPTMaker](#configurar-o-mcp-no-gptmaker)
 - [Prompt recomendado para o agente](#prompt-recomendado-para-o-agente)
@@ -18,7 +19,7 @@ A Active AI da plataforma é **o mesmo agente do GPTMaker** usado no chat oficia
 | Direção | Para quê | Endereço | Autenticação |
 | --- | --- | --- | --- |
 | Plataforma → n8n | Enviar a pergunta e receber a resposta | `N8N_WEBHOOK_URL` | Opcional: `N8N_WEBHOOK_TOKEN` (Bearer) |
-| GPTMaker → plataforma | Buscar e ler documentos, registrar lacunas | `https://ENDERECO/mcp` | `INTEGRATION_TOKEN` (Bearer) |
+| GPTMaker → plataforma | Buscar e ler documentos, consultar o glossário, registrar lacunas | `https://ENDERECO/mcp` | `INTEGRATION_TOKEN` (Bearer) |
 
 ## Plataforma → n8n (webhook)
 
@@ -45,6 +46,8 @@ Documentos da plataforma relacionados (use estes primeiro):
 
 Pergunta: Como emito um CT-e?
 ```
+
+A busca é a mesma da tela de busca: por palavras, pelos sinônimos do [glossário](11-login-busca-e-glossario.md#glossário-da-active) e por significado. Quando a pergunta cita termos do glossário, a mensagem também leva a explicação deles (`Termos da Active citados na pergunta (glossário)`, até ~450 caracteres).
 
 Perguntas curtas de continuação ("e o passo 3?") usam também a pergunta anterior para pesquisar. Sem documentos encontrados, a lista é trocada pelo aviso "A busca da plataforma não encontrou documentos para esta pergunta: tente buscar_documentos com outros termos antes de usar a base própria."
 
@@ -82,7 +85,7 @@ Quando a mensagem tem arquivos anexados, a plataforma acrescenta antes da pergun
 | `pergunta` | Só a pergunta digitada, sem o cabeçalho |
 | `historico` | Mensagens anteriores da conversa `[{ role, content }]` |
 | `documento_aberto` | `{ id, titulo }` do documento em foco, ou `null` |
-| `documentos` | No modo `base`: os documentos usados `[{ id, titulo, tipo, categoria, tags, resumo, link, conteudo (trecho), parcial, total_caracteres, revisao_vencida }]` |
+| `documentos` | Os documentos da plataforma encontrados `[{ id, titulo, tipo, categoria, tags, resumo, link, conteudo (trecho), parcial, total_caracteres, revisao_vencida }]` (vazio com `N8N_INCLUDE_CONTEXT=false`) |
 | `origem` | `base-de-conhecimento` |
 
 Com `N8N_WEBHOOK_TOKEN`, a plataforma envia `Authorization: Bearer <token>` (configure *Header Auth* no webhook do n8n).
@@ -101,6 +104,25 @@ A plataforma aceita vários formatos e procura o texto nestes campos, nesta orde
 
 - A plataforma espera até **240 s** (`N8N_TIMEOUT_SECONDS`), porque o agente pode ler vários documentos pelo MCP antes de responder.
 - Os erros mostram a causa real: *"demorou mais de 240 s"*, *"a conexão caiu depois de X s (ECONNRESET)"*, *"não foi possível conectar ao n8n (UND_ERR_CONNECT_TIMEOUT)"*, *"o fluxo do n8n retornou erro 500"*. Veja [Solução de problemas](09-solucao-de-problemas.md).
+
+## Workflow no n8n
+
+### Workflow da Active AI que já existe
+
+Use `N8N_WEBHOOK_URL=https://n8n.activecorp.com.br/webhook/active-ia-msg` (workflow **Active IA — Chat hospedado no n8n**). O nó **GPT Maker — Texto** lê `body.prompt` e `body.contextId`, e o nó **Responder ao chat** devolve `{ "message": ... }`. A plataforma envia e lê exatamente esses campos: o workflow não precisa de alteração.
+
+Duas mudanças opcionais no workflow, para o chat oficial também se beneficiar:
+
+- **Raciocínio obrigatório**: nó **Code** com [`n8n/remover-analise.js`](../n8n/remover-analise.js) antes do "Responder ao chat" (veja [abaixo](#raciocínio-obrigatório-antes-de-responder)).
+- **Regra de fonte**: a [instrução recomendada](#prompt-recomendado-para-o-agente) no prompt do agente no GPT Maker.
+
+### Fluxo pronto para importar
+
+[`n8n/fluxo-base-conhecimento-gptmaker.json`](../n8n/fluxo-base-conhecimento-gptmaker.json) traz o fluxo **Webhook → GPT Maker → Resposta**:
+
+1. No n8n, crie um workflow vazio e importe o arquivo (**⋯ → Import from File**).
+2. No nó **Agente GPTMaker**, troque `SEU_AGENT_ID` e `SEU_TOKEN_GPTMAKER`.
+3. Ative o workflow e copie a **Production URL** do nó **Pergunta da Base** para `N8N_WEBHOOK_URL`.
 
 ## Agente → plataforma (MCP)
 
@@ -131,7 +153,7 @@ Pesquisa em texto completo em toda a base (exceto anexos temporários).
 | `consulta` | texto (obrigatório) | Palavras-chave |
 | `limite` | número 1–25 | Máximo de resultados (padrão 8) |
 
-Retorna uma lista de `{ id, titulo, tipo, categoria, tags, resumo, trecho, aviso, link }`. `tipo` é `texto`, `arquivo`, `vídeo/áudio (transcrição)` ou `vídeo do YouTube (transcrição)`. `aviso` aparece quando a revisão do documento venceu. `encontrado_por` aparece quando o documento foi achado só pelo significado (sem as mesmas palavras). Se a busca citar termos do [glossário](11-login-busca-e-glossario.md#glossário-da-active), a resposta vira `{ glossario: [...], documentos: [...] }`, com a explicação dos termos. Sem resultados, a resposta sugere tentar sinônimos ou chamar `registrar_lacuna`.
+Busca por palavras, pelos sinônimos do glossário e por significado, como a tela de busca. Retorna uma lista de `{ id, titulo, tipo, categoria, tags, resumo, trecho, aviso, link }`. `tipo` é `texto`, `arquivo`, `vídeo/áudio (transcrição)` ou `vídeo do YouTube (transcrição)`. `aviso` aparece quando a revisão do documento venceu. `encontrado_por` aparece quando o documento foi achado só pelo significado (sem as mesmas palavras). Se a busca citar termos do [glossário](11-login-busca-e-glossario.md#glossário-da-active), a resposta vira `{ glossario: [...], documentos: [...] }`, com a explicação dos termos. Sem resultados, a resposta sugere tentar sinônimos ou chamar `registrar_lacuna`.
 
 #### `ler_documento`
 
@@ -195,13 +217,17 @@ Os links (`link`) usam o `PUBLIC_URL` do `.env` (ex.: `https://base.activecorp.c
    ```bash
    npm run mcp:testar -- https://ENDERECO SEU_TOKEN
    ```
-   Deve listar as 5 ferramentas e fazer uma busca. O endereço pode ir com ou sem `/mcp`.
+   Deve listar as 6 ferramentas e fazer uma busca. O endereço pode ir com ou sem `/mcp`.
 3. No GPTMaker, nas configurações do agente, adicione um servidor MCP:
    - **Tipo**: Streamable HTTP
    - **URL**: `https://ENDERECO/mcp`
    - **Autenticação**: *Headers* (não OAuth), chave `Authorization`, valor `Bearer SEU_TOKEN`
 4. Ao trocar o endereço ou o token, ou quando a plataforma ganhar ferramentas novas, **reconecte** o MCP no GPTMaker.
 5. Para conferir, use *Inspecionar resposta* numa mensagem do agente: aparecem as ferramentas chamadas e os dados enviados e recebidos.
+
+Outros clientes MCP usam o mesmo endereço e o mesmo token: no **n8n**, o nó **MCP Client Tool** (com *Header Auth*) ligado a um **AI Agent**; também Claude, ChatGPT, Cursor e outros. Clientes que não mandam cabeçalhos podem usar `https://ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
+
+Para testar pelo Codespace, a porta precisa estar **pública**; se o endereço do Codespace der 404, use o túnel descrito em [5. Instalação](05-instalacao-e-configuracao.md#testar-pelo-github-codespaces) e coloque o endereço `https://….trycloudflare.com/mcp` no GPT Maker (ele muda a cada vez que o túnel é aberto).
 
 ## Prompt recomendado para o agente
 
@@ -235,7 +261,7 @@ Essas mensagens aparecem no histórico do GPTMaker como conversas separadas.
 
 ### Detecção de "não encontrei"
 
-Depois de cada resposta, a plataforma verifica se o texto diz que a informação não foi encontrada (por exemplo: *"não encontrei"*, *"não localizei"*, *"não há informações"*, *"não consta na base"*, *"não tenho essa informação"*, *"não sei responder"*). Se sim, a pergunta entra no relatório de lacunas com a origem *Active AI não encontrou*.
+Depois de cada resposta, a plataforma verifica se o texto diz que a informação não foi encontrada (por exemplo: *"não encontrei"*, *"não localizei"*, *"não há informações"*, *"não consta na base"*, *"não tenho essa informação"*, *"não sei responder"*) ou se a resposta veio marcada com `[FONTE: BASE GERAL]`. Nos dois casos, a pergunta entra no relatório de lacunas com a origem *Active AI não encontrou* (no segundo, o detalhe começa com "Respondida com a base geral do GPT Maker").
 
 ## API de integração (REST)
 

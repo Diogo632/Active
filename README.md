@@ -1,271 +1,136 @@
 # Base de Conhecimento · Suporte Active Corp
 
-Plataforma web para a base de conhecimento do setor de Suporte da Active Corp, com a assistente **Active AI** integrada.
+Plataforma web da base de conhecimento do Suporte da Active Corp, com a assistente **Active AI** integrada: o agente do GPT Maker, chamado pelo n8n, que consulta a base pelo **MCP**.
 
-> 📘 **Documentação completa em [`docs/`](docs/README.md)**: guia de uso, Active AI e MCP, vídeos, instalação e hospedagem, API, dados, segurança, solução de problemas, desenvolvimento e login/busca por significado/glossário.
+> 📘 **Documentação completa em [`docs/`](docs/README.md)**: guia de uso, Active AI e MCP, vídeos, instalação e hospedagem, API, dados, segurança, solução de problemas, desenvolvimento, login/busca por significado/glossário e o [histórico de implementações](docs/12-historico-de-implementacoes.md).
 
 ## Funcionalidades
 
-- **Textos**: escreva procedimentos, soluções e comunicados direto na plataforma. O editor usa Markdown e tem barra de formatação, visualização lado a lado e atalhos (Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+S).
-- **Documentos de qualquer tipo**: envie vários arquivos de uma vez, arrastando para a tela. O conteúdo é lido automaticamente para a pesquisa e para a Active AI nestes formatos:
-  - PDF, Word (`.docx`), Excel (`.xlsx`), PowerPoint (`.pptx`), LibreOffice (`.odt`, `.ods`, `.odp`), RTF e EPUB
-  - Textos, Markdown, CSV, JSON, XML, HTML, logs e código-fonte
-  - Imagens (PNG, JPG, GIF, WebP): a Active AI consegue analisá-las visualmente
+### Conteúdo
 
-  Outros formatos (`.zip`, `.exe`, `.doc` antigo etc.) também podem ser guardados e baixados. Nesses casos a Active AI vê só o título, a descrição e as tags.
-- **Vídeos e áudios (treinamentos com clientes, reuniões)**: são **transcritos automaticamente** no próprio servidor, em segundo plano. A transcrição vira o conteúdo do item, com marcações de tempo (`[00:12:34] …`). Assim, ela entra na pesquisa, e a Active AI a lê pelo MCP para resumir o treinamento, explicar trechos e dizer em que momento cada assunto aparece. Na tela do vídeo, clicar no horário leva o player até o trecho. Também é possível enviar uma transcrição pronta (`.vtt`/`.srt` do Teams, Meet ou Zoom, `.txt` ou `.docx`), que substitui a automática.
-- **Vídeos do YouTube**: cole o link em *Enviar arquivos*. O vídeo toca dentro da plataforma, e a transcrição vem das legendas do próprio YouTube, então a Active AI conversa sobre ele como sobre qualquer outro vídeo. Se o vídeo não tiver legendas, cole a transcrição copiada do YouTube (*Mostrar transcrição*).
-- **Resumo e capítulos dos vídeos**: quando a transcrição termina, a Active AI cria um resumo e um índice de capítulos, por exemplo "0:40 Cadastro do cliente · 1:15 Transmissão para a SEFAZ". Clicar no capítulo leva o vídeo até o ponto.
-- **Relatório da base** (menu *Relatório*):
-  - **Lacunas**: buscas sem resultado, perguntas que a Active AI não soube responder, respostas avaliadas com 👎 e avisos do próprio agente (ferramenta MCP `registrar_lacuna`). As perguntas iguais são agrupadas, das mais frequentes para as menos. **Escrever documento** abre o editor já no modelo, e ao publicar a lacuna sai da lista.
-  - **Para revisar**: documentos que passaram do prazo de revisão.
-  - **Avaliações**: documentos com 👎 e os comentários, e as respostas da Active AI que não ajudaram.
-- **"Isso ajudou? 👍 👎"** no fim de cada documento e nas respostas longas da Active AI (chat e busca; saudações e respostas curtas não têm). No 👎, a pessoa pode dizer o que faltou.
-- **Anexar arquivos na conversa com a Active AI** (📎 ou arrastando para o chat): o arquivo fica guardado **temporariamente** na plataforma (fora das listas e da busca, apagado depois de 72 horas) e o agente recebe só o id. Ele lê o conteúdo **inteiro** pelo MCP (`ler_documento`), sem o limite de texto da mensagem do GPTMaker. Se o arquivo for útil para a equipe, *Manter na base* o transforma num documento normal.
-- **Histórico de versões**: cada edição de um texto guarda a versão anterior. Em *Histórico*, dá para ver qualquer versão e restaurá-la; a versão atual também fica guardada.
-- **Data de revisão**: cada documento pode ter um prazo de revisão (padrão de 6 meses para textos novos). Passado esse prazo sem atualização, o documento mostra um aviso com *Continua válido* e *Atualizar*, e a Active AI avisa quem pergunta que o conteúdo pode estar desatualizado.
-- **Modelos de texto**: *Problema → Causa → Solução*, *Passo a passo* e *Comunicado*, escolhidos ao escrever um texto novo.
-- **Visualização**: PDFs, imagens, vídeos e áudios abrem dentro da plataforma. Você pode baixar o arquivo e enviar uma nova versão.
-- **Organização**: categorias com ícone, tags e descrição curta.
-- **Pesquisa em texto completo**: busca em títulos, tags, descrições e conteúdo, ignorando acentos, com trechos destacados.
-- **Busca por significado**: encontra documentos pelo assunto, mesmo sem as mesmas palavras ("cliente não consegue tirar nota" acha "Erro na emissão de NF-e"). O modelo (multilingual-e5) roda no próprio servidor, sem custo; os resultados achados assim têm a etiqueta *≈ significado*.
-- **Glossário da Active** (menu *Glossário*): termos, siglas e sinônimos. A busca também procura pelos sinônimos, e a Active AI recebe a explicação dos termos citados (e tem a ferramenta MCP `consultar_glossario`).
-- **Login próprio** (e-mail e senha): o administrador cria as contas em *Pessoas*, com perfis *Administrador*, *Editor* e *Só consulta*; cada pessoa cria a própria senha no primeiro acesso, e a plataforma registra quem criou e quem editou cada documento. Detalhes em [docs/11](docs/11-login-busca-e-glossario.md).
-- **Busca em primeiro lugar**: a tela inicial é uma busca. Os resultados trazem a **resposta da Active AI** com links para os documentos, e **Ctrl+K** (ou `/`) abre a busca rápida de qualquer tela.
-- **Active AI** (agente do GPTMaker, via n8n):
-  - **chat** que prioriza a Base de Conhecimento da plataforma; quando a resposta vem da base geral do GPT Maker, a mensagem mostra um aviso e a pergunta vira lacuna;
-  - resumos e dúvidas sobre o documento aberto;
-  - **servidor MCP** para o agente pesquisar e ler a base sozinho.
-- **Mais acessados**: a tela inicial mostra os documentos mais abertos pela equipe.
-- **Opções de resposta em botões**, iguais às da Active AI. A plataforma usa a mesma regra da página da Active AI: a linha `[OPCOES] A | B | C` enviada pelo agente, ou as alternativas deduzidas da última pergunta. Também aceita uma lista curta depois de uma pergunta, `[[A | B]]` ou um campo `options` na resposta do n8n.
-- **Visual**:
-  - vídeos com ícone próprio e a duração (vermelho no YouTube, verde nos vídeos enviados);
-  - **esqueletos de carregamento** no formato do conteúdo;
-  - **tabelas** com cabeçalho destacado e rolagem e **blocos de código** com a linguagem e o botão **Copiar**, nos textos e nas respostas da Active AI;
-  - **menu lateral recolhível** (botão no canto superior esquerdo; recolhe sozinho em telas menores);
-  - **Active AI fixável**: o ícone de alfinete deixa o chat aberto ao lado enquanto você usa o resto da plataforma (em telas a partir de 1100 px);
-  - botão da Active AI no canto inferior direito: um círculo com brilhos que piscam de leve de tempos em tempos e se abre com o texto *Perguntar à Active AI* ao passar o mouse.
-- **Animações** em JavaScript (Web Animations API): entrada das telas em cascata, mensagens do chat, revelação das respostas, botões com onda ao clicar e busca rápida animada. Tudo respeita a opção "reduzir movimento" do sistema.
-- Tema claro/escuro e layout responsivo (funciona no celular).
+- **Textos** escritos na plataforma, em Markdown, com barra de formatação, visualização lado a lado, atalhos (Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+S) e **modelos** (*Problema → Causa → Solução*, *Passo a passo*, *Comunicado*).
+- **Arquivos de qualquer tipo**, vários de uma vez, arrastando para a tela. O conteúdo é lido para a busca e para a Active AI em PDF, Word, Excel, PowerPoint, LibreOffice, RTF, EPUB, textos, CSV, JSON, XML, HTML, logs e código. Outros formatos são guardados e podem ser baixados.
+- **Vídeos e áudios** (treinamentos, reuniões) **transcritos automaticamente** no próprio servidor (Whisper + ffmpeg, sem custo). A transcrição tem horários clicáveis e entra na busca. Também dá para enviar a transcrição pronta (`.vtt`/`.srt` do Teams, Meet ou Zoom, `.txt` ou o `.docx` do Teams).
+- **Vídeos do YouTube**: o vídeo toca na plataforma e a transcrição vem das legendas do YouTube.
+- **Resumo e capítulos** dos vídeos, gerados pela Active AI ("0:40 Cadastro do cliente · 1:15 Transmissão para a SEFAZ").
+- Visualização de PDFs, imagens, vídeos e áudios na própria página; download e envio de nova versão.
+- **Categorias** com ícone, **tags** e descrição curta.
 
-## Testar pelo GitHub (Codespaces)
+### Busca
 
-Dá para rodar a plataforma na nuvem do GitHub, sem instalar nada no computador:
+- **Busca em primeiro lugar**: a tela inicial é uma busca, e **Ctrl+K** (ou `/`) abre a busca rápida em qualquer tela.
+- **Por palavras** (títulos, tags, descrições, conteúdo, transcrições e capítulos), ignorando acentos, com os termos destacados.
+- **Por significado**: encontra o documento pelo assunto, mesmo sem as mesmas palavras ("cliente não consegue tirar nota" acha "Erro na emissão de NF-e"). O modelo roda no próprio servidor; os resultados achados assim têm a etiqueta **≈ significado**.
+- **Glossário da Active** (menu *Glossário*): termos, siglas e sinônimos. Quem procura por um sinônimo encontra os documentos que usam o termo.
 
-1. No GitHub, abra o repositório e clique em **Code → Codespaces → Create codespace**.
-2. Espere alguns minutos: o Codespace instala as dependências.
-3. No terminal, rode `npm start`. Quando aparecer o aviso da porta **3000**, espere uns segundos e clique em **Open in Browser**. O endereço também aparece na aba **Ports**.
+### Active AI
 
-Para atualizar depois de novas versões: pare a plataforma (Ctrl+C) e rode `git pull`, `npm ci` e `npm start`.
+- **Resposta da Active AI** no topo dos resultados da busca, com **Continuar a conversa** no chat.
+- **Chat** como painel lateral, página inteira ou **fixado ao lado** do conteúdo.
+- **Base da plataforma primeiro**: cada mensagem leva a regra de fonte e os documentos encontrados. Se a resposta vier da base geral do GPT Maker, a mensagem mostra o aviso **Resposta da base geral do GPT Maker** e a pergunta vira lacuna. Respostas longas sem citar documentos mostram **Sem documentos da plataforma**.
+- **Documento em foco**: *Perguntar à Active AI* e *Resumir com a Active AI* na página de um documento.
+- **Anexos na conversa** (📎): o arquivo fica guardado por 72 horas e o agente lê o conteúdo inteiro pelo MCP.
+- **Opções em botões** (`[OPCOES] A | B | C`), **raciocínio** do agente no botão **!** e **Ajudou? 👍 👎** nas respostas longas.
+- **Servidor MCP** com 6 ferramentas para o agente pesquisar e ler a base sozinho.
 
-Para usar a Active AI, cadastre o secret `N8N_WEBHOOK_URL` em **GitHub → Settings → Codespaces → Secrets**, liberado para este repositório. Depois recrie ou reinicie o Codespace.
+### Base viva
+
+- **Relatório** (menu *Relatório*): **lacunas** (o que foi procurado e não encontrado, agrupado por frequência), documentos **para revisar** e **avaliações**.
+- **Isso ajudou? 👍 👎** no fim de cada documento.
+- **Histórico de versões** dos textos, com restauração.
+- **Prazo de revisão** (padrão de 6 meses): passado o prazo, o documento mostra o aviso e a Active AI avisa quem pergunta.
+
+### Acesso
+
+- **Login próprio** (e-mail e senha). No **primeiro acesso**, a plataforma pede para criar o administrador; ele cria as contas da equipe em **Pessoas**, com uma senha provisória que a pessoa troca no primeiro login.
+- Perfis **Administrador**, **Editor** e **Só consulta** (os botões de edição somem para quem só consulta, e o servidor bloqueia).
+- A plataforma registra **quem criou e quem editou** cada documento.
+
+### Visual
+
+- Tema escuro (padrão) e claro com as cores da Active AI; layout responsivo.
+- Esqueletos de carregamento, tabelas com rolagem, blocos de código com **Copiar**, menu lateral recolhível, vídeos com ícone e duração, botão flutuante da Active AI e animações que respeitam "reduzir movimento".
 
 ## Como rodar
 
-Requisitos: **Node.js 20+**.
+Requisitos: **Node.js 20+** (recomendado 22).
 
 ```bash
-npm install
-cp .env.example .env      # depois edite o .env (N8N_WEBHOOK_URL)
+npm ci
+cp .env.example .env      # edite N8N_WEBHOOK_URL, INTEGRATION_TOKEN e PUBLIC_URL
 npm start                 # http://localhost:3000
 ```
 
-Configurações do `.env`:
+Na primeira vez, abra o endereço e **crie o administrador** (*Primeiro acesso*). Enquanto não houver conta, quem abrir o endereço primeiro cria o administrador. Pelo terminal: `npm run admin -- seu@email.com.br "Seu Nome"` (também recupera o acesso se o administrador esquecer a senha).
+
+Principais variáveis do `.env` (a lista completa está em [docs/05](docs/05-instalacao-e-configuracao.md#variáveis-de-configuração-env)):
 
 | Variável | Descrição |
 | --- | --- |
-| `N8N_WEBHOOK_URL` | URL de produção do webhook do n8n que responde como Active AI (ex.: fluxo com o agente do GPTMaker). Sem ela, a base funciona normalmente e só a Active AI fica indisponível. |
-| `N8N_WEBHOOK_TOKEN` | Opcional: enviado como `Authorization: Bearer <token>` (configure *Header Auth* no webhook). |
-| `N8N_TIMEOUT_SECONDS` | Tempo máximo de espera pela resposta (padrão `240`; o agente pode ler vários documentos pelo MCP antes de responder). |
-| `INTEGRATION_TOKEN` | Opcional: libera a API de integração para o n8n consultar a base (veja abaixo). |
-| `PORT` | Porta HTTP (padrão `3000`). |
-| `DATA_DIR` | Pasta do banco SQLite e dos arquivos enviados (padrão `./data`). **Faça backup desta pasta.** |
-| `MAX_UPLOAD_MB` | Tamanho máximo por arquivo (padrão `2048`, para caber vídeos de treinamento). |
-| `TRANSCRIPTION` | `local` (padrão) transcreve vídeos e áudios no servidor com o Whisper; `off` desliga (aí só vale a transcrição enviada manualmente). |
-| `TRANSCRIPTION_MODEL` | Modelo do Whisper (padrão `Xenova/whisper-small`). `Xenova/whisper-base` é mais rápido e menos preciso; `Xenova/whisper-medium` é mais preciso e mais lento. |
-| `TRANSCRIPTION_DTYPE` | Precisão do modelo (padrão `q8`, mais leve). |
-| `FFMPEG_PATH` | Opcional: caminho de um ffmpeg já instalado (por padrão usa o que vem com o `npm ci`). |
-| `CHAPTERS` | `auto` (padrão) pede à Active AI o resumo e os capítulos de cada vídeo transcrito; `off` desliga. |
-| `YTDLP_PATH` | Opcional: caminho do [yt-dlp](https://github.com/yt-dlp/yt-dlp). Com ele instalado, vídeos do YouTube sem legendas têm o áudio baixado e transcrito pelo Whisper. |
-| `CHAT_ATTACHMENT_HOURS` | Por quantas horas os arquivos anexados na conversa com a Active AI ficam guardados (padrão `72`). |
-| `TRUST_PROXY` | Quando a plataforma roda atrás de um proxy (nginx, Traefik), informe quantos proxies há na frente (ex.: `1`), para o limite de tentativas enxergar o IP real de cada pessoa. |
-| `REVIEW_MONTHS_DEFAULT` | Prazo de revisão padrão dos textos novos, em meses (padrão `6`; `0` desliga). |
-| `SESSION_DAYS` | Dias até a pessoa precisar entrar de novo (padrão `30`). As contas são criadas na própria plataforma (*Pessoas*). |
-| `ANTHROPIC_API_KEY` | Alternativa ao n8n: usa a API da Anthropic, só quando `N8N_WEBHOOK_URL` está vazio. |
+| `N8N_WEBHOOK_URL` | Webhook do n8n que responde como Active AI (`https://n8n.activecorp.com.br/webhook/active-ia-msg`) |
+| `INTEGRATION_TOKEN` | Token do MCP e da API de integração (`npm run gerar-token`). Sem ele, o MCP fica desligado |
+| `PUBLIC_URL` | Endereço público da plataforma (links do MCP e cookie seguro em HTTPS) |
+| `PORT` / `DATA_DIR` | Porta (padrão `3000`) e pasta dos dados (padrão `./data`, **faça backup**) |
+| `TRANSCRIPTION` / `SEMANTIC_SEARCH` | `off` desliga a transcrição automática / a busca por significado |
+| `SEMANTIC_MIN_SCORE` | Nota mínima da busca por significado (padrão `0.8`) |
+| `SESSION_DAYS` | Dias até a pessoa precisar entrar de novo (padrão `30`) |
+| `TRUST_PROXY` | Atrás de um proxy (nginx), quantos há na frente (ex.: `1`) |
 
-## Como a Active AI funciona na plataforma
+### Testar pelo GitHub Codespaces
 
-| Onde | O que é enviado ao agente | Para quê |
-| --- | --- | --- |
-| **Chat** (botão *Perguntar à Active AI*) | Regra de fonte + documentos encontrados + pergunta | O agente usa primeiro a base da plataforma (e o **MCP**); a base própria do GPT Maker só quando a plataforma não tiver a resposta, marcada com aviso |
-| **Busca** (resultados e Ctrl+K) | Pergunta + referências curtas aos documentos encontrados (id, título, trecho) | O cartão *Resposta da Active AI* responde a busca; o agente lê os documentos completos pelo **MCP** |
-| **Documento em foco** (*Perguntar à Active AI* dentro de um documento) | Pergunta + id e título do documento aberto | O agente lê o documento pelo **MCP** (`ler_documento`) para resumir ou tirar dúvidas |
+1. **Code → Codespaces → Create codespace** na branch da plataforma.
+2. Edite o `.env` e inicie em segundo plano: `PORT=3001 nohup npm start > servidor.log 2>&1 &`.
+3. Aba **Portas** → 3001 → **Visibilidade → Pública** e abra pelo globo. Se o endereço do Codespace der **404** mesmo com a plataforma no ar, use um túnel: `npx -y cloudflared tunnel --url http://localhost:3001` e abra o endereço `https://….trycloudflare.com` que aparecer.
+4. Crie o administrador logo ao abrir.
 
-A mensagem enviada ao agente tem **no máximo 3.500 caracteres** (`N8N_MAX_PROMPT_CHARS`), porque o GPTMaker só enxerga cerca de 4.000 caracteres por mensagem. O conteúdo completo dos documentos nunca vai na mensagem: o agente busca pelo MCP.
+Detalhes, limites do Codespace e hospedagem em produção (systemd + nginx com HTTPS) em [docs/05](docs/05-instalacao-e-configuracao.md).
 
-O botão **Continuar a conversa** leva a resposta da busca para o chat e mantém a mesma sessão no agente.
+## Como a Active AI funciona
 
-## Servidor MCP da Base de Conhecimento
+```text
+Pessoa → Plataforma ──(webhook: regra de fonte + documentos encontrados + pergunta, até 3.500 caracteres)──→ n8n → Agente GPT Maker
+                 ↑                                                                                                     │
+                 └─────────────────────────────(MCP: buscar_documentos, ler_documento…)───────────────────────────────┘
+```
 
-A plataforma expõe um servidor **MCP** em dois formatos. O principal é o *Streamable HTTP*, em `https://SEU_ENDERECO/mcp`. Para clientes mais antigos, há também o *SSE*, em `https://SEU_ENDERECO/mcp/sse`. Para ativar, defina `INTEGRATION_TOKEN` no `.env`. A autenticação é pelo header `Authorization: Bearer <INTEGRATION_TOKEN>`. Para clientes que não enviam headers, também dá para usar `https://SEU_ENDERECO/mcp?token=<INTEGRATION_TOKEN>`.
+- A mensagem tem **no máximo 3.500 caracteres**, porque o GPT Maker só enxerga cerca de 4.000 por mensagem. O conteúdo completo dos documentos nunca vai na mensagem: o agente lê pelo **MCP**.
+- O workflow da Active AI no n8n não precisa de alteração: a plataforma envia `prompt` e `contextId` e lê `{ message }`.
+- No GPT Maker, conecte o MCP (`https://ENDERECO/mcp`, cabeçalho `Authorization: Bearer <INTEGRATION_TOKEN>`) e acrescente às instruções do agente o [prompt recomendado](docs/03-active-ai-e-integracoes.md#prompt-recomendado-para-o-agente), que inclui a regra da base da plataforma primeiro e a marcação `[FONTE: BASE GERAL]`.
 
-Ferramentas disponíveis:
+Ferramentas do MCP:
 
 | Ferramenta | O que faz |
 | --- | --- |
-| `buscar_documentos` | Pesquisa em texto completo; devolve id, título, categoria, trecho, link e um aviso quando a revisão do documento venceu |
-| `ler_documento` | Lê o conteúdo completo de um documento (em partes de 30 mil caracteres). Em vídeos, traz a transcrição, o resumo, os capítulos e o link do YouTube |
+| `buscar_documentos` | Busca por palavras, sinônimos do glossário e significado; devolve id, título, trecho, link e avisos |
+| `ler_documento` | Lê o conteúdo completo (em partes de 30 mil caracteres); em vídeos, a transcrição, o resumo e os capítulos |
 | `listar_documentos` | Lista os documentos mais recentes, opcionalmente de uma categoria |
 | `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
-| `registrar_lacuna` | O agente avisa que a base não tem a resposta de uma pergunta; ela entra no relatório de lacunas |
+| `consultar_glossario` | Explica termos, siglas e nomes internos da Active |
+| `registrar_lacuna` | Registra uma pergunta que a base não respondeu (vai para o relatório) |
 
-### Testar o MCP antes de hospedar (Codespace)
-
-1. Gere um token com `npm run gerar-token`. No `.env`, defina:
-   - `INTEGRATION_TOKEN=<token gerado>`;
-   - e, logo ao abrir a plataforma, crie a conta de administrador (*Primeiro acesso*), para proteger as telas enquanto a porta estiver pública.
-2. Inicie a plataforma com `PORT=3001 npm start`.
-3. Em outro terminal, rode `npm run mcp:testar -- "" "" palavra`. Ele testa o MCP localmente, com busca e leitura de um documento.
-4. Na aba **Portas**, clique com o botão direito na 3001 e escolha **Visibilidade da Porta → Pública**. Copie o endereço (`https://…-3001.app.github.dev`), coloque-o em `PUBLIC_URL` no `.env` e reinicie.
-5. Teste pelo endereço público: `npm run mcp:testar -- https://…-3001.app.github.dev/mcp`.
-6. Configure o GPTMaker com esse endereço (passos abaixo) e faça perguntas à Active AI.
-
-O `/mcp` e o `/api/integracao` exigem o token, mesmo com a porta pública. O usuário e a senha protegem só as telas da plataforma.
-
-### Conectar a Active AI (GPTMaker) ao MCP
-
-1. Hospede a plataforma num endereço público (HTTPS) e defina no `.env`:
-   - `INTEGRATION_TOKEN`: uma senha longa e aleatória;
-   - `PUBLIC_URL`: o endereço público.
-2. No GPTMaker, abra o agente da Active AI e adicione uma integração **MCP**:
-   - **URL:** `https://SEU_ENDERECO/mcp`. Se o GPTMaker pedir SSE, use `https://SEU_ENDERECO/mcp/sse`.
-   - **Autenticação:** header `Authorization: Bearer <INTEGRATION_TOKEN>`. Se não houver campo de header, coloque `?token=<INTEGRATION_TOKEN>` no fim da URL.
-3. Nas instruções do agente, acrescente algo como:
-
-   > Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento por id (ex.: "Documento aberto na tela: #12"), leia-o com `ler_documento`. Cite os documentos usados como [Título](#/item/ID). Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado.
-
-Formas de conectar:
-- **GPTMaker:** integração MCP nativa (passos acima). A alternativa é a API REST (`/api/integracao/*`) numa intenção ou webhook.
-- **n8n:** no workflow, adicione o nó **MCP Client Tool** apontando para `/mcp`, com *Header Auth*, e ligue-o a um nó **AI Agent**.
-- **Outros clientes MCP** (Claude, ChatGPT, Cursor etc.): use a mesma URL e o mesmo token.
-
-A plataforma precisa estar num endereço que o agente consiga acessar pela internet. Defina `PUBLIC_URL` com esse endereço para que os links devolvidos abram direto na plataforma.
-
-## Active AI com n8n + GPTMaker
-
-A cada pergunta, a plataforma:
-
-1. pesquisa a base com as palavras-chave da pergunta e seleciona até 6 documentos, junto com os trechos mais relevantes de cada um. Se houver um documento aberto na tela, ele sempre entra;
-2. envia um `POST` ao `N8N_WEBHOOK_URL` com este JSON:
-
-```json
-{
-  "sessionId": "kb-…",
-  "pergunta": "Como resolvo o erro 105?",
-  "prompt": "Instruções + visão geral da base + documentos relevantes + pergunta (pronto para enviar ao agente)",
-  "historico": [{ "role": "user", "content": "…" }, { "role": "assistant", "content": "…" }],
-  "documento_aberto": { "id": 5, "titulo": "…" },
-  "documentos": [{ "id": 5, "titulo": "…", "categoria": "…", "tags": [], "link": "#/item/5", "conteudo": "trechos…" }]
-}
-```
-
-3. mostra ao usuário o texto devolvido pelo n8n. A resposta pode ser texto puro ou um JSON com um destes campos: `resposta`, `output`, `message`, `text`, `response` ou `answer`. Isso inclui o JSON devolvido diretamente pelo GPTMaker.
-
-O `sessionId` muda a cada **Nova conversa**. Use-o como `contextId` no GPTMaker para ele manter o histórico da conversa.
-
-### Usar o workflow da Active AI que já existe
-
-Para o workflow **Active IA — Chat hospedado no n8n**, use `N8N_WEBHOOK_URL=https://n8n.activecorp.com.br/webhook/active-ia-msg`. O nó **GPT Maker — Texto** lê `body.prompt` e `body.contextId`, e o nó **Responder ao chat** devolve `{ "message": ... }`. A plataforma envia e lê exatamente esses campos, então o workflow não precisa de nenhuma alteração.
-
-O corpo enviado ao webhook inclui os campos que workflows prontos costumam ler: `action: "sendMessage"`, `chatInput`, `message`, `mensagem`, `text` e `sessionId`. É o mesmo formato do **Chat Trigger** do n8n. Por padrão, esses campos levam a pergunta junto com os documentos relevantes da base. Assim, o agente atual responde usando a base sem nenhuma mudança no workflow.
-
-- `N8N_WEBHOOK_URL`: use o endereço que recebe as mensagens do chat da Active AI. Esse é o `POST` que a página chama, não necessariamente o endereço que abre a página.
-- `N8N_INCLUDE_CONTEXT=false`: envia só a pergunta. Use quando o próprio agente consultar a base pela API de integração.
-
-### Fluxo pronto para importar
-
-O arquivo [`n8n/fluxo-base-conhecimento-gptmaker.json`](n8n/fluxo-base-conhecimento-gptmaker.json) traz o fluxo **Webhook → GPTMaker → Resposta**. Para usar:
-
-1. No n8n, crie um workflow vazio e importe o arquivo (menu **⋯ → Import from File**).
-2. No nó **Agente GPTMaker**, troque `SEU_AGENT_ID` e `SEU_TOKEN_GPTMAKER` pelos dados do seu agente.
-3. Ative o workflow e copie a **Production URL** do nó **Pergunta da Base** para `N8N_WEBHOOK_URL`.
-
-### API de integração (opcional)
-
-Com `INTEGRATION_TOKEN` definido, o n8n pode consultar a base diretamente, por exemplo como ferramentas de um agente. Envie o header `Authorization: Bearer <INTEGRATION_TOKEN>`:
-
-- `GET /api/integracao/buscar?q=palavras&limite=8`: pesquisa documentos.
-- `GET /api/integracao/documentos/{id}`: devolve o conteúdo completo de um documento.
-
-## Vídeos e transcrição
-
-1. Envie o vídeo ou áudio em **Enviar arquivos**, como qualquer outro arquivo (MP4, MOV, MKV, WebM, AVI, MP3, WAV, M4A e outros).
-2. Ele entra na fila de transcrição. Um vídeo por vez é processado, em partes de 5 minutos, e o progresso aparece na tela e no terminal (`[transcrição] … 40%`). Pode fechar a página; se o servidor reiniciar, a transcrição recomeça sozinha.
-3. Quando termina, a transcrição aparece abaixo do player, com busca e horários clicáveis. A Active AI passa a encontrar o vídeo em `buscar_documentos` e lê a transcrição inteira em `ler_documento` (em partes, se for longa).
-
-Como funciona:
-
-- A transcrição roda **no próprio servidor**, com o [Whisper](https://github.com/openai/whisper) via `@huggingface/transformers` e o ffmpeg que vem com o `npm ci`. O áudio não é enviado para fora e não há custo por minuto.
-- Na **primeira transcrição**, o modelo é baixado (~250 MB no `whisper-small`) e fica em cache.
-- A transcrição leva mais ou menos o tempo do vídeo em um servidor comum (varia com a CPU). Um treinamento de 1 hora leva perto de 1 hora.
-- Se o Teams, Meet ou Zoom já gerou a transcrição da reunião, envie o `.vtt` em **Enviar**, na tela do vídeo. É instantâneo e mantém o nome de quem fala. Também dá para **Colar** o texto.
-- Com a transcrição pronta, a plataforma pede à Active AI (pelo mesmo webhook do n8n) um **resumo e os capítulos** do vídeo. Transcrições curtas vão na própria mensagem; nas longas, o agente lê a transcrição pelo MCP (`ler_documento`), então **o MCP precisa estar conectado no GPTMaker**. Se algo falhar, a tela do vídeo mostra o erro e o botão *Tentar de novo*.
-
-### Vídeos do YouTube
-
-1. Em **Enviar arquivos**, cole o link do vídeo em *Vídeo do YouTube* e clique em **Adicionar vídeo**. Categoria, tags e descrição preenchidas abaixo também valem para o vídeo.
-2. A plataforma busca as legendas do vídeo (as feitas por pessoas têm preferência; se não houver, usa as automáticas do YouTube). Leva alguns segundos.
-3. Se o vídeo não tiver legendas, abra o vídeo no YouTube, clique em *…mais* na descrição → **Mostrar transcrição**, copie o texto e cole em **Colar**, na tela do vídeo. Os horários são mantidos.
-
-O vídeo precisa permitir incorporação (a maioria permite; vídeos "não listados" também funcionam).
-
-O YouTube às vezes bloqueia a leitura das legendas a partir de servidores de nuvem (como o Codespace), pedindo login para "confirmar que não é um robô". A plataforma tenta várias formas de leitura e, se todas forem bloqueadas, avisa isso na tela do vídeo; o motivo detalhado de cada tentativa fica no log (`[transcrição] Legendas de … não lidas`). Nesse caso, use **Colar**.
+Configuração completa, formato das mensagens, raciocínio obrigatório e solução de problemas em [docs/03](docs/03-active-ai-e-integracoes.md) e [docs/09](docs/09-solucao-de-problemas.md).
 
 ## Segurança
 
-O que a plataforma já faz:
+- **Login próprio** com senhas guardadas com scrypt, senha provisória trocada no primeiro acesso, sessões em cookie HttpOnly e perfis verificados no servidor.
+- **Limite de tentativas** (10 senhas ou tokens errados em 10 minutos), **proteção contra CSRF**, **CSP** e cabeçalhos de segurança.
+- Conteúdo sanitizado (escape e DOMPurify); HTML, SVG e outros tipos perigosos são sempre baixados, nunca abertos.
+- MCP e API de integração só com o `INTEGRATION_TOKEN`; consultas ao banco parametrizadas; ffmpeg e yt-dlp sem shell.
 
-- **Login próprio**: senhas guardadas com scrypt, senha provisória trocada no primeiro acesso, sessões em cookie HttpOnly e perfis verificados no servidor. Enquanto não houver nenhuma conta, o servidor avisa no terminal: crie o administrador logo depois de instalar.
-- **Limite de tentativas**: 10 senhas ou tokens errados em 10 minutos bloqueiam aquele endereço por alguns minutos.
-- **Proteção contra CSRF**: ações (criar, editar, excluir, enviar) vindas de outro site com a sessão de quem está logado são recusadas.
-- **Cabeçalhos de segurança** e **política de conteúdo (CSP)**: a página só executa scripts da própria plataforma, não pode ser embutida em outros sites e não envia dados para outros endereços.
-- **Conteúdo sanitizado**: textos, respostas da Active AI e nomes de arquivo passam por escape ou DOMPurify antes de aparecer na tela.
-- **Arquivos enviados**: guardados com nome gerado pelo servidor; HTML, SVG e outros tipos perigosos são sempre baixados, nunca abertos no navegador.
-- **MCP e API de integração** só com o `INTEGRATION_TOKEN`; consultas ao banco sempre parametrizadas; ffmpeg e yt-dlp chamados sem shell.
-
-Antes de colocar em produção:
-
-1. **Troque a senha e o token** usados nos testes (`npm run gerar-token` para o token; senha com 12+ caracteres).
-2. **Use HTTPS** (no nginx/Traefik da Active, junto do n8n). Com HTTP, a senha trafega sem criptografia.
-3. **Faça backup** da pasta `data/` (banco, arquivos e vídeos).
-4. **Atualize as dependências** de tempos em tempos (`npm audit`), principalmente as que leem arquivos enviados (officeparser, ffmpeg).
-5. Lembre que o conteúdo consultado pela Active AI (documentos, transcrições e anexos) é enviado ao **n8n e ao GPTMaker**; documentos com dados pessoais de clientes seguem para esses serviços.
-
-Limitações conhecidas: quem entra vê todos os documentos (não há permissão por categoria), inclusive os anexos temporários da conversa pelo link; não há recuperação de senha por e-mail (o administrador gera uma senha provisória).
-
-## Cores (identidade visual da Active AI)
-
-A plataforma usa a mesma paleta da Active AI: tema escuro por padrão, fundo `#0a0a0a`, painéis `#121212`, bordas `#242424` e verde `#15803d` nos destaques. Também há um tema claro com o mesmo verde. Todas as cores ficam em variáveis CSS no topo de [`public/css/styles.css`](public/css/styles.css).
+Antes de colocar em produção: crie o administrador, gere um **token novo**, use **HTTPS**, faça **backup** da pasta `data/` e mantenha as dependências atualizadas. O conteúdo que a Active AI lê vai para o **n8n e o GPT Maker** (atenção à LGPD). Checklist completo em [docs/08](docs/08-seguranca.md).
 
 ## Estrutura
 
-```
-server/
-  index.js    API REST (Express), upload e streaming do chat
-  db.js       SQLite + índice de busca FTS5
-  extract.js  Extração de texto dos arquivos
-  n8n.js      Active AI via webhook do n8n (conversa livre e respostas da busca)
-  mcp.js      Servidor MCP da base (ferramentas para o agente)
-  transcribe.js  Transcrição de vídeos e áudios (Whisper local + ffmpeg)
-  youtube.js  Vídeos do YouTube: link, título e legendas
-  chapters.js Resumo e capítulos dos vídeos gerados pela Active AI
-  gaps.js     Identifica respostas em que a Active AI não encontrou a informação
-  ai.js       Alternativa: Active AI pela API da Anthropic
-n8n/          Fluxo de exemplo para importar no n8n
-public/
-  index.html, css/styles.css, js/*.js   Interface (SPA sem etapa de build)
+```text
+server/       Servidor (Express): API, login, banco SQLite, busca, Active AI (n8n), MCP, transcrição, YouTube
+public/       Interface (JavaScript puro, sem etapa de build)
+scripts/      npm run mcp:testar e npm run admin
+n8n/          Fluxo de exemplo, nó que remove o rascunho <analise> e trecho de prompt do agente
 test/         Testes automatizados (npm test)
+docs/         Documentação
 ```
+
+Detalhes de cada arquivo em [docs/10](docs/10-desenvolvimento.md).
 
 ## Testes
 
@@ -273,4 +138,4 @@ test/         Testes automatizados (npm test)
 npm test
 ```
 
-Os testes cobrem a API, a pesquisa, o upload e a extração, as transcrições, o YouTube (simulado), as lacunas, as avaliações, o histórico de versões e as revisões. Também cobrem o ciclo de ferramentas da Active AI, usando um servidor que imita a API da Anthropic, então não é preciso ter uma chave.
+Cobrem a API, a busca (palavras, glossário e significado), uploads, transcrições, YouTube, lacunas, avaliações, versões, revisões, login e perfis, segurança, o MCP e a conversa com o n8n. A Active AI, o YouTube, a transcrição e o modelo de vetores são simulados: os testes não acessam a internet.

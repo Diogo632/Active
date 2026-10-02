@@ -14,7 +14,8 @@ Este guia cobre todas as telas da plataforma, na ordem em que aparecem no menu.
 - [Anexar arquivos na conversa](#anexar-arquivos-na-conversa)
 - [Relatório da base](#relatório-da-base)
 - [Categorias](#categorias)
-- [Glossário](#glossário) e [busca por significado](#busca-por-significado)
+- [Glossário](#glossário)
+- [Pessoas (administradores)](#pessoas-administradores)
 - [Atalhos de teclado](#atalhos-de-teclado)
 
 ---
@@ -35,22 +36,14 @@ Administradores gerenciam as contas no menu **Pessoas** (criar, mudar perfil, bl
 | --- | --- |
 | **Administrador** | Tudo, mais a tela **Pessoas** (mudar perfis e bloquear acessos) |
 | **Editor** | Criar, editar e excluir documentos, categorias e termos do glossário |
-| **Só consulta** | Pesquisar, ler, baixar, conversar com a Active AI e avaliar. Os botões de edição não aparecem |
-
-## Glossário
-
-Menu **Glossário**: termos, siglas e sinônimos da Active (ex.: **CT-e** = *CTe, conhecimento de transporte*). Quem pesquisar por um sinônimo encontra os documentos que usam o termo, e a Active AI recebe a explicação dos termos citados na pergunta. Use o filtro para achar um termo; Editores usam **Novo termo** e os ícones de editar e excluir.
-
-## Busca por significado
-
-A busca encontra documentos pelo assunto, mesmo sem as mesmas palavras: "cliente não consegue tirar nota" acha "Erro na emissão de NF-e". Os documentos achados assim aparecem com a etiqueta **≈ significado** e mostram o trecho mais parecido com a pergunta.
+| **Só consulta** | Pesquisar, ler, baixar, conversar com a Active AI (inclusive anexar arquivos) e avaliar. Os botões de edição não aparecem |
 
 ## Layout geral
 
-- **Menu lateral** (esquerda): Início, Todos os documentos, Active AI, Relatório, os botões *Escrever texto* e *Enviar arquivos*, e a lista de **categorias** com a quantidade de documentos.
+- **Menu lateral** (esquerda): Início, Todos os documentos, Active AI, Relatório, Glossário, **Pessoas** (só administradores), os botões *Escrever texto* e *Enviar arquivos* (Editores e Administradores) e a lista de **categorias** com a quantidade de documentos.
   - O botão no canto superior esquerdo **recolhe o menu** (fica só com os ícones; passe o mouse para ver o nome). A escolha fica salva. Em telas menores que 1280 px ele já começa recolhido. No celular, o mesmo botão abre o menu por cima da tela.
   - O número verde ao lado de **Relatório** soma as lacunas abertas e os documentos com revisão vencida.
-  - No rodapé do menu: **Tema claro / Tema escuro** (o escuro é o padrão, igual à Active AI).
+  - No rodapé do menu: seu **nome e perfil**, a **chave** (trocar senha), **Sair** e **Tema claro / Tema escuro** (o escuro é o padrão, igual à Active AI).
 - **Barra superior**: a **busca rápida** (Ctrl+K). Na tela inicial ela fica escondida, porque a busca principal já está no centro.
 - **Botão da Active AI** (canto inferior direito): um círculo verde com brilhos. Ao passar o mouse, ele se abre e mostra *Perguntar à Active AI*. Some quando o chat está aberto.
 
@@ -73,6 +66,8 @@ Há duas formas de buscar:
 Como a busca funciona:
 
 - Procura em **títulos, tags, descrições, conteúdo dos textos, texto extraído dos arquivos, transcrições de vídeos e capítulos**.
+- Procura também pelos **sinônimos do [glossário](#glossário)**: quem busca "conhecimento de transporte" encontra os documentos que só dizem "CT-e".
+- Procura **pelo significado**: "cliente não consegue tirar nota" encontra "Erro na emissão de NF-e", mesmo sem palavras em comum. Esses resultados têm a etiqueta **≈ significado** e mostram o trecho mais parecido com a pergunta. Os três tipos de busca são juntados num só resultado, e o que aparece bem colocado em mais de um sobe.
 - **Ignora acentos e maiúsculas** (`emissao` encontra *Emissão*) e aceita **começo de palavras** (`transm` encontra *transmissão*).
 - Primeiro exige **todas** as palavras; se nada aparecer, aceita **qualquer uma**.
 - Os termos encontrados aparecem **destacados** no trecho de cada resultado.
@@ -80,12 +75,13 @@ Como a busca funciona:
 
 ### Resposta da Active AI na busca
 
-No topo dos resultados, a Active AI responde à pergunta usando os documentos encontrados:
+No topo dos resultados, a Active AI responde à pergunta usando primeiro os documentos encontrados na plataforma:
 
 - Mostra *Pesquisando na base → Consultando a Active AI* enquanto trabalha.
 - A resposta traz links para os documentos usados e, quando o agente oferece alternativas, **botões de opções**.
 - **Continuar a conversa** leva a resposta para o chat, na mesma conversa do agente; clicar numa opção já envia a escolha.
 - Respostas longas têm **Ajudou? 👍 👎** (veja [Avaliações](#avaliações-isso-ajudou)).
+- Se a resposta vier da base geral do GPT Maker (a plataforma não tinha a resposta), aparece o aviso amarelo **Resposta da base geral do GPT Maker** (veja [O chat](#o-chat)).
 - A resposta fica guardada enquanto a página está aberta: voltar à mesma busca não pergunta de novo.
 
 ## Lista de documentos
@@ -96,6 +92,7 @@ No topo dos resultados, a Active AI responde à pergunta usando os documentos en
 - Cada cartão mostra ícone, título, tipo, categoria, data de atualização, tamanho (arquivos), tags e selos:
   - **Vídeos**: ícone com a **duração** embaixo (vermelho para YouTube, verde para vídeos enviados) e o selo *Transcrito* / *Transcrevendo 40%* / *Sem transcrição*.
   - **Revisar** (amarelo): o prazo de revisão do documento venceu.
+  - **≈ significado**: encontrado pela busca por significado.
 - Clicar numa **tag** (na página do documento) lista todos os documentos com ela.
 
 ## Página de um documento
@@ -103,7 +100,7 @@ No topo dos resultados, a Active AI responde à pergunta usando os documentos en
 ### Topo
 
 - Categoria (link de volta), título, tipo, tags e descrição.
-- Botões: **Perguntar à Active AI**, **Editar** (ou *Editar informações* para arquivos e vídeos), **Baixar** e **Nova versão** (arquivos), **Abrir no YouTube** (vídeos do YouTube), **Histórico (n)** (textos com versões anteriores) e **Excluir**.
+- Botões (os de alteração só para Editores e Administradores): **Perguntar à Active AI**, **Editar** (ou *Editar informações* para arquivos e vídeos), **Baixar** e **Nova versão** (arquivos), **Abrir no YouTube** (vídeos do YouTube), **Histórico (n)** (textos com versões anteriores) e **Excluir**.
 
 ### Conteúdo
 
@@ -120,7 +117,7 @@ No topo dos resultados, a Active AI responde à pergunta usando os documentos en
 ### Lateral
 
 - **Dúvidas sobre este documento?** → *Resumir com a Active AI* (para vídeos: resumo com os horários de cada assunto).
-- Ficha: categoria, autor, arquivo, duração, link do vídeo, **revisão** (*a cada 6 meses · próxima em dd/mm/aaaa*), tamanho, datas e o **ID** (usado pela Active AI).
+- Ficha: categoria, **autor** (quem criou), **atualizado por** (quem fez a última alteração, quando for outra pessoa), arquivo, duração, link do vídeo, **revisão** (*a cada 6 meses · próxima em dd/mm/aaaa*), tamanho, datas e o **ID** (usado pela Active AI).
 
 ### Avisos
 
@@ -133,7 +130,7 @@ No fim de cada documento: **Este documento ajudou? Sim / Não**, com a contagem 
 
 ### Histórico de versões
 
-*Histórico* lista as versões anteriores do texto (data, autor, título). Clique numa versão para ver como o texto estava e em **Restaurar esta versão** para voltar a ela. Restaurar não apaga nada: a versão atual também entra no histórico.
+*Histórico* lista as versões anteriores do texto (data, quem salvou, título). Clique numa versão para ver como o texto estava e em **Restaurar esta versão** para voltar a ela. Restaurar não apaga nada: a versão atual também entra no histórico.
 
 Uma versão é guardada **sempre que o título, o conteúdo, a descrição ou as tags mudam**. Mudar só a categoria, o autor ou o prazo de revisão não cria versão.
 
@@ -145,14 +142,15 @@ Pede confirmação. Apaga o item, o arquivo do disco, as versões e as avaliaç�
 
 *Escrever texto* abre o editor:
 
-- **Título** (obrigatório), **categoria**, **tags** (separadas por vírgula), **descrição curta**, **autor** (fica lembrado no navegador) e **Revisar a cada** (*Sem revisão periódica*, 3, 6, 12 ou 24 meses; textos novos começam com 6).
+- **Título** (obrigatório), **categoria**, **tags** (separadas por vírgula), **descrição curta** e **Revisar a cada** (*Sem revisão periódica*, 3, 6, 12 ou 24 meses; textos novos começam com 6).
 - **Modelos** (só em textos novos): *Em branco*, *Problema → Causa → Solução*, *Passo a passo* e *Comunicado*. O modelo preenche a estrutura de títulos; se já houver texto, a plataforma pergunta antes de substituir.
 - **Barra de formatação**: negrito, itálico, tachado, títulos, listas, lista de verificação, citação, código, link, tabela e linha divisória.
 - **Escrever / Dividir / Visualizar**: alterna entre o texto em Markdown, as duas coisas lado a lado e o resultado formatado.
 - **Atalhos**: Ctrl+B (negrito), Ctrl+I (itálico), Ctrl+K (link), **Ctrl+S (salvar)**.
 - Sair com alterações não salvas faz o navegador pedir confirmação.
+- O **autor** é quem está logado; quem edita depois fica registrado como *atualizado por*.
 
-Arquivos e vídeos não têm conteúdo editável: o editor só muda título, categoria, tags, descrição, autor e prazo de revisão.
+Arquivos e vídeos não têm conteúdo editável: o editor só muda título, categoria, tags, descrição e prazo de revisão.
 
 ## Enviar arquivos e vídeos
 
@@ -160,13 +158,14 @@ Arquivos e vídeos não têm conteúdo editável: o editor só muda título, cat
 
 ### Vídeo do YouTube
 
-Cole o link (`youtube.com/watch?v=…`, `youtu.be/…`, `shorts/…`, `live/…`) e clique em **Adicionar vídeo**. Título e canal vêm do YouTube; categoria, tags, descrição e autor preenchidos abaixo também valem. O mesmo vídeo não entra duas vezes (a plataforma abre o que já existe).
+Cole o link (`youtube.com/watch?v=…`, `youtu.be/…`, `shorts/…`, `live/…`) e clique em **Adicionar vídeo**. O título vem do YouTube; categoria, tags e descrição preenchidas abaixo também valem. O mesmo vídeo não entra duas vezes (a plataforma abre o que já existe).
 
 ### Arquivos
 
 - **Arraste** para a área tracejada ou clique para escolher (vários de uma vez, até 50 por envio).
 - Com um arquivo só, dá para definir o **título**; com vários, o título é o nome de cada arquivo.
-- Categoria, tags, descrição e autor valem para todos os arquivos do envio.
+- Categoria, tags e descrição valem para todos os arquivos do envio.
+- **Gravações de reuniões do Teams**: baixe o vídeo (MP4) e envie aqui; se tiver a transcrição do Teams (`.vtt` ou `.docx`), envie depois na página do vídeo (veja [4. Vídeos](04-videos-e-transcricao.md#enviar-ou-colar-uma-transcrição-pronta)). Sem o vídeo, dá para enviar só a transcrição como documento.
 - A barra mostra o progresso do envio; depois a plataforma lê o conteúdo de cada arquivo.
 
 Formatos com conteúdo lido (pesquisável e usado pela Active AI):
@@ -234,7 +233,7 @@ Perguntas que a base não respondeu, agrupadas (a mesma pergunta escrita de jeit
 | Origem | Quando entra |
 | --- | --- |
 | **Busca sem resultado** | Alguém fez uma busca completa que não encontrou nada |
-| **Active AI não encontrou** | A resposta do agente diz que não encontrou a informação ("não encontrei", "não há informações", "não consta na base"…) |
+| **Active AI não encontrou** | A resposta do agente diz que não encontrou a informação ("não encontrei", "não há informações", "não consta na base"…) ou veio da **base geral do GPT Maker** |
 | **Registrada pelo agente (MCP)** | O próprio agente chamou `registrar_lacuna` |
 | **Resposta avaliada 👎** | Alguém marcou uma resposta da Active AI como "não ajudou" |
 
@@ -259,6 +258,30 @@ Documentos cujo prazo de revisão venceu (contado a partir da última **edição
 ## Categorias
 
 O ⚙ ao lado de *Categorias* no menu abre o gerenciamento: **Nova categoria** (nome, descrição e ícone), editar e excluir. Excluir uma categoria **não exclui os documentos**: eles ficam *Sem categoria*. Os nomes não podem se repetir.
+
+## Glossário
+
+Menu **Glossário**: termos, siglas e sinônimos da Active (ex.: **CT-e** = *CTe, conhecimento de transporte*). Para que serve:
+
+- **Busca**: quem pesquisa por um sinônimo encontra os documentos que usam o termo (e vice-versa).
+- **Active AI**: os termos citados na pergunta vão explicados junto da mensagem, e o agente pode consultar o glossário pelo MCP (`consultar_glossario`).
+
+Use o filtro para achar um termo. Editores e Administradores usam **Novo termo** (termo, sinônimos separados por vírgula e o que significa) e os ícones de editar e excluir. Dica: comece pelas siglas fiscais, nomes de telas, módulos e nomes internos que mais confundem quem chega no Suporte, e pelas palavras que aparecem nas **lacunas**.
+
+## Pessoas (administradores)
+
+Menu **Pessoas**, visível só para administradores:
+
+| Ação | Como |
+| --- | --- |
+| **Criar conta** | **Nova pessoa** → nome, e-mail e perfil. A plataforma mostra uma **senha provisória** uma única vez; use **Copiar acesso** e envie por um canal seguro. No primeiro login, a pessoa cria a própria senha |
+| **Mudar perfil** | Lista *Perfil* (*Administrador*, *Editor*, *Só consulta*) |
+| **Bloquear / liberar** | Caixa *Acesso*. Bloquear desconecta a pessoa na hora |
+| **Esqueceu a senha** | Ícone de chave → nova senha provisória (a antiga para de valer) |
+| **Corrigir nome ou e-mail** | Ícone de lápis |
+| **Excluir** | Lixeira. Os documentos da pessoa continuam na base |
+
+A lista mostra o último acesso de cada pessoa e a etiqueta *senha provisória* para quem ainda não criou a própria senha. Ninguém pode tirar o próprio acesso de administrador, se bloquear ou se excluir. Mais detalhes em [11. Login](11-login-busca-e-glossario.md).
 
 ## Atalhos de teclado
 

@@ -35,7 +35,7 @@ Desempenho:
 ## Vídeos do YouTube
 
 1. Em *Enviar arquivos → Vídeo do YouTube*, cole o link e clique em **Adicionar vídeo**. Aceita `watch?v=`, `youtu.be/`, `shorts/`, `embed/` e `live/`.
-2. Título e canal vêm do YouTube (o canal vira o autor, se o campo estiver vazio).
+2. O título vem do YouTube; o autor é quem adicionou o vídeo (com o login desligado, o canal do YouTube).
 3. A plataforma busca as **legendas do próprio YouTube**: feitas por pessoas em português primeiro; depois automáticas em português; depois outros idiomas. Leva segundos.
 4. O vídeo **toca dentro da plataforma** (player incorporado `youtube-nocookie.com`), e clicar num horário da transcrição leva o player até lá.
 
@@ -56,6 +56,16 @@ Na tela de qualquer vídeo, no painel *Transcrição*:
 - **Colar**: texto com horários (`0:05` numa linha e o texto na seguinte, ou `0:05 texto`, ou `[00:00:05] texto`) ou texto livre (fica sem horários).
 
 A transcrição enviada **substitui** a automática e também gera resumo e capítulos.
+
+### Gravações de reuniões do Teams
+
+As gravações do Teams ficam no OneDrive/SharePoint de quem gravou, e só abrem com a conta Microsoft da empresa; por isso a plataforma não as busca pelo link.
+
+1. **Vídeo**: se o autor liberou o download, baixe o MP4 e envie em *Enviar arquivos*. A transcrição automática começa sozinha.
+2. **Transcrição do Teams** (melhor que a automática: tem o nome de quem fala): no painel *Transcrição* da gravação, **Baixar** → `.vtt` ou `.docx`, e envie em **Enviar**, na página do vídeo. O `.docx` do Teams ("Ana Martins 0:05" e a fala embaixo) é reconhecido, com o horário de cada trecho.
+3. **Sem acesso ao vídeo**: envie só a transcrição (`.docx`, `.vtt` ou `.txt`) em *Enviar arquivos*, como documento. Ela entra na busca e a Active AI responde sobre a reunião (sem player nem capítulos).
+
+No túnel de testes do Codespace (`trycloudflare`), arquivos acima de 100 MB não passam; no servidor da Active o limite é o `MAX_UPLOAD_MB`.
 
 ## A tela do vídeo
 

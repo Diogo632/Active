@@ -17,7 +17,8 @@ O nome original do arquivo fica no banco; o nome no disco é gerado pelo servido
 | Coluna | Descrição |
 | --- | --- |
 | `id`, `kind` | Id e tipo (`article`, `file`, `youtube`) |
-| `title`, `summary`, `tags`, `category_id`, `author` | Informações (tags em texto separado por vírgula) |
+| `title`, `summary`, `tags`, `category_id` | Informações (tags em texto separado por vírgula) |
+| `author`, `updated_by` | Quem criou e quem fez a última alteração (nomes vindos do login) |
 | `content` | Texto em Markdown (só `article`) |
 | `file_name`, `stored_name`, `mime_type`, `size` | Arquivo original e nome no disco |
 | `text`, `extract_status` | Texto extraído do arquivo ou transcrição (até 2 milhões de caracteres) |
@@ -27,6 +28,7 @@ O nome original do arquivo fica no banco; o nome no disco é gerado pelo servido
 | `review_months`, `reviewed_at` | Prazo de revisão e última confirmação |
 | `ai_summary`, `chapters`, `chapters_status`, `chapters_error` | Resumo e capítulos (JSON) gerados pela Active AI |
 | `temporary`, `expires_at` | Anexo do chat e quando expira |
+| `embedding_hash` | Versão do conteúdo já indexada pela busca por significado |
 | `created_at`, `updated_at` | Datas (UTC) |
 
 ### `items_fts`: índice de busca
@@ -39,7 +41,7 @@ Tabela virtual **FTS5** com `title`, `tags`, `summary` e `body` (conteúdo do te
 
 ### `item_versions`: histórico dos textos
 
-`id`, `item_id`, `title`, `summary`, `content`, `tags`, `category_id`, `author`, `saved_at` (quando aquela versão tinha sido salva), `created_at`. Apagadas junto com o item.
+`id`, `item_id`, `title`, `summary`, `content`, `tags`, `category_id`, `author` (quem tinha salvo aquela versão), `saved_at` (quando aquela versão tinha sido salva), `created_at`. Apagadas junto com o item.
 
 ### `gaps`: lacunas
 
@@ -57,9 +59,9 @@ Tabela virtual **FTS5** com `title`, `tags`, `summary` e `body` (conteúdo do te
 
 `item_id`, `idx`, `text` (trecho do documento com o título), `embedding` (vetor float32 de 384 posições). Recalculados quando o documento muda (`items.embedding_hash`) e apagados junto com ele. Podem ser apagados à vontade: a plataforma recalcula ao iniciar.
 
-### `users` e `sessions`: login individual
+### `users` e `sessions`: login
 
-`users`: `id`, `email`, `name`, `provider`, `role` (`admin`, `editor`, `leitor`), `active`, `created_at`, `last_login_at`. `sessions`: `token_hash` (SHA-256 do cookie; o cookie em si não fica no banco), `user_id`, `created_at`, `expires_at`. Sessões vencidas são apagadas automaticamente.
+`users`: `id`, `email` (único, em minúsculas), `name`, `provider` (`local`), `role` (`admin`, `editor`, `leitor`), `active`, `password_hash` (scrypt com sal: `scrypt$N$r$p$sal$hash`; a senha em si nunca é guardada), `must_change_password` (1 enquanto a pessoa usa uma senha provisória), `created_at`, `last_login_at`. `sessions`: `token_hash` (SHA-256 do cookie; o cookie em si não fica no banco), `user_id`, `created_at`, `expires_at`. Sessões vencidas são apagadas automaticamente.
 
 ## Retenção
 
@@ -69,11 +71,13 @@ Tabela virtual **FTS5** com `title`, `tags`, `summary` e `body` (conteúdo do te
 | Anexos do chat | `CHAT_ATTACHMENT_HOURS` (padrão 72 h); a limpeza roda ao iniciar e a cada hora |
 | Lacunas e avaliações | Para sempre (as resolvidas continuam no histórico) |
 | Conversas do chat | No navegador de cada pessoa (últimas 40 mensagens) e no GPTMaker; a plataforma não guarda conversas |
-| Preferências (tema, menu recolhido, chat fixado, aba da tela inicial, autor) | No navegador de cada pessoa |
+| Pessoas | Até um administrador excluir a conta (os documentos da pessoa ficam, com o nome dela como autor) |
+| Sessões de login | `SESSION_DAYS` (padrão 30 dias) sem uso; renovadas com o uso; apagadas ao sair, ao bloquear a pessoa ou ao gerar nova senha |
+| Preferências (tema, menu recolhido, chat fixado, aba da tela inicial) | No navegador de cada pessoa |
 
 ## Migrações
 
-O banco se atualiza sozinho ao iniciar: colunas e tabelas novas são criadas sem perder dados. Bancos antigos que só aceitavam os tipos `article` e `file` são recriados aceitando `youtube`, com todos os registros copiados. Não há passo manual.
+O banco se atualiza sozinho ao iniciar: colunas e tabelas novas são criadas sem perder dados (por exemplo, as colunas de senha em `users` e `updated_by` em `items`). Bancos antigos que só aceitavam os tipos `article` e `file` são recriados aceitando `youtube`, com todos os registros copiados. Na primeira vez que a busca por significado é ligada, os documentos são indexados em segundo plano. Não há passo manual.
 
 ## O que sai da plataforma
 
@@ -81,9 +85,9 @@ O banco se atualiza sozinho ao iniciar: colunas e tabelas novas são criadas sem
 | --- | --- |
 | **n8n → GPTMaker** | As perguntas, referências e trechos dos documentos, o histórico da conversa e, pelo MCP, o conteúdo completo dos documentos, transcrições e anexos que o agente ler |
 | **YouTube** | Só o id dos vídeos cadastrados (para buscar título e legendas) |
-| **Hugging Face** | Nada da base; só o download do modelo de transcrição na primeira vez |
+| **Hugging Face** | Nada da base; só o download dos modelos de transcrição e de busca por significado na primeira vez |
 
-O áudio dos vídeos **não** sai do servidor: a transcrição é local.
+O áudio dos vídeos **não** sai do servidor (a transcrição é local), e o texto dos documentos também não sai para a busca por significado (os vetores são calculados no servidor).
 
 ## Backup
 

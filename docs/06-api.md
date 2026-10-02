@@ -6,13 +6,14 @@ Regras gerais:
 
 - **Ações** (POST, PUT, DELETE) vindas de outro site são recusadas com **403** (proteção contra CSRF, pelo cabeçalho `Sec-Fetch-Site`). Clientes fora do navegador (scripts, n8n) não são afetados.
 - **10 senhas ou tokens errados** em 10 minutos → **429** com `Retry-After`.
+- **Perfis**: alterações exigem o perfil *Editor* ou *Administrador* (senão **403**); as rotas de pessoas, só *Administrador*. Detalhes em [Pessoa logada, perfis e glossário](#pessoa-logada-perfis-e-glossário).
 - Corpo JSON até 5 MB; arquivos até `MAX_UPLOAD_MB`.
 
 - [Objeto item](#objeto-item)
 - [Itens](#itens) · [Textos](#textos) · [Arquivos](#arquivos) · [YouTube](#youtube) · [Vídeos e transcrição](#vídeos-e-transcrição)
 - [Versões](#versões) · [Revisão](#revisão) · [Avaliações](#avaliações) · [Relatório e lacunas](#relatório-e-lacunas)
 - [Anexos do chat](#anexos-do-chat) · [Active AI](#active-ai) · [Categorias](#categorias) · [Outros](#outros)
-- [Integração e MCP](#integração-e-mcp)
+- [Pessoa logada, perfis e glossário](#pessoa-logada-perfis-e-glossário) · [Integração e MCP](#integração-e-mcp)
 
 ---
 
@@ -22,7 +23,8 @@ Regras gerais:
 | --- | --- |
 | `id` | Número do item |
 | `kind` | `article` (texto), `file` (arquivo) ou `youtube` |
-| `title`, `summary`, `tags` (lista), `author` | Informações do item |
+| `title`, `summary`, `tags` (lista) | Informações do item |
+| `author`, `updated_by` | Quem criou e quem fez a última alteração (nomes vindos do login) |
 | `category_id`, `category_name` | Categoria (ou `null`) |
 | `file_name`, `mime_type`, `size` | Arquivos |
 | `extract_status` | `ok`, `empty`, `unsupported`, `error` ou `media` (vídeo/áudio) |
@@ -43,7 +45,7 @@ Lista ou pesquisa.
 
 | Parâmetro | Descrição |
 | --- | --- |
-| `q` | Texto da busca (com `q`, a resposta vem por relevância e cada item tem `snippet`, com os termos entre `[[ ]]`) |
+| `q` | Texto da busca: palavras, sinônimos do glossário e significado juntos. A resposta vem por relevância e cada item tem `snippet` (termos entre `[[ ]]`); itens achados só pelo significado têm `by_meaning: true` e o trecho mais parecido |
 | `category` | Id da categoria ou `none` (sem categoria) |
 | `kind` | `article`, `file` ou `youtube` |
 | `tag` | Só itens com a tag |
@@ -168,7 +170,7 @@ Corpo:
 | Campo | Descrição |
 | --- | --- |
 | `messages` | Conversa `[{ role: 'user' \| 'assistant', content }]` (últimas 30 mensagens, até 20.000 caracteres cada) |
-| `mode` | `livre` (chat) ou `base` (resposta da busca) |
+| `mode` | `livre` (chat) ou `base` (resposta da busca). Nos dois, a mensagem ao agente leva a regra de fonte e os documentos encontrados |
 | `session_id` | Id da conversa (vai como `contextId` ao n8n) |
 | `context_item_id` | Documento em foco |
 | `attachments` | Ids dos anexos desta mensagem (até 10) |
@@ -182,6 +184,7 @@ Resposta em **Server-Sent Events** (`text/event-stream`), um evento por linha `d
 | `options` | `items` | Opções em botões |
 | `sources` | `items: [{ id, title, kind }]` | Documentos usados |
 | `analysis` | `text` | Rascunho de raciocínio do agente (mostrado só ao clicar no **!**) |
+| `origin` | `origin` | Fonte da resposta quando não é a base da plataforma: `geral` (base geral do GPT Maker; a pergunta vira lacuna) ou `sem_citacao` (resposta longa sem citar documentos). Vem antes do `text` |
 | `error` | `message` | Erro legível |
 | `done` | | Fim |
 

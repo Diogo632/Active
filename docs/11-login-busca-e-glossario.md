@@ -84,7 +84,7 @@ O MCP e a API de integração não usam login: continuam com o `INTEGRATION_TOKE
 
 ### Testar no Codespace
 
-1. `git pull`, reinicie a plataforma e abra o endereço público: aparece **Primeiro acesso**. Crie a sua conta.
+1. `git pull`, reinicie a plataforma e abra o endereço público (ou o do túnel `trycloudflare`, se o do Codespace der 404; veja [5. Instalação](05-instalacao-e-configuracao.md#se-o-endereço-do-codespace-der-404)): aparece **Primeiro acesso**. Crie a sua conta.
 2. Em **Pessoas**, crie uma conta de teste com o perfil *Só consulta*.
 3. Abra uma janela anônima, entre com a conta de teste e a senha provisória, crie a senha e confira que os botões de edição não aparecem.
 
