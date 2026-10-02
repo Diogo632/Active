@@ -764,6 +764,7 @@ if (isMain) {
     console.log(`Base de Conhecimento Active rodando em http://localhost:${port}`);
     const { ai } = createdInfo;
     if (ai.provider === 'n8n') console.log(`Active AI: webhook do n8n (${process.env.N8N_WEBHOOK_URL})`);
+    else if (ai.configured) console.log('Active AI: API da Anthropic');
     const { auth } = createdInfo;
     if (!auth.enabled) {
       console.warn('ATENÇÃO: o login está DESLIGADO (LOGIN=off). Qualquer pessoa com o endereço pode ver, enviar e excluir documentos.');
@@ -776,7 +777,6 @@ if (isMain) {
     if (process.env.INTEGRATION_TOKEN && String(process.env.INTEGRATION_TOKEN).length < 32) {
       console.warn('Aviso: o INTEGRATION_TOKEN é curto. Gere um novo com "npm run gerar-token".');
     }
-    else if (ai.configured) console.log('Active AI: API da Anthropic');
     if (!ai.configured) console.log('Aviso: Active AI não configurada — defina N8N_WEBHOOK_URL no arquivo .env.');
   });
 }
