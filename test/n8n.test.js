@@ -163,3 +163,25 @@ test('extractOptions lê botões enviados pelo workflow', () => {
   assert.deepEqual(extractOptions([{ json: { botoes: [{ text: 'C' }] } }]), ['C']);
   assert.deepEqual(extractOptions({ message: 'sem opções' }), []);
 });
+
+test('o rascunho <analise> do agente não aparece para a pessoa', async () => {
+  replyWith = {
+    payload: {
+      message:
+        '<analise>\nAção: alterar | Objeto: descrição do CST | Contexto: CT-e\nResponde exatamente? Não.\nDecisão: perguntar\n</analise>\n' +
+        'Você quer alterar o código CST ou a descrição que aparece no DACTE?\n[OPCOES] Código CST | Descrição no DACTE',
+    },
+  };
+  const events = await ask('como alterar a descrição de um CST no cte ?', { mode: 'livre' });
+  const text = events.find((e) => e.type === 'text').text;
+  assert.doesNotMatch(text, /analise|Objeto:|Decisão/i);
+  assert.match(text, /^Você quer alterar o código CST/);
+  assert.match(text, /\[OPCOES\] Código CST \| Descrição no DACTE$/);
+});
+
+test('splitAnalysis nunca esconde a resposta inteira', async () => {
+  const { splitAnalysis } = await import('../server/n8n.js');
+  assert.deepEqual(splitAnalysis('<análise>Ação: x\n\nResposta.'), { analysis: 'Ação: x', answer: 'Resposta.' });
+  assert.equal(splitAnalysis('Sem rascunho.').answer, 'Sem rascunho.');
+  assert.equal(splitAnalysis('<analise>Só o rascunho</analise>').answer, 'Só o rascunho');
+});

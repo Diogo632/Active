@@ -34,6 +34,8 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 | *demorou mais de 240 s* | Resposta muito longa ou agente travado | Tente de novo; ajuste `N8N_TIMEOUT_SECONDS` (máximo prático ~290) |
 | *O fluxo do n8n retornou erro 4xx/5xx* | Workflow inativo ou com erro | Confira se o workflow está **ativo** e a URL é a de **produção** (não a de teste) |
 | *O n8n respondeu, mas sem texto* | O nó *Respond to Webhook* devolve outro formato | Faça ele responder `{ "message": "…" }` (veja [formatos aceitos](03-active-ai-e-integracoes.md#resposta-esperada-do-n8n)) |
+| O chat oficial mostra `<analise>…` | O trecho do prompt foi ativado sem o nó do n8n | Adicione o nó `n8n/remover-analise.js` antes do "Responder ao chat" |
+| Resposta "parecida mas errada" | O agente respondeu o assunto mais próximo sem conferir | Ative o [raciocínio obrigatório](03-active-ai-e-integracoes.md#raciocínio-obrigatório-antes-de-responder) e confira o rascunho no log (`grep "active-ai/análise" servidor.log`) |
 | `[OPCOES] A \| B` aparece como texto | Formato diferente do esperado | A linha precisa começar com `[OPCOES]` (ou `[OPÇÕES]`) e as opções separadas por `\|` |
 
 ## MCP (o agente não consegue ler a base)

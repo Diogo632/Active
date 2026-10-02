@@ -185,6 +185,20 @@ Acrescente ao prompt do agente no GPTMaker:
 
 > Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise na base antes de responder. Quando a mensagem citar um documento ou arquivo por id (ex.: "Documento aberto na tela: #12" ou `{"id": 45}`), leia-o com `ler_documento`, continuando com `inicio` enquanto a resposta indicar que há mais partes. Cite os documentos usados como [Título](#/item/ID). Em vídeos, cite o minuto do trecho. Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado. Quando quiser oferecer alternativas, termine com a linha `[OPCOES] Opção A | Opção B | Opção C`.
 
+### Raciocínio obrigatório antes de responder
+
+Para o agente não responder com "o assunto mais parecido" que encontrou, o prompt pode exigir um **rascunho de análise** no começo de toda resposta, entre `<analise>` e `</analise>`: ação, objeto exato, contexto, o que encontrou, se responde exatamente e a decisão (responder, perguntar antes ou dizer que não há na base). Escrever esse rascunho obriga o modelo a comparar o que achou com o que foi perguntado.
+
+| Parte | Onde | O que faz |
+| --- | --- | --- |
+| Trecho do prompt | [`n8n/prompt-raciocinio.md`](../n8n/prompt-raciocinio.md) → colar no prompt do agente no GPTMaker | Exige o rascunho e as regras de decisão |
+| Filtro na plataforma | Automático (`splitAnalysis` em `server/n8n.js`) | Tira o rascunho antes de mostrar a resposta e registra no log: `[active-ai/análise] sessão \| pergunta ⇒ rascunho` |
+| Filtro no n8n | [`n8n/remover-analise.js`](../n8n/remover-analise.js) → nó **Code** entre o agente e o "Responder ao chat" | Tira o rascunho para o **chat oficial** também; guarda o rascunho no campo `analise` (a plataforma registra esse campo no log) |
+
+Ordem para ativar: **primeiro** o nó no n8n, **depois** o trecho no prompt (senão o chat oficial mostra o rascunho). Para ver os rascunhos: `grep "active-ai/análise" servidor.log | tail`.
+
+Se o bloco vier sem o fechamento `</analise>`, só o trecho até a primeira linha em branco é tratado como rascunho; a plataforma nunca esconde a resposta inteira.
+
 ## Tarefas automáticas da plataforma
 
 Além das perguntas das pessoas, a plataforma usa o mesmo webhook para:

@@ -46,7 +46,7 @@ public/
     util.js       Ícones, Markdown, datas, diálogos, armazenamento local
     theme-init.js Aplica o tema salvo antes da página aparecer
 scripts/testar-mcp.js   Teste do MCP pela linha de comando (npm run mcp:testar)
-n8n/                    Exemplo de workflow do n8n
+n8n/                    Exemplo de workflow, nó que remove o rascunho <analise> e trecho de prompt do agente
 test/                   Testes automatizados
 docs/                   Esta documentação
 ```

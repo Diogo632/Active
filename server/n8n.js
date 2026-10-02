@@ -73,6 +73,37 @@ export function extractReply(body) {
   return '';
 }
 
+/**
+ * Separa o rascunho de raciocínio do agente (<analise>…</analise>) da resposta que a pessoa vê.
+ * O prompt do agente pede que toda resposta comece com esse bloco; ele nunca aparece no chat.
+ * Se o bloco não for fechado, considera rascunho só o trecho até a primeira linha em branco
+ * (para nunca esconder a resposta inteira por engano).
+ */
+export function splitAnalysis(text) {
+  const raw = String(text || '');
+  const open = /<an[aá]lise>/i;
+  if (!open.test(raw)) return { analysis: '', answer: raw.trim() };
+  const parts = [];
+  let answer = raw.replace(/<an[aá]lise>([\s\S]*?)<\/an[aá]lise>/gi, (_, inner) => {
+    parts.push(inner.trim());
+    return '';
+  });
+  const unclosed = answer.match(/<an[aá]lise>([\s\S]*?)(\n\s*\n|$)/i);
+  if (unclosed) {
+    const rest = answer.slice(unclosed.index + unclosed[0].length);
+    if (rest.trim()) {
+      parts.push(unclosed[1].trim());
+      answer = answer.slice(0, unclosed.index) + rest;
+    } else {
+      answer = answer.replace(open, '');
+    }
+  }
+  answer = answer.replace(/^\s*```\s*```\s*/, '').trim();
+  // Resposta vazia (o agente só escreveu o rascunho): mostra o texto original para não perder nada.
+  if (!answer) return { analysis: parts.join('\n'), answer: raw.replace(/<\/?an[aá]lise>/gi, '').trim() };
+  return { analysis: parts.join('\n'), answer };
+}
+
 /** Opções de resposta (botões) enviadas pelo workflow em um campo próprio, se houver. */
 export function extractOptions(body) {
   if (!body || typeof body !== 'object') return [];
@@ -247,7 +278,14 @@ export function createN8nActiveIA({ repo, webhookUrl, token, options = {} }) {
         emit({ type: 'error', message: 'O n8n respondeu, mas sem texto. Confira o nó "Respond to Webhook" do fluxo.' });
         return;
       }
-      emit({ type: 'text', text: reply });
+      // O rascunho de raciocínio do agente não aparece para a pessoa; fica no log para conferência.
+      // (Se o workflow do n8n já tiver removido o rascunho, ele pode vir no campo "analise".)
+      const { analysis, answer } = splitAnalysis(reply);
+      const loggedAnalysis = analysis || (typeof body === 'object' && typeof body?.analise === 'string' ? body.analise : '');
+      if (loggedAnalysis) {
+        console.log(`[active-ai/análise] ${sessionId || '-'} | ${last.content.slice(0, 120).replace(/\s+/g, ' ')} ⇒ ${loggedAnalysis.replace(/\s+/g, ' ').slice(0, 600)}`);
+      }
+      emit({ type: 'text', text: answer });
       const options = extractOptions(body);
       if (options.length) emit({ type: 'options', items: options });
       if (documents.length) {
