@@ -108,7 +108,7 @@ No topo dos resultados, a Active AI responde à pergunta usando primeiro os docu
 | --- | --- |
 | Texto | Formatado (títulos, listas, tabelas, código) |
 | PDF | Visualizador dentro da página + o texto lido pela Active AI |
-| Imagem | A imagem |
+| Imagem | A imagem + o texto lido dela (OCR) |
 | Vídeo/áudio | Player + painel de [transcrição](04-videos-e-transcricao.md) |
 | Outros arquivos | O texto extraído (quando existe) ou o aviso de que o conteúdo não pôde ser lido |
 
@@ -175,6 +175,7 @@ Formatos com conteúdo lido (pesquisável e usado pela Active AI):
 | Office e documentos | `.pdf`, `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`, `.odg`, `.rtf`, `.epub` |
 | Texto e código | `.txt`, `.md`, `.csv`, `.tsv`, `.json`, `.xml`, `.yml`, `.log`, `.ini`, `.sql`, `.sh`, `.bat`, `.ps1`, `.js`, `.py`… |
 | Páginas | `.html`, `.htm` (só o texto) |
+| Imagens | `.png`, `.jpg`, `.gif`, `.webp`, `.bmp`, `.tif` (texto lido por **OCR**, em português e inglês: prints de erro, telas, documentos fotografados) |
 | Vídeo e áudio | `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.mp3`, `.wav`, `.m4a`… (transcritos) |
 
 Outros formatos (`.zip`, `.doc` antigo, `.exe`…) são guardados e podem ser baixados, mas a Active AI só conhece o título, a descrição e as tags. PDFs digitalizados (imagem) não têm texto legível.
@@ -217,6 +218,7 @@ No chat, o **📎** (ou arrastar arquivos para o chat) anexa arquivos à próxim
 
 Regras dos anexos:
 
+- **Prints e imagens**: o texto da imagem é lido na hora (OCR) e o cartão mostra quantos caracteres foram lidos. O texto curto (até ~700 caracteres por imagem) já vai **dentro da mensagem**, e o agente pode ler tudo pelo MCP e ver a própria imagem (`ver_imagem`). Imagens só com desenhos, sem texto, aparecem como *sem texto*: descreva o problema na mensagem.
 - Ficam guardados **temporariamente**: **72 horas** por padrão (`CHAT_ATTACHMENT_HOURS`), fora das listas, da busca e das categorias.
 - Abrem pelo cartão do arquivo na conversa. **Manter na base** transforma o anexo em documento normal (e abre a tela para dar título, categoria e tags).
 - Depois de vencido, o anexo é apagado (registro e arquivo); o cartão no histórico do chat passa a levar a "documento não encontrado" e o agente não consegue mais lê-lo.

@@ -646,6 +646,19 @@ export function createRepository(db) {
       return repo.getItem(id);
     },
 
+    /** Grava o texto lido de um arquivo (ex.: OCR de imagem), sem mudar a data de atualização. */
+    setExtractedText(id, text) {
+      db.prepare('UPDATE items SET text = ?, extract_status = ? WHERE id = ?').run(text, text ? 'ok' : 'empty', id);
+      syncFts(id);
+    },
+
+    /** Imagens enviadas antes de existir a leitura de texto (OCR). */
+    imagesWithoutOcr() {
+      return db
+        .prepare("SELECT id, stored_name, file_name FROM items WHERE mime_type LIKE 'image/%' AND extract_status = 'unsupported' AND stored_name IS NOT NULL ORDER BY id")
+        .all();
+    },
+
     /** Atualiza o estado da transcrição de um vídeo/áudio. */
     setMedia(id, { status, progress, error, duration } = {}) {
       const sets = [];

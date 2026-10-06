@@ -51,7 +51,7 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Error: error on connect with mcp server` significa que o GPTMaker não conseguiu falar com a plataforma.
 
 1. **A plataforma está no ar e a porta pública?** (veja a primeira tabela).
-2. **O MCP responde pelo endereço público?** `npm run mcp:testar -- https://ENDERECO SEU_TOKEN` deve listar 6 ferramentas.
+2. **O MCP responde pelo endereço público?** `npm run mcp:testar -- https://ENDERECO SEU_TOKEN` deve listar 7 ferramentas.
 3. **A chamada chegou?** `grep "\[mcp" servidor.log | tail`:
    - nenhuma linha no horário: endereço errado, porta privada ou plataforma parada;
    - `→ 401`: token do GPTMaker diferente do `INTEGRATION_TOKEN`;
@@ -64,6 +64,7 @@ No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Err
 | *ERRO AO OBTER CONFIGURAÇÃO DE OAUTH* | Escolha autenticação por **Headers**, não OAuth |
 | Agente diz que o arquivo "não ficou disponível pelo ID" | Confira no log se houve `ler_documento #ID`. Se o anexo tiver mais de 72 h, ele expirou: anexe de novo |
 | Links do agente sem o endereço completo | Defina `PUBLIC_URL` |
+| Agente diz que não conseguiu ler um print | Veja `grep "\[ocr\]" servidor.log`: o número de caracteres lidos. `0 caracteres`: a imagem não tem texto legível (muito pequena ou borrada); peça um print maior ou o texto do erro. Sem linhas `[ocr]`: confira se `OCR` não está `off` e rode `npm ci` |
 
 ## Vídeos
 

@@ -6,6 +6,7 @@ Tudo o que a plataforma guarda fica em `DATA_DIR` (padrão `data/`, fora do Git)
 data/
 ├── base.db          banco SQLite (modo WAL: base.db-wal e base.db-shm acompanham)
 └── uploads/         arquivos enviados, com nome gerado pelo servidor (ex.: 1727729000000-3f9a….pdf)
+└── ocr/             dados de idioma do OCR (copiados dos pacotes npm; recriados se apagados)
 ```
 
 O nome original do arquivo fica no banco; o nome no disco é gerado pelo servidor (data + código aleatório + extensão), então não há como um nome de arquivo malicioso gravar fora da pasta.
@@ -87,7 +88,7 @@ O banco se atualiza sozinho ao iniciar: colunas e tabelas novas são criadas sem
 | **YouTube** | Só o id dos vídeos cadastrados (para buscar título e legendas) |
 | **Hugging Face** | Nada da base; só o download dos modelos de transcrição e de busca por significado na primeira vez |
 
-O áudio dos vídeos **não** sai do servidor (a transcrição é local), e o texto dos documentos também não sai para a busca por significado (os vetores são calculados no servidor).
+O áudio dos vídeos **não** sai do servidor (a transcrição é local), a leitura do texto das imagens também é local (a imagem só vai para o agente se ele pedir pelo `ver_imagem`), e o texto dos documentos também não sai para a busca por significado (os vetores são calculados no servidor).
 
 ## Backup
 

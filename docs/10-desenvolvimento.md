@@ -10,6 +10,7 @@
 | Leitura de arquivos | `officeparser` (PDF, Office, LibreOffice, RTF, EPUB) |
 | MCP | `@modelcontextprotocol/sdk` (Streamable HTTP e SSE) |
 | Transcrição | `@huggingface/transformers` (Whisper) e `@ffmpeg-installer/ffmpeg` (opcionais) |
+| OCR de imagens | `tesseract.js` com os dados de idioma dos pacotes `@tesseract.js-data/por` e `/eng` |
 | Busca por significado | `@huggingface/transformers` (multilingual-e5), vetores no SQLite e busca em memória, juntada ao FTS5 por *Reciprocal Rank Fusion* |
 | Login | Próprio: `node:crypto` (scrypt para senhas, tokens aleatórios para sessões), páginas renderizadas no servidor |
 | Interface | JavaScript puro em módulos ES, sem framework nem etapa de build; `marked` + `DOMPurify` para Markdown; animações com a Web Animations API |
@@ -34,6 +35,7 @@ server/
   search.js       Busca da plataforma: junta palavras (FTS5), sinônimos do glossário e significado (RRF)
   semantic.js     Busca por significado: trechos, vetores (multilingual-e5) e índice em memória
   glossary.js     Glossário: termos, sinônimos, variações da busca e explicação para a Active AI
+  ocr.js          Texto de imagens (prints de tela) com o Tesseract, em português e inglês
 public/
   index.html      Esqueleto da página
   css/styles.css  Todo o visual (tema escuro/claro em variáveis CSS no topo)
@@ -83,9 +85,10 @@ npm test
 | `test/transcribe.test.js` | Formatação de transcrição, legendas, transcrição em segundo plano com ffmpeg real e motor simulado |
 | `test/melhorias.test.js` | Versões, revisão, lacunas, avaliações, capítulos, YouTube (simulado), anexos do chat, transcrição .docx do Teams |
 | `test/seguranca.test.js` | Login, cookie de sessão, cabeçalhos, CSP, CSRF e limite de tentativas (token e senha) |
+| `test/ocr.test.js` | OCR de verdade num print de erro (`test/fixtures/`), texto na mensagem, `ler_documento` e `ver_imagem` pelo MCP |
 | `test/conta-e-busca.test.js` | Primeiro acesso, login, senha provisória e troca, perfis, bloqueio e exclusão, autor/atualizado por, glossário, busca por significado (vetores simulados) |
 
-Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, login })`. O `npm test` roda com `LOGIN=off` (os testes de login passam `login: true`) e `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores.
+Os testes não acessam a internet: a Active AI, o YouTube e o motor de transcrição são simulados com objetos passados para `createApp({ ai, youtubeClient, transcriptionEngine, embedder, login })`. O `npm test` roda com `LOGIN=off` (os testes de login passam `login: true`), `SEMANTIC_SEARCH=off` para não baixar o modelo de vetores e `OCR=off` (o `test/ocr.test.js` liga com `ocrEnabled: true`).
 
 ## Como estender
 

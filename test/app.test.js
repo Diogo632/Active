@@ -193,7 +193,7 @@ test('servidor MCP: lista ferramentas, busca e lê documentos (com token)', asyn
   const client = new Client({ name: 'teste', version: '1.0.0' });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${base}/mcp`), { requestInit: { headers: { Authorization: 'Bearer tok-teste' } } }));
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['buscar_documentos', 'consultar_glossario', 'ler_documento', 'listar_categorias', 'listar_documentos', 'registrar_lacuna']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['buscar_documentos', 'consultar_glossario', 'ler_documento', 'listar_categorias', 'listar_documentos', 'registrar_lacuna', 'ver_imagem']);
 
   const found = JSON.parse((await client.callTool({ name: 'buscar_documentos', arguments: { consulta: 'ADEME custo' } })).content[0].text);
   assert.equal(found[0].id, doc.id);

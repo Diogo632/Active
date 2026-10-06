@@ -19,6 +19,7 @@ import { createAuth, ROLES } from './auth.js';
 import { createGlossary } from './glossary.js';
 import { createSemanticIndex, createE5Embedder } from './semantic.js';
 import { createSearchService } from './search.js';
+import { createOcr } from './ocr.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(here, '..');
@@ -36,6 +37,8 @@ export function createApp({
   reviewMonthsDefault = Number(process.env.REVIEW_MONTHS_DEFAULT ?? 6),
   // Motor da busca semântica (os testes passam um simulado). SEMANTIC_SEARCH=off desliga.
   embedder,
+  // Leitura do texto das imagens (OCR). OCR=off desliga.
+  ocrEnabled = String(process.env.OCR || 'on').toLowerCase() !== 'off',
   // Login próprio (e-mail e senha). LOGIN=off desliga (só para testes e desenvolvimento local).
   login = String(process.env.LOGIN || 'on').toLowerCase() !== 'off',
 } = {}) {
@@ -58,6 +61,22 @@ export function createApp({
   repo.onChange = (id) => semantic.enqueue(id);
   semantic.resume();
   const search = createSearchService({ repo, semantic, glossary });
+
+  // Texto de imagens (prints de erro, telas) lido por OCR no próprio servidor. OCR=off desliga.
+  const ocr = createOcr({ enabled: ocrEnabled, cacheDir: path.join(dataDir, 'ocr') });
+  // Imagens enviadas antes do OCR: lidas em segundo plano, uma por vez, ao iniciar.
+  if (ocr.enabled) {
+    const pending = repo.imagesWithoutOcr();
+    if (pending.length) {
+      setTimeout(async () => {
+        for (const img of pending) {
+          const file = path.join(uploadsDir, img.stored_name);
+          if (fs.existsSync(file)) repo.setExtractedText(img.id, await ocr.recognize(file));
+        }
+        console.log(`[ocr] ${pending.length} imagem(ns) antiga(s) lida(s).`);
+      }, 2000).unref();
+    }
+  }
 
   const ai = aiOverride || createAssistant({ repo, uploadsDir, model, search, glossary });
 
@@ -132,7 +151,7 @@ export function createApp({
   app.use('/api/integracao', integration);
 
   // Servidor MCP: o agente (GPTMaker, n8n ou outro cliente MCP) pesquisa e lê a base por aqui.
-  const mcp = createMcpHandler({ repo, search, glossary, publicUrl: process.env.PUBLIC_URL || '' });
+  const mcp = createMcpHandler({ repo, search, glossary, uploadsDir, publicUrl: process.env.PUBLIC_URL || '' });
   // Registro de todas as chamadas ao MCP (inclusive recusadas), para diagnosticar a conexão do agente.
   app.use('/mcp', (req, res, next) => {
     const started = Date.now();
@@ -415,7 +434,7 @@ export function createApp({
     const created = [];
     for (const file of files) {
       const name = originalName(file);
-      const { text, status } = await extractText(file.path, name);
+      const { text, status } = await extractText(file.path, name, { ocr });
       const title = files.length === 1 && req.body.title?.trim() ? req.body.title.trim() : path.parse(name).name;
       const item = repo.createItem({
           kind: 'file',
@@ -518,7 +537,7 @@ export function createApp({
       throw httpError(404, 'Documento não encontrado.');
     }
     const name = originalName(req.file);
-    const { text, status } = await extractText(req.file.path, name);
+    const { text, status } = await extractText(req.file.path, name, { ocr });
     const item = repo.replaceFile(id, {
       file_name: name,
       stored_name: req.file.filename,
@@ -538,7 +557,7 @@ export function createApp({
   app.post('/api/chat/anexos', upload.single('file'), async (req, res) => {
     if (!req.file) throw httpError(400, 'Selecione um arquivo.');
     const name = originalName(req.file);
-    const { text, status } = await extractText(req.file.path, name);
+    const { text, status } = await extractText(req.file.path, name, { ocr });
     const item = repo.createItem({
       kind: 'file',
       title: name,
@@ -587,7 +606,7 @@ export function createApp({
       const ext = path.extname(name).toLowerCase();
       raw = ['.vtt', '.srt', '.txt'].includes(ext)
         ? await fs.promises.readFile(req.file.path, 'utf8')
-        : (await extractText(req.file.path, name)).text;
+        : (await extractText(req.file.path, name, { ocr })).text;
       removeStored(req.file.filename);
     }
     const text = normalizeTranscript(raw, name);
@@ -697,7 +716,7 @@ export function createApp({
     res.status(status).json({ error: status >= 500 ? 'Erro interno do servidor.' : err.message, ...(err.item ? { item: err.item } : {}) });
   });
 
-  return { app, db, repo, ai, transcription, chapters, semantic, search, glossary, auth };
+  return { app, db, repo, ai, transcription, chapters, semantic, search, glossary, auth, ocr };
 }
 
 /**
@@ -726,15 +745,27 @@ function createAssistant({ repo, uploadsDir, model, search, glossary }) {
 
 /** Referência curta aos arquivos anexados na conversa, para o agente ler pelo MCP. */
 export function attachmentNote(items) {
+  // Prints de tela costumam ter pouco texto: ele vai direto na mensagem (o agente vê o erro mesmo sem
+  // chamar o MCP, e a busca da plataforma procura pelas palavras do erro). O limite protege os ~4.000
+  // caracteres que o GPT Maker enxerga por mensagem.
+  let inlineBudget = 1500;
   const lines = items.map((i) => {
     const size = i.text?.length || 0;
     const media = i.media_status && !['concluida', 'manual', 'legendas'].includes(i.media_status);
+    const image = /^image\//.test(i.mime_type || '');
     const info = media
       ? 'vídeo/áudio: a transcrição está sendo feita; se ler_documento avisar que não está pronta, peça para o usuário aguardar'
-      : size
-        ? `${size.toLocaleString('pt-BR')} caracteres`
-        : 'sem texto legível (arquivo digitalizado, imagem ou formato não suportado)';
-    return `- id ${i.id}: “${i.file_name || i.title}” (${info})`;
+      : image
+        ? `imagem: ${size ? `${size.toLocaleString('pt-BR')} caracteres de texto lidos da imagem (OCR), em ler_documento` : 'sem texto legível'}; para ver a imagem, use ver_imagem`
+        : size
+          ? `${size.toLocaleString('pt-BR')} caracteres`
+          : 'sem texto legível (arquivo digitalizado ou formato não suportado)';
+    const line = `- id ${i.id}: “${i.file_name || i.title}” (${info})`;
+    const ocrText = image && size ? i.text.replace(/\s+/g, ' ').trim() : '';
+    if (!ocrText || inlineBudget < 120) return line;
+    const piece = ocrText.length > Math.min(700, inlineBudget) ? `${ocrText.slice(0, Math.min(700, inlineBudget))}…` : ocrText;
+    inlineBudget -= piece.length;
+    return `${line}\n  Texto lido da imagem: «${piece}»`;
   });
   const ids = items.map((i) => `{"id": ${i.id}}`).join(', ');
   return [

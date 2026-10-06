@@ -89,6 +89,7 @@ O login é próprio da plataforma: no **primeiro acesso** ela pede para criar o 
 | `TRANSCRIPTION_DTYPE` | `q8` | Precisão do modelo |
 | `FFMPEG_PATH` | vazio | Caminho de um ffmpeg já instalado (por padrão usa o do `npm ci`) |
 | `YTDLP_PATH` | vazio | Caminho do yt-dlp, para transcrever vídeos do YouTube sem legendas |
+| `OCR` | `on` | `off` desliga a leitura de texto das imagens (prints de tela). Os dados de português e inglês vêm com o `npm ci` (pacotes `@tesseract.js-data`); nada é baixado na hora |
 
 ### Base de conhecimento
 

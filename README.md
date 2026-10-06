@@ -9,7 +9,7 @@ Plataforma web da base de conhecimento do Suporte da Active Corp, com a assisten
 ### Conteúdo
 
 - **Textos** escritos na plataforma, em Markdown, com barra de formatação, visualização lado a lado, atalhos (Ctrl+B, Ctrl+I, Ctrl+K, Ctrl+S) e **modelos** (*Problema → Causa → Solução*, *Passo a passo*, *Comunicado*).
-- **Arquivos de qualquer tipo**, vários de uma vez, arrastando para a tela. O conteúdo é lido para a busca e para a Active AI em PDF, Word, Excel, PowerPoint, LibreOffice, RTF, EPUB, textos, CSV, JSON, XML, HTML, logs e código. Outros formatos são guardados e podem ser baixados.
+- **Arquivos de qualquer tipo**, vários de uma vez, arrastando para a tela. O conteúdo é lido para a busca e para a Active AI em PDF, Word, Excel, PowerPoint, LibreOffice, RTF, EPUB, textos, CSV, JSON, XML, HTML, logs, código e **imagens** (texto lido por OCR). Outros formatos são guardados e podem ser baixados.
 - **Vídeos e áudios** (treinamentos, reuniões) **transcritos automaticamente** no próprio servidor (Whisper + ffmpeg, sem custo). A transcrição tem horários clicáveis e entra na busca. Também dá para enviar a transcrição pronta (`.vtt`/`.srt` do Teams, Meet ou Zoom, `.txt` ou o `.docx` do Teams).
 - **Vídeos do YouTube**: o vídeo toca na plataforma e a transcrição vem das legendas do YouTube.
 - **Resumo e capítulos** dos vídeos, gerados pela Active AI ("0:40 Cadastro do cliente · 1:15 Transmissão para a SEFAZ").
@@ -31,7 +31,8 @@ Plataforma web da base de conhecimento do Suporte da Active Corp, com a assisten
 - **Documento em foco**: *Perguntar à Active AI* e *Resumir com a Active AI* na página de um documento.
 - **Anexos na conversa** (📎): o arquivo fica guardado por 72 horas e o agente lê o conteúdo inteiro pelo MCP.
 - **Opções em botões** (`[OPCOES] A | B | C`), **raciocínio** do agente no botão **!** e **Ajudou? 👍 👎** nas respostas longas.
-- **Servidor MCP** com 6 ferramentas para o agente pesquisar e ler a base sozinho.
+- **Prints e imagens**: o texto das imagens (mensagens de erro, telas de sistema) é lido no próprio servidor (OCR, sem custo), entra na busca e vai para o agente; a imagem em si também pode ser vista pelo agente (`ver_imagem`).
+- **Servidor MCP** com 7 ferramentas para o agente pesquisar e ler a base sozinho.
 
 ### Base viva
 
@@ -71,7 +72,7 @@ Principais variáveis do `.env` (a lista completa está em [docs/05](docs/05-ins
 | `INTEGRATION_TOKEN` | Token do MCP e da API de integração (`npm run gerar-token`). Sem ele, o MCP fica desligado |
 | `PUBLIC_URL` | Endereço público da plataforma (links do MCP e cookie seguro em HTTPS) |
 | `PORT` / `DATA_DIR` | Porta (padrão `3000`) e pasta dos dados (padrão `./data`, **faça backup**) |
-| `TRANSCRIPTION` / `SEMANTIC_SEARCH` | `off` desliga a transcrição automática / a busca por significado |
+| `TRANSCRIPTION` / `SEMANTIC_SEARCH` / `OCR` | `off` desliga a transcrição automática / a busca por significado / a leitura de texto das imagens |
 | `SEMANTIC_MIN_SCORE` | Nota mínima da busca por significado (padrão `0.8`) |
 | `SESSION_DAYS` | Dias até a pessoa precisar entrar de novo (padrão `30`) |
 | `TRUST_PROXY` | Atrás de um proxy (nginx), quantos há na frente (ex.: `1`) |
@@ -107,6 +108,7 @@ Ferramentas do MCP:
 | `listar_categorias` | Lista as categorias e quantos documentos cada uma tem |
 | `consultar_glossario` | Explica termos, siglas e nomes internos da Active |
 | `registrar_lacuna` | Registra uma pergunta que a base não respondeu (vai para o relatório) |
+| `ver_imagem` | Devolve a própria imagem (prints, fotos) para agentes que enxergam imagens |
 
 Configuração completa, formato das mensagens, raciocínio obrigatório e solução de problemas em [docs/03](docs/03-active-ai-e-integracoes.md) e [docs/09](docs/09-solucao-de-problemas.md).
 

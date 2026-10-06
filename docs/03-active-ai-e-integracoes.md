@@ -72,6 +72,13 @@ Quando a mensagem tem arquivos anexados, a plataforma acrescenta antes da pergun
 - id 45: "contrato-selmi.pdf" (38.210 caracteres)
 ```
 
+Imagens (prints de tela) têm o texto lido por OCR na hora do envio. O texto curto vai direto na mensagem (até ~700 caracteres por imagem e ~1.500 no total), para o agente ver o erro mesmo sem chamar o MCP:
+
+```text
+- id 46: "Screenshot_3n8n.png" (imagem: 161 caracteres de texto lidos da imagem (OCR), em ler_documento; para ver a imagem, use ver_imagem)
+  Texto lido da imagem: «Problem in node 'Enviar Romaneio' The resource you are requesting could not be found (404) Romaneio 48213 não encontrado…»
+```
+
 ### Corpo enviado ao webhook
 
 `POST N8N_WEBHOOK_URL` com `Content-Type: application/json`. Os mesmos dados vão em vários nomes de campo para funcionar com workflows diferentes:
@@ -197,6 +204,16 @@ Explica termos, siglas e nomes internos cadastrados no [glossário](11-login-bus
 
 Retorna `[{ termo, sinonimos, significado }]`.
 
+#### `ver_imagem`
+
+Devolve a própria imagem (PNG, JPEG, GIF ou WebP até 5 MB) de um documento ou anexo, junto com o texto lido por OCR, para agentes que enxergam imagens (cores, destaques, posição de campos).
+
+| Parâmetro | Tipo | Descrição |
+| --- | --- | --- |
+| `id` | número ou texto | Id da imagem |
+
+Retorna um bloco de texto e um bloco `image` (`data` em base64 e `mimeType`), no formato padrão do MCP. Se o GPT Maker não repassar imagens ao modelo, o agente continua com o texto lido por OCR, que vem no `ler_documento` (com `tipo: "imagem (texto lido por OCR)"` e uma `observacao`).
+
 #### `registrar_lacuna`
 
 Registra uma pergunta que a base não respondeu (entra no [relatório de lacunas](02-guia-de-uso.md#relatório-da-base)).
@@ -217,7 +234,7 @@ Os links (`link`) usam o `PUBLIC_URL` do `.env` (ex.: `https://base.activecorp.c
    ```bash
    npm run mcp:testar -- https://ENDERECO SEU_TOKEN
    ```
-   Deve listar as 6 ferramentas e fazer uma busca. O endereço pode ir com ou sem `/mcp`.
+   Deve listar as 7 ferramentas e fazer uma busca. O endereço pode ir com ou sem `/mcp`.
 3. No GPTMaker, nas configurações do agente, adicione um servidor MCP:
    - **Tipo**: Streamable HTTP
    - **URL**: `https://ENDERECO/mcp`
@@ -233,7 +250,7 @@ Para testar pelo Codespace, a porta precisa estar **pública**; se o endereço d
 
 Acrescente ao prompt do agente no GPTMaker:
 
-> Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Ela é a **fonte principal**: sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise nela antes de responder e use só o que estiver nela. Só se ela não tiver a resposta, use a sua base de treinamento; nesse caso comece a resposta com a linha `[FONTE: BASE GERAL]` e nunca misture processos das duas bases na mesma resposta. Quando a mensagem citar um documento ou arquivo por id (ex.: "Documento aberto na tela: #12" ou `{"id": 45}`), leia-o com `ler_documento`, continuando com `inicio` enquanto a resposta indicar que há mais partes. Cite os documentos usados como [Título](#/item/ID). Em vídeos, cite o minuto do trecho. Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado. Quando quiser oferecer alternativas, termine com a linha `[OPCOES] Opção A | Opção B | Opção C`.
+> Você tem acesso à Base de Conhecimento do Suporte pelas ferramentas `buscar_documentos` e `ler_documento`. Ela é a **fonte principal**: sempre que a pergunta envolver processos, clientes, sistemas ou procedimentos, pesquise nela antes de responder e use só o que estiver nela. Só se ela não tiver a resposta, use a sua base de treinamento; nesse caso comece a resposta com a linha `[FONTE: BASE GERAL]` e nunca misture processos das duas bases na mesma resposta. Quando a mensagem citar um documento ou arquivo por id (ex.: "Documento aberto na tela: #12" ou `{"id": 45}`), leia-o com `ler_documento`, continuando com `inicio` enquanto a resposta indicar que há mais partes. Se o arquivo for uma imagem (print de tela), o texto dela já vem lido; use `ver_imagem` quando precisar enxergar a imagem. Cite os documentos usados como [Título](#/item/ID). Em vídeos, cite o minuto do trecho. Se a base não tiver a resposta (depois de tentar sinônimos), chame `registrar_lacuna` com a pergunta do usuário. Se um documento vier com "aviso" de revisão vencida, avise o usuário que o procedimento pode estar desatualizado. Quando quiser oferecer alternativas, termine com a linha `[OPCOES] Opção A | Opção B | Opção C`.
 
 ### Raciocínio obrigatório antes de responder
 

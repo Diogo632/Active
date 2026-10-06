@@ -1,11 +1,17 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { isMediaFile, formatTime } from './transcribe.js';
 import { TRANSCRIPT_READY } from './db.js';
 
 const READ_CHUNK_CHARS = 30_000;
+// Imagens entregues pelo ver_imagem: formatos que os modelos de IA aceitam, até 5 MB.
+const VISION_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const MAX_VISION_BYTES = 5 * 1024 * 1024;
+const isImage = (item) => /^image\//.test(item?.mime_type || '');
 
 /** Garante um header (em headers e rawHeaders, que é o que o transporte lê). */
 function ensureHeader(req, name, isOk, value) {
@@ -20,13 +26,15 @@ function ensureHeader(req, name, isOk, value) {
  * Servidor MCP da Base de Conhecimento (transporte Streamable HTTP, sem estado).
  * Permite que agentes externos — como a Active AI no GPTMaker ou no n8n — pesquisem e leiam os documentos.
  */
-export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
+export function createMcpHandler({ repo, search, glossary, uploadsDir = '', publicUrl = '' }) {
   const kindOf = (i) =>
     i.kind === 'article'
       ? 'texto'
       : i.kind === 'youtube'
         ? 'vídeo do YouTube (transcrição)'
-        : isMediaFile(i.file_name, i.mime_type)
+        : isImage(i)
+          ? 'imagem (texto lido por OCR)'
+          : isMediaFile(i.file_name, i.mime_type)
           ? 'vídeo/áudio (transcrição)'
           : 'arquivo';
   // Aviso para o agente não repassar um procedimento possivelmente desatualizado sem ressalva.
@@ -121,6 +129,13 @@ export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
           ...(item.media_status && !TRANSCRIPT_READY.includes(item.media_status)
             ? { observacao: `Transcrição ainda não disponível (situação: ${item.media_status}).` }
             : {}),
+          ...(isImage(item)
+            ? {
+                observacao: body
+                  ? 'Imagem: o conteúdo abaixo é o texto lido da imagem por OCR (pode ter pequenos erros de leitura). Para ver a imagem, use ver_imagem.'
+                  : 'Imagem sem texto legível. Para ver a imagem, use ver_imagem.',
+              }
+            : {}),
           ...(item.temporary ? { anexo_da_conversa: 'Arquivo enviado pelo usuário na conversa (não faz parte da base de conhecimento).' } : {}),
           ...(item.kind === 'youtube' ? { video_youtube: item.source_url } : {}),
           ...(item.ai_summary ? { resumo_do_video: item.ai_summary } : {}),
@@ -132,6 +147,37 @@ export function createMcpHandler({ repo, search, glossary, publicUrl = '' }) {
           conteudo: chunk || '(documento sem texto legível)',
           ...(next < body.length ? { continua: true, proximo_inicio: next } : {}),
         });
+      },
+    );
+
+    server.registerTool(
+      'ver_imagem',
+      {
+        title: 'Ver imagem',
+        description:
+          'Devolve a própria imagem (prints de tela, fotos) de um documento ou anexo pelo id, para você enxergar o que o texto lido por OCR não mostra ' +
+          '(cores, destaques, posição dos campos). Leia primeiro com ler_documento, que traz o texto da imagem.',
+        inputSchema: { id: z.union([z.number().int(), z.string()]).describe('Id da imagem (número, ex.: 45)') },
+        annotations: { readOnlyHint: true },
+      },
+      async ({ id: rawId }) => {
+        const id = Number(String(rawId).replace(/\D/g, '')) || 0;
+        const item = id ? repo.getItem(id, { full: true }) : null;
+        log(`ver_imagem #${id}${item ? ` "${item.title}"` : ' → não encontrado'}`);
+        if (!item || !isImage(item) || !item.stored_name) {
+          return { ...text(`O documento ${rawId} não é uma imagem. Use ler_documento.`), isError: true };
+        }
+        const file = path.join(uploadsDir, item.stored_name);
+        const size = fs.existsSync(file) ? fs.statSync(file).size : 0;
+        if (!VISION_TYPES.has(item.mime_type) || !size || size > MAX_VISION_BYTES) {
+          return text(`A imagem "${item.file_name}" não pode ser enviada (formato ${item.mime_type} ou tamanho acima de 5 MB). Use o texto lido por OCR em ler_documento.`);
+        }
+        return {
+          content: [
+            { type: 'text', text: `Imagem #${item.id} "${item.file_name}"${item.text ? ` — texto lido por OCR:\n${item.text.slice(0, 4000)}` : ''}` },
+            { type: 'image', data: fs.readFileSync(file).toString('base64'), mimeType: item.mime_type },
+          ],
+        };
       },
     );
 

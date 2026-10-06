@@ -15,7 +15,7 @@ Tudo o que foi construído na plataforma, na ordem em que entrou, com o que mudo
 | **Conteúdo** | Textos em Markdown com editor visual e modelos; arquivos de qualquer tipo com leitura do conteúdo; vídeos e áudios com transcrição automática; vídeos do YouTube com legendas | [2. Guia de uso](02-guia-de-uso.md), [4. Vídeos](04-videos-e-transcricao.md) |
 | **Busca** | Busca em primeiro lugar (tela inicial e Ctrl+K), por palavras (FTS5), por sinônimos do glossário e **por significado** (modelo no próprio servidor), juntas num só resultado | [2. Guia de uso](02-guia-de-uso.md#busca), [11](11-login-busca-e-glossario.md#busca-por-significado-semântica) |
 | **Active AI** | Agente do GPT Maker via n8n: resposta na busca, chat (painel, página ou fixado ao lado), documento em foco, anexos lidos pelo MCP, opções em botões, raciocínio no **!**, **base da plataforma primeiro** com aviso quando a resposta vem da base geral do GPT Maker | [3. Active AI](03-active-ai-e-integracoes.md) |
-| **MCP** | 6 ferramentas para o agente: `buscar_documentos`, `ler_documento`, `listar_documentos`, `listar_categorias`, `consultar_glossario`, `registrar_lacuna` | [3. Active AI](03-active-ai-e-integracoes.md#ferramentas) |
+| **MCP** | 7 ferramentas para o agente: `buscar_documentos`, `ler_documento`, `listar_documentos`, `listar_categorias`, `consultar_glossario`, `registrar_lacuna`, `ver_imagem` | [3. Active AI](03-active-ai-e-integracoes.md#ferramentas) |
 | **Base viva** | Relatório de lacunas, avaliações 👍👎, histórico de versões, prazo de revisão, modelos de texto, glossário | [2. Guia de uso](02-guia-de-uso.md#relatório-da-base) |
 | **Acesso** | Login próprio (e-mail e senha), perfis *Administrador*, *Editor* e *Só consulta*, tela **Pessoas**, registro de quem criou e quem editou | [11](11-login-busca-e-glossario.md#login-próprio-e-mail-e-senha) |
 | **Segurança** | Senhas com scrypt, sessões em cookie HttpOnly, CSP, proteção contra CSRF, limite de tentativas, arquivos perigosos sempre baixados | [8. Segurança](08-seguranca.md) |
@@ -85,6 +85,12 @@ Tudo o que foi construído na plataforma, na ordem em que entrou, com o que mudo
 - **Glossário da Active**: termos e sinônimos ampliam a busca e são explicados à Active AI; ferramenta MCP `consultar_glossario`.
 - Transcrição do Teams em **.docx** (nome de quem fala e horário) aceita no envio de transcrição pronta.
 - **Base da plataforma primeiro**: na busca e no chat, a mensagem leva a regra de fonte e os documentos encontrados. Quando a resposta vem da base geral do GPT Maker, aparece o aviso **Resposta da base geral do GPT Maker** e a pergunta vira lacuna; respostas longas sem citar documentos mostram **Sem documentos da plataforma**.
+
+### 06/10/2026 — Prints e imagens
+
+- **Texto das imagens lido por OCR** no próprio servidor (Tesseract, português e inglês, sem custo e sem internet): prints de erro anexados na conversa e imagens da base viram texto pesquisável. O texto curto vai direto na mensagem para o agente.
+- Nova ferramenta MCP **`ver_imagem`**: entrega a própria imagem para agentes que enxergam imagens.
+- Imagens enviadas antes do OCR são lidas sozinhas em segundo plano ao iniciar.
 
 ## O que foi experimentado e retirado
 

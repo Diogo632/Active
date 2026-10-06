@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { OfficeParser } from 'officeparser';
 import { isMediaFile } from './transcribe.js';
+import { IMAGE_EXTENSIONS } from './ocr.js';
 
 // Formatos lidos pelo officeparser (Word, Excel, PowerPoint, LibreOffice, PDF, RTF, EPUB).
 const OFFICE_EXTENSIONS = new Set([
@@ -47,9 +48,10 @@ function normalize(text) {
 
 /**
  * Extrai o texto de um arquivo para que ele seja pesquisável e lido pela Active AI.
+ * Imagens (prints de tela, fotos de documentos) têm o texto lido por OCR, quando `ocr` é informado.
  * Retorna { text, status } onde status é 'ok', 'empty', 'unsupported' ou 'error'.
  */
-export async function extractText(filePath, originalName) {
+export async function extractText(filePath, originalName, { ocr } = {}) {
   const ext = path.extname(originalName || filePath).toLowerCase();
   try {
     let text;
@@ -64,6 +66,9 @@ export async function extractText(filePath, originalName) {
         textConfig: { preserveLayout: false },
       });
       text = value;
+    } else if (IMAGE_EXTENSIONS.has(ext)) {
+      if (!ocr?.enabled) return { text: '', status: 'unsupported' };
+      text = await ocr.recognize(filePath);
     } else if (isMediaFile(originalName || filePath)) {
       // Vídeos e áudios: o conteúdo vem da transcrição, feita depois em segundo plano.
       return { text: '', status: 'media' };
