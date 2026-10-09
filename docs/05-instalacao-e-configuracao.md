@@ -112,9 +112,9 @@ Bom para testes; **não** para uso diário (veja os limites abaixo).
 
 1. No GitHub: **Code → Codespaces → Create codespace** na branch da plataforma. O Codespace instala tudo e cria o `.env` a partir do exemplo.
 2. Edite o `.env` (`INTEGRATION_TOKEN`, `N8N_WEBHOOK_URL`, `PUBLIC_URL`). O `N8N_WEBHOOK_URL` também pode vir de um *secret* em **GitHub → Settings → Codespaces → Secrets** (liberado para o repositório; recrie ou reinicie o Codespace depois).
-3. Inicie em segundo plano (continua rodando se o terminal fechar):
+3. A plataforma **inicia sozinha** na porta **3001** sempre que o Codespace abre (`.devcontainer/iniciar-plataforma.sh`, em segundo plano, com o log em `servidor.log`). Depois de editar o `.env`, reinicie-a:
    ```bash
-   PORT=3001 nohup npm start > servidor.log 2>&1 &
+   pkill -f server/index.js; bash .devcontainer/iniciar-plataforma.sh
    ```
 4. Aba **Portas** → porta **3001** → botão direito → **Visibilidade da Porta → Pública** (necessário para o GPTMaker acessar o MCP). Abra pelo ícone de globo.
 5. Abra o endereço e **crie o administrador logo** (com a porta pública, quem abrir primeiro criaria).
@@ -131,12 +131,21 @@ sleep 20; grep -o "https://[a-z0-9-]*\.trycloudflare\.com" tunel.log
 
 Abra o endereço `https://….trycloudflare.com` que aparecer. Para o GPT Maker usar o MCP por ele, coloque `https://….trycloudflare.com/mcp` no agente e o mesmo endereço em `PUBLIC_URL`. Limites do túnel: o endereço **muda** a cada vez que é aberto, ele cai se o Codespace desligar e **não aceita arquivos acima de 100 MB** (use vídeos curtos nos testes).
 
-Ao **reabrir** o Codespace (ele desliga sozinho após ~30 min sem uso), a plataforma precisa ser iniciada de novo e a porta conferida:
+Ao **reabrir** o Codespace (ele desliga sozinho após ~30 min sem uso), a plataforma inicia sozinha; confira só a porta (e o túnel, se usado). Se o `package-lock.json` mudou num `git pull`, o script roda o `npm ci` antes de iniciar. Para iniciar à mão (Codespaces criados antes dessa configuração):
 
 ```bash
 pkill -f server/index.js
 PORT=3001 nohup npm start > servidor.log 2>&1 &
 ```
+
+### Codespace lento para abrir
+
+A maior parte do tempo é do GitHub: ligar a máquina, carregar o VS Code e as extensões. O que ajuda:
+
+- Abrir pelo **VS Code instalado no computador** (em github.com/codespaces: **⋯ → Open in Visual Studio Code**), mais leve que o navegador.
+- Fechar painéis e extensões que não usa (por exemplo, o *Chat* do Copilot).
+- **Prebuild** (GitHub → repositório → **Settings → Codespaces → Set up prebuild**): deixa um Codespace pré-montado, e criar um novo leva segundos em vez de minutos. Ocupa armazenamento da cota do GitHub.
+- Máquina maior (**⋯ → Change machine type**, 4 núcleos): mais rápida, mas gasta a cota de horas 2× mais depressa.
 
 Ao reabrir, o túnel (se usado) também precisa ser aberto de novo, com um endereço novo.
 

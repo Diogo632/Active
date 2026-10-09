@@ -18,7 +18,7 @@ npm run mcp:testar -- https://ENDERECO SEU_TOKEN                    # testa o MC
 
 | Sintoma | Causa provável | O que fazer |
 | --- | --- | --- |
-| **404** no endereço do Codespace | A plataforma não está rodando (o Codespace reiniciou) | `PORT=3001 nohup npm start > servidor.log 2>&1 &` |
+| **404** no endereço do Codespace | A plataforma não está rodando (Codespace criado antes do início automático, ou ela parou) | `bash .devcontainer/iniciar-plataforma.sh` e veja `tail servidor.log` |
 | 404 mesmo com a plataforma rodando (`curl …/entrar` dá `200`) | Encaminhamento da porta travou | Aba Portas → remover a 3001 → adicionar de novo → Pública → abrir pelo globo. Se continuar, use o túnel: `npx -y cloudflared tunnel --url http://localhost:3001` (veja [5. Instalação](05-instalacao-e-configuracao.md#se-o-endereço-do-codespace-der-404)) |
 | `[3]+ Exit 1` logo depois de iniciar | Já havia outra cópia ocupando a porta | `pkill -f server/index.js`, inicie de novo e confira com `tail servidor.log` |
 | Envio de vídeo falha pelo túnel `trycloudflare` | O túnel não aceita arquivos acima de 100 MB | Teste com vídeos curtos; em produção o limite é o `MAX_UPLOAD_MB` |

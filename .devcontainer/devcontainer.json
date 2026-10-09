@@ -1,14 +1,18 @@
 {
   "name": "Base de Conhecimento Active",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "containerEnv": {
+    "PORT": "3001"
+  },
   "postCreateCommand": "npm ci && (test -f .env || cp .env.example .env)",
+  "postStartCommand": "bash .devcontainer/iniciar-plataforma.sh",
   "forwardPorts": [
-    3000
+    3001
   ],
   "portsAttributes": {
-    "3000": {
+    "3001": {
       "label": "Base de Conhecimento",
-      "onAutoForward": "openBrowser"
+      "onAutoForward": "notify"
     }
   },
   "secrets": {
