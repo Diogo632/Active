@@ -13,7 +13,7 @@
 ### Navegador
 
 - **CSRF**: ações (POST, PUT, DELETE em `/api`) vindas de outro site são recusadas pelo cabeçalho `Sec-Fetch-Site`. Sem isso, um site malicioso aberto por alguém logado poderia agir com a sessão da pessoa.
-- **Política de conteúdo (CSP)** na página (as páginas de login também não têm JavaScript): só scripts da própria plataforma (nenhum script embutido no HTML), estilos e fontes do Google Fonts, vídeos do YouTube; sem plugins (`object-src 'none'`); a página não pode ser embutida em outros sites (`frame-ancestors 'self'`).
+- **Política de conteúdo (CSP)** na página (as páginas de login só carregam um script da própria plataforma, que guarda a tela de volta): só scripts da própria plataforma (nenhum script embutido no HTML), estilos e fontes do Google Fonts, vídeos do YouTube; sem plugins (`object-src 'none'`); a página não pode ser embutida em outros sites (`frame-ancestors 'self'`).
 - **Cabeçalhos** em todas as respostas: `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (sem câmera, microfone, localização), `Cross-Origin-Opener-Policy`.
 - **Conteúdo sanitizado**: todo texto vindo de documentos, nomes de arquivo, buscas e respostas da Active AI é escapado; o Markdown é convertido e passa pelo **DOMPurify**. Links que abrem em nova aba recebem `rel="noopener noreferrer"`.
 

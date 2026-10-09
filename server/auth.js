@@ -182,7 +182,7 @@ export function createAuth({ db, enabled = true, publicUrl = process.env.PUBLIC_
 <body class="login-body"><main class="login-card">
   <span class="brand-mark" aria-hidden="true">A</span>
   ${body}
-</main></body></html>`;
+</main><script src="/js/login.js" defer></script></body></html>`;
   const errorBox = (message) => (message ? `<div class="msg-error" role="alert">${esc(message)}</div>` : '');
   const field = (label, attrs) => `<label class="login-field"><span>${esc(label)}</span><input class="input" ${attrs} /></label>`;
 
@@ -326,7 +326,7 @@ export function createAuth({ db, enabled = true, publicUrl = process.env.PUBLIC_
   }
 
   /** Exige login em tudo, exceto as páginas de login e os arquivos delas. */
-  const OPEN = new Set(['/entrar', '/primeiro-acesso', '/favicon.svg']);
+  const OPEN = new Set(['/entrar', '/primeiro-acesso', '/favicon.svg', '/js/login.js']);
   function requireUser(req, res, next) {
     if (OPEN.has(req.path) || req.path.startsWith('/css/')) return next();
     const user = userFromRequest(req);

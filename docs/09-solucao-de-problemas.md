@@ -98,6 +98,7 @@ No GPTMaker, *Inspecionar resposta* mostra a chamada; *Dados recebidos* com `Err
 | *Seu acesso está bloqueado* | Conta bloqueada em **Pessoas** | Administrador libera a caixa *Acesso* |
 | *Muitas tentativas erradas* | 10 erros em 10 minutos do mesmo endereço | Aguarde 10 minutos. Atrás de proxy, configure `TRUST_PROXY=1` (senão todos dividem o mesmo limite) |
 | O administrador esqueceu a senha | — | No servidor: `npm run admin -- email@empresa.com.br` gera uma senha provisória |
+| *Erro 401* ou *A conexão com a plataforma foi recusada (401)* no chat | A sessão expirou, ou (no Codespace) a porta 3001 voltou a ser **Privada** e o GitHub recusou o pedido | Recarregue a página e entre de novo (a plataforma já leva ao login e volta para a mesma tela). No Codespace: aba **Portas** → 3001 → **Visibilidade → Pública** |
 | Volta para o login a cada página | Cookie não está sendo guardado (ex.: `PUBLIC_URL` com `https://` mas acesso por `http://`) | Acesse pelo mesmo endereço do `PUBLIC_URL` |
 | Não aparece o menu Pessoas | Só administradores veem | Um administrador muda o seu perfil |
 | Botões de editar sumiram | Perfil *Só consulta* | Um administrador muda o perfil em **Pessoas**; recarregue a página |

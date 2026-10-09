@@ -1,3 +1,18 @@
+/**
+ * 401: se veio da plataforma (sessão expirada ou senha provisória), vai para o login e depois volta;
+ * se não veio dela (por exemplo, a porta do Codespace voltou a ser Privada), explica o que conferir.
+ */
+function unauthorized(data) {
+  if (data?.login) {
+    location.href = `${data.login}?volta=${encodeURIComponent(location.pathname + location.hash)}`;
+    return Object.assign(new Error(data.error || 'Sua sessão expirou. Entre de novo para continuar.'), { status: 401 });
+  }
+  return Object.assign(
+    new Error('A conexão com a plataforma foi recusada (401). Recarregue a página e entre de novo; no Codespace, confira se a porta 3001 está Pública.'),
+    { status: 401 },
+  );
+}
+
 async function request(method, url, body) {
   const options = { method, headers: {} };
   if (body instanceof FormData) options.body = body;
@@ -8,11 +23,7 @@ async function request(method, url, body) {
   const res = await fetch(url, options);
   if (res.status === 204) return null;
   const data = await res.json().catch(() => ({}));
-  // Sessão expirada (login individual): volta para a página de login e depois para onde estava.
-  if (res.status === 401 && data.login) {
-    location.href = `${data.login}?volta=${encodeURIComponent(location.pathname + location.hash)}`;
-    throw Object.assign(new Error(data.error || 'Faça login para continuar.'), { status: 401 });
-  }
+  if (res.status === 401) throw unauthorized(data);
   if (!res.ok) throw Object.assign(new Error(data.error || `Erro ${res.status}`), { status: res.status, data });
   return data;
 }
@@ -79,6 +90,7 @@ export const api = {
           /* resposta sem JSON */
         }
         if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else if (xhr.status === 401) reject(unauthorized(data));
         else reject(new Error(data.error || `Erro ${xhr.status}`));
       };
       xhr.onerror = () => reject(new Error('Falha de conexão durante o envio.'));
@@ -94,7 +106,11 @@ export const api = {
       body: JSON.stringify({ messages, context_item_id: contextItemId, session_id: sessionId, mode, attachments }),
       signal,
     });
-    if (!res.ok || !res.body) throw new Error(`Erro ${res.status} ao falar com a Active AI.`);
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) throw unauthorized(data);
+      throw new Error(data.error || `Erro ${res.status} ao falar com a Active AI.`);
+    }
     const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
     let buffer = '';
     for (;;) {

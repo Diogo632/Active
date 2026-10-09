@@ -98,6 +98,7 @@ Tudo o que foi construído na plataforma, na ordem em que entrou, com o que mudo
 - Codespace: a plataforma **inicia sozinha** na porta 3001 ao abrir (`.devcontainer/iniciar-plataforma.sh`).
 - **Resposta vazia do GPT Maker**: a plataforma tenta de novo uma vez sozinha e, se continuar vazia, explica que foi o GPT Maker.
 - **Arquivos EDI** (OCOREN, NOTFIS, CONEMB, DOCCOB) e outros textos sem extensão conhecida passam a ser lidos, em UTF-8 ou ISO-8859-1.
+- **Sessão expirada no chat**: em vez de "Erro 401", a plataforma leva ao login e, depois de entrar, volta para a mesma tela.
 
 ## O que foi experimentado e retirado
 
