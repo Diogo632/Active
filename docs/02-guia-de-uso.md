@@ -210,7 +210,10 @@ No painel lateral, o **📌** fixa a Active AI ao lado do conteúdo: ela fica ab
 
 ## Anexar arquivos na conversa
 
-No chat, o **📎** (ou arrastar arquivos para o chat) anexa arquivos à próxima mensagem:
+No chat, o **📎**, arrastar arquivos para o chat ou **colar um print com Ctrl+V** no campo de mensagem anexa arquivos à próxima mensagem:
+
+- **Ctrl+V**: tire o print (por exemplo, **Win+Shift+S** no Windows), clique no campo de mensagem e cole. O print aparece como anexo com uma miniatura e o nome `print-AAAA-MM-DD-HHhMM.png`. Se o que foi copiado tiver texto junto (uma planilha do Excel, um trecho do Word), o Ctrl+V cola o texto, como de costume.
+
 
 1. O arquivo é enviado e lido na hora; o cartão mostra o progresso e depois quantos caracteres foram lidos (ou *sem texto*, se não houver texto legível).
 2. Ao enviar a mensagem, o agente recebe **só a referência** (id, nome e tamanho) e lê o conteúdo **inteiro** pelo MCP. Assim não há o limite de texto da mensagem.
@@ -292,6 +295,7 @@ A lista mostra o último acesso de cada pessoa e a etiqueta *senha provisória* 
 | **Ctrl+K** ou **/** | Qualquer tela | Busca rápida |
 | ↑ ↓ Enter Esc | Busca rápida | Navegar, abrir, fechar |
 | **Enter** / Shift+Enter | Chat | Enviar / nova linha |
+| **Ctrl+V** (com um print copiado) | Chat | Anexa a imagem à mensagem |
 | **Esc** | Chat aberto por cima | Fechar o chat |
 | Ctrl+B / Ctrl+I / Ctrl+K | Editor | Negrito / itálico / link |
 | **Ctrl+S** | Editor | Salvar |

@@ -842,6 +842,7 @@ dialog.history-dialog { width: min(980px, calc(100vw - 32px)); }
 }
 .attach-chip.error { border-color: var(--danger); }
 .attach-chip i[data-icon] { width: 14px; height: 14px; color: var(--brand-accent); flex: none; }
+.attach-chip .attach-thumb { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; flex: none; border: 1px solid var(--border); }
 .attach-chip .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; font-weight: 500; }
 .attach-chip .spinner { width: 12px; height: 12px; }
 .attach-chip button { border: 0; background: none; color: var(--text-muted); cursor: pointer; display: grid; place-items: center; padding: 2px; border-radius: 6px; }

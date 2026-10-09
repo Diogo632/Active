@@ -29,7 +29,7 @@ Plataforma web da base de conhecimento do Suporte da Active Corp, com a assisten
 - **Chat** como painel lateral, página inteira ou **fixado ao lado** do conteúdo.
 - **Base da plataforma primeiro**: cada mensagem leva a regra de fonte e os documentos encontrados. Se a resposta vier da base geral do GPT Maker, a mensagem mostra o aviso **Resposta da base geral do GPT Maker** e a pergunta vira lacuna. Respostas longas sem citar documentos mostram **Sem documentos da plataforma**.
 - **Documento em foco**: *Perguntar à Active AI* e *Resumir com a Active AI* na página de um documento.
-- **Anexos na conversa** (📎): o arquivo fica guardado por 72 horas e o agente lê o conteúdo inteiro pelo MCP.
+- **Anexos na conversa** (📎, arrastando ou **Ctrl+V com um print**): o arquivo fica guardado por 72 horas e o agente lê o conteúdo inteiro pelo MCP.
 - **Opções em botões** (`[OPCOES] A | B | C`), **raciocínio** do agente no botão **!** e **Ajudou? 👍 👎** nas respostas longas.
 - **Prints e imagens**: o texto das imagens (mensagens de erro, telas de sistema) é lido no próprio servidor (OCR, sem custo), entra na busca e vai para o agente; a imagem em si também pode ser vista pelo agente (`ver_imagem`).
 - **Servidor MCP** com 7 ferramentas para o agente pesquisar e ler a base sozinho.

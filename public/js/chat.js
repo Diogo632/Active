@@ -100,6 +100,8 @@ export const chat = {
   attach(files) {
     for (const file of files) {
       const entry = { uid: Math.random().toString(36).slice(2), name: file.name, size: file.size, progress: 0 };
+      // Miniatura dos prints e imagens no cartão do anexo (só enquanto a mensagem não é enviada).
+      if (/^image\//.test(file.type)) entry.preview = URL.createObjectURL(file);
       state.attachments.push(entry);
       const fd = new FormData();
       fd.append('file', file, file.name);
@@ -122,6 +124,8 @@ export const chat = {
   },
 
   removeAttachment(uid) {
+    const removed = state.attachments.find((a) => a.uid === uid);
+    if (removed?.preview) URL.revokeObjectURL(removed.preview);
     state.attachments = state.attachments.filter((a) => a.uid !== uid);
     notify();
   },
@@ -136,6 +140,7 @@ export const chat = {
     if (!content || state.streaming) return;
 
     const attachments = ready.map(({ id, name }) => ({ id, name }));
+    state.attachments.forEach((a) => a.preview && URL.revokeObjectURL(a.preview));
     state.attachments = [];
     state.messages.push({ role: 'user', content, ...(attachments.length ? { attachments } : {}) });
     const reply = { role: 'assistant', content: '', status: [], sources: [], error: null, pending: true };
@@ -206,6 +211,16 @@ export const chat = {
     notify();
   },
 };
+
+/** Prints colados chegam como "image.png": ganham um nome com data e hora ("print-2026-10-09-14h32.png"). */
+function pastedFileName(file, index) {
+  if (file.name && !/^image\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name)) return file;
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const ext = (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+  const name = `print-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}h${pad(d.getMinutes())}${index ? `-${index + 1}` : ''}.${ext}`;
+  return new File([file], name, { type: file.type });
+}
 
 function renderOptions(options, disabled) {
   return `<div class="ia-options" role="group" aria-label="Opções de resposta">${options
@@ -285,7 +300,7 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand, on
       <div class="ia-composer">
         <div class="ia-attachments" hidden></div>
         <form>
-          <button class="attach" type="button" data-action="attach" title="Anexar arquivo (a Active AI lê o conteúdo inteiro)">${icon('paperclip')}</button>
+          <button class="attach" type="button" data-action="attach" title="Anexar arquivo ou colar um print com Ctrl+V (a Active AI lê o conteúdo inteiro)">${icon('paperclip')}</button>
           <input type="file" multiple hidden class="attach-input" />
           <textarea rows="1" placeholder="Pergunte qualquer coisa à Active AI…" aria-label="Mensagem para a Active AI"></textarea>
           <button class="send" type="submit" title="Enviar">${icon('send')}</button>
@@ -324,6 +339,19 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand, on
     section.classList.remove('drag');
     chat.attach([...e.dataTransfer.files]);
   });
+  // Ctrl+V com um print (ou imagem copiada) anexa a imagem, como o 📎.
+  textarea.addEventListener('paste', (e) => {
+    const data = e.clipboardData;
+    const files = [...(data?.items || [])]
+      .filter((i) => i.kind === 'file')
+      .map((i) => i.getAsFile())
+      .filter(Boolean);
+    if (!files.length) return;
+    // Excel e Word copiam o texto junto com uma imagem dele: nesse caso vale o texto.
+    if (data.getData('text/plain').trim()) return;
+    e.preventDefault();
+    chat.attach(files.map(pastedFileName));
+  });
 
   function renderAttachments() {
     attachmentsEl.hidden = !state.attachments.length;
@@ -336,7 +364,8 @@ export function mountChat(container, { variant = 'drawer', onClose, onExpand, on
             : a.unreadable
               ? '<span class="attach-warn" title="Sem texto legível: a Active AI verá só o nome do arquivo">sem texto</span>'
               : `<span class="muted">${a.chars ? `${a.chars.toLocaleString('pt-BR')} caracteres` : formatBytes(a.size)}</span>`;
-        return `<div class="attach-chip${a.error ? ' error' : ''}">${icon('file')}<span class="name" title="${esc(a.name)}">${esc(a.name)}</span>${status}
+        const thumb = a.preview ? `<img class="attach-thumb" src="${esc(a.preview)}" alt="" />` : icon('file');
+        return `<div class="attach-chip${a.error ? ' error' : ''}">${thumb}<span class="name" title="${esc(a.name)}">${esc(a.name)}</span>${status}
           <button type="button" data-remove-attachment="${a.uid}" title="Remover">${icon('close')}</button></div>`;
       })
       .join('');

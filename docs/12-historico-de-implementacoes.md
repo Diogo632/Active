@@ -92,6 +92,11 @@ Tudo o que foi construído na plataforma, na ordem em que entrou, com o que mudo
 - Nova ferramenta MCP **`ver_imagem`**: entrega a própria imagem para agentes que enxergam imagens.
 - Imagens enviadas antes do OCR são lidas sozinhas em segundo plano ao iniciar.
 
+### 09/10/2026 — Ctrl+V e Codespace
+
+- **Colar prints com Ctrl+V** no chat da Active AI: a imagem vira anexo, com miniatura e nome com data e hora, e o texto é lido na hora.
+- Codespace: a plataforma **inicia sozinha** na porta 3001 ao abrir (`.devcontainer/iniciar-plataforma.sh`).
+
 ## O que foi experimentado e retirado
 
 | Recurso | Por que saiu |
