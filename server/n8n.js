@@ -56,6 +56,14 @@ export function bestExcerpts(text, terms, budget, chunkChars = DEFAULTS.chunkCha
 }
 
 /** Lê a resposta do n8n aceitando os formatos mais comuns (JSON do GPTMaker, do nó "Respond to Webhook" ou texto puro). */
+/** A resposta tem um campo de texto conhecido (message, output…), mas vazio: o agente não escreveu nada. */
+export function hasEmptyMessage(body) {
+  if (Array.isArray(body)) return body.some(hasEmptyMessage);
+  if (!body || typeof body !== 'object') return typeof body === 'string' && !body.trim();
+  if (['message', 'output', 'response', 'text', 'resposta', 'answer', 'reply', 'content'].some((k) => typeof body[k] === 'string' && !body[k].trim())) return true;
+  return [body.json, body.data].some((v) => v && typeof v === 'object' && hasEmptyMessage(v));
+}
+
 export function extractReply(body) {
   if (body == null) return '';
   if (typeof body === 'string') return body.trim();
@@ -287,8 +295,8 @@ export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, o
     emit({ type: 'status', label: 'Consultando a Active AI' });
     const timeout = AbortSignal.timeout(cfg.timeoutMs);
     const started = Date.now();
-    try {
-      const res = await fetch(webhookUrl, {
+    const call = (text) =>
+      fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -301,36 +309,55 @@ export function createN8nActiveIA({ repo, search, glossary, webhookUrl, token, o
           action: 'sendMessage',
           sessionId: sessionId || 'base-conhecimento',
           contextId: sessionId || 'base-conhecimento',
-          chatInput: message,
-          message,
-          mensagem: message,
-          text: message,
+          chatInput: text,
+          message: text,
+          mensagem: text,
+          text,
           origem: 'base-de-conhecimento',
           pergunta: last.content,
           // Campo lido pelo workflow da Active AI (GPT Maker — Texto: { contextId, prompt }).
-          prompt: message,
+          prompt: text,
           historico: messages.slice(0, -1),
           documento_aberto: contextItem ? { id: contextItem.id, titulo: contextItem.title } : null,
           documentos: documents.map(({ kind, ...d }) => d),
         }),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
-      const raw = await res.text();
+    const parse = (raw) => {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return raw; // resposta em texto puro
+      }
+    };
+    try {
+      let res = await call(message);
+      let raw = await res.text();
       if (!res.ok) {
         console.error(`[active-ai/n8n] HTTP ${res.status}: ${raw.slice(0, 500)}`);
         emit({ type: 'error', message: `O fluxo do n8n retornou erro ${res.status}. Verifique se o workflow está ativo.` });
         return;
       }
-      let body = raw;
-      try {
-        body = JSON.parse(raw);
-      } catch {
-        /* resposta em texto puro */
+      let body = parse(raw);
+      let reply = extractReply(body);
+      // O GPT Maker às vezes devolve a mensagem vazia (o agente se perde lendo documentos ou anexos pelo
+      // MCP e não escreve o texto final). Costuma ser passageiro: tenta mais uma vez, se ainda houver tempo.
+      if (!reply && hasEmptyMessage(body) && Date.now() - started < cfg.timeoutMs / 2) {
+        console.warn(`[active-ai/n8n] Resposta vazia do agente (${sessionId || '-'}); tentando de novo.`);
+        emit({ type: 'status', label: 'A Active AI não respondeu; tentando de novo' });
+        res = await call(`[A tentativa anterior não gerou resposta. Responda agora, em texto.]\n${message}`);
+        raw = await res.text();
+        body = res.ok ? parse(raw) : '';
+        reply = res.ok ? extractReply(body) : '';
       }
-      const reply = extractReply(body);
       if (!reply) {
         console.error('[active-ai/n8n] Resposta sem texto reconhecível:', raw.slice(0, 500));
-        emit({ type: 'error', message: 'O n8n respondeu, mas sem texto. Confira o nó "Respond to Webhook" do fluxo.' });
+        emit({
+          type: 'error',
+          message: hasEmptyMessage(body)
+            ? 'A Active AI não gerou resposta desta vez (o GPT Maker devolveu uma mensagem vazia). Tente de novo ou reformule a pergunta; com anexos grandes, pergunte algo mais específico sobre eles.'
+            : 'O n8n respondeu, mas sem texto. Confira o nó "Respond to Webhook" do fluxo.',
+        });
         return;
       }
       // O rascunho de raciocínio do agente não aparece para a pessoa; fica no log para conferência.

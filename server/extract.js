@@ -37,6 +37,40 @@ function htmlToText(html) {
     .trim();
 }
 
+/**
+ * Lê um arquivo de texto em UTF-8 ou, se não for UTF-8 válido, em ISO-8859-1 (comum em arquivos EDI
+ * e exportações de sistemas antigos), para os acentos saírem certos.
+ */
+async function readTextFile(filePath) {
+  const buf = await fs.readFile(filePath);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+  } catch {
+    return new TextDecoder('latin1').decode(buf);
+  }
+}
+
+/**
+ * Arquivos sem extensão conhecida (EDI como OCOREN, NOTFIS, CONEMB, DOCCOB, arquivos .rem/.ret de
+ * bancos, exportações): se o começo do arquivo for texto (sem bytes binários), ele é lido como texto.
+ */
+async function looksLikeText(filePath) {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(65536), 0, 65536, 0);
+    if (!bytesRead) return false;
+    const sample = buffer.subarray(0, bytesRead);
+    let control = 0;
+    for (const byte of sample) {
+      if (byte === 0) return false;
+      if (byte < 9 || (byte > 13 && byte < 32) || byte === 127) control++;
+    }
+    return control / bytesRead < 0.01;
+  } finally {
+    await handle.close();
+  }
+}
+
 function normalize(text) {
   const clean = String(text || '')
     .replace(/\r\n/g, '\n')
@@ -56,9 +90,9 @@ export async function extractText(filePath, originalName, { ocr } = {}) {
   try {
     let text;
     if (TEXT_EXTENSIONS.has(ext)) {
-      text = await fs.readFile(filePath, 'utf8');
+      text = await readTextFile(filePath);
     } else if (HTML_EXTENSIONS.has(ext)) {
-      text = htmlToText(await fs.readFile(filePath, 'utf8'));
+      text = htmlToText(await readTextFile(filePath));
     } else if (OFFICE_EXTENSIONS.has(ext)) {
       const ast = await OfficeParser.parseOffice(filePath);
       const { value } = await ast.to('text', {
@@ -72,6 +106,8 @@ export async function extractText(filePath, originalName, { ocr } = {}) {
     } else if (isMediaFile(originalName || filePath)) {
       // Vídeos e áudios: o conteúdo vem da transcrição, feita depois em segundo plano.
       return { text: '', status: 'media' };
+    } else if (await looksLikeText(filePath)) {
+      text = await readTextFile(filePath);
     } else {
       return { text: '', status: 'unsupported' };
     }

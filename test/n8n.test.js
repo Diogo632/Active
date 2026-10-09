@@ -28,7 +28,7 @@ before(async () => {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       received = { headers: req.headers, body: JSON.parse(body) };
-      const { status = 200, payload } = replyWith;
+      const { status = 200, payload } = typeof replyWith === 'function' ? replyWith(received) : replyWith;
       res.writeHead(status, { 'Content-Type': typeof payload === 'string' ? 'text/plain' : 'application/json' });
       res.end(typeof payload === 'string' ? payload : JSON.stringify(payload));
     });
@@ -223,4 +223,27 @@ test('o rascunho separado pelo n8n (campo "analise") também chega à tela', asy
   const events = await ask('Como emito um CT-e?', { mode: 'livre' });
   assert.equal(events.find((e) => e.type === 'text').text, 'Você se refere a qual sistema?');
   assert.equal(events.find((e) => e.type === 'analysis').text, 'Ação: emitir\nDecisão: perguntar antes');
+});
+
+test('resposta vazia do GPT Maker: tenta de novo uma vez e mostra a resposta da segunda tentativa', async () => {
+  const prompts = [];
+  replyWith = (req) => {
+    prompts.push(req.body.prompt);
+    return { payload: prompts.length === 1 ? { success: true, message: '', images: [] } : { message: 'Agora sim: troque a bobina.' } };
+  };
+  const events = await ask('Como resolver o erro 105?');
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /^\[A tentativa anterior não gerou resposta/);
+  assert.ok(events.some((e) => e.type === 'status' && /tentando de novo/.test(e.label)));
+  assert.equal(events.find((e) => e.type === 'text').text, 'Agora sim: troque a bobina.');
+  assert.ok(!events.some((e) => e.type === 'error'));
+});
+
+test('resposta vazia duas vezes: erro claro, sem culpar a configuração do n8n', async () => {
+  replyWith = { payload: [{ json: { success: true, message: '' } }] };
+  const events = await ask('Como resolver o erro 105?');
+  assert.match(events.find((e) => e.type === 'error').message, /GPT Maker devolveu uma mensagem vazia/);
+  replyWith = { payload: { outraCoisa: 1 } };
+  const wrong = await ask('Como resolver o erro 105?');
+  assert.match(wrong.find((e) => e.type === 'error').message, /Respond to Webhook/);
 });

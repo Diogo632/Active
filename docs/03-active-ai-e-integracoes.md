@@ -109,6 +109,8 @@ A plataforma aceita vários formatos e procura o texto nestes campos, nesta orde
 
 ### Tempo de espera e erros
 
+- Se o GPT Maker devolver a mensagem **vazia** (`"message": ""`), a plataforma tenta **mais uma vez** sozinha (status *A Active AI não respondeu; tentando de novo*), com a nota "A tentativa anterior não gerou resposta" no começo da mensagem, desde que ainda haja tempo (menos da metade do limite de espera usado). Se vier vazia de novo, mostra o erro explicando que foi o GPT Maker.
+
 - A plataforma espera até **240 s** (`N8N_TIMEOUT_SECONDS`), porque o agente pode ler vários documentos pelo MCP antes de responder.
 - Os erros mostram a causa real: *"demorou mais de 240 s"*, *"a conexão caiu depois de X s (ECONNRESET)"*, *"não foi possível conectar ao n8n (UND_ERR_CONNECT_TIMEOUT)"*, *"o fluxo do n8n retornou erro 500"*. Veja [Solução de problemas](09-solucao-de-problemas.md).
 

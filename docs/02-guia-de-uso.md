@@ -178,6 +178,8 @@ Formatos com conteúdo lido (pesquisável e usado pela Active AI):
 | Imagens | `.png`, `.jpg`, `.gif`, `.webp`, `.bmp`, `.tif` (texto lido por **OCR**, em português e inglês: prints de erro, telas, documentos fotografados) |
 | Vídeo e áudio | `.mp4`, `.mov`, `.mkv`, `.webm`, `.avi`, `.mp3`, `.wav`, `.m4a`… (transcritos) |
 
+Arquivos de **texto com qualquer extensão** (ou sem extensão), como os **EDI** (OCOREN, NOTFIS, CONEMB, DOCCOB) e os arquivos de remessa e retorno de bancos, também são lidos: a plataforma confere se o conteúdo é texto e aceita UTF-8 ou ISO-8859-1 (os acentos saem certos).
+
 Outros formatos (`.zip`, `.doc` antigo, `.exe`…) são guardados e podem ser baixados, mas a Active AI só conhece o título, a descrição e as tags. PDFs digitalizados (imagem) não têm texto legível.
 
 Tamanho máximo por arquivo: **2 GB** (ajustável em `MAX_UPLOAD_MB`).

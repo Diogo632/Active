@@ -390,3 +390,17 @@ test('transcrição do Teams em .docx: nome de quem fala e horário viram trecho
     '[00:00:03] Diogo Albuquerque: Boa tarde.\n[00:00:35] Ana Martins: Hoje vamos ver a emissão do CT-e. E o cadastro.',
   );
 });
+
+test('arquivo EDI sem extensão conhecida (e em ISO-8859-1) é lido como texto; binário não', async () => {
+  const { extractText } = await import('../server/extract.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kb-edi-'));
+  const edi = path.join(dir, 'OCO20261001152531_NAOATE[2026]');
+  fs.writeFileSync(edi, Buffer.from('000OCORRENCIA DE ENTREGA ONSUPPLY\r\n342NAO ATENDIMENTO - DESTINAT\xc1RIO AUSENTE\r\n', 'latin1'));
+  const read = await extractText(edi, path.basename(edi));
+  assert.equal(read.status, 'ok');
+  assert.match(read.text, /DESTINATÁRIO AUSENTE/);
+  const bin = path.join(dir, 'arquivo.bin');
+  fs.writeFileSync(bin, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00, 0xff, 0x10]));
+  assert.equal((await extractText(bin, 'arquivo.bin')).status, 'unsupported');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

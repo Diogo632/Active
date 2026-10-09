@@ -96,6 +96,8 @@ Tudo o que foi construído na plataforma, na ordem em que entrou, com o que mudo
 
 - **Colar prints com Ctrl+V** no chat da Active AI: a imagem vira anexo, com miniatura e nome com data e hora, e o texto é lido na hora.
 - Codespace: a plataforma **inicia sozinha** na porta 3001 ao abrir (`.devcontainer/iniciar-plataforma.sh`).
+- **Resposta vazia do GPT Maker**: a plataforma tenta de novo uma vez sozinha e, se continuar vazia, explica que foi o GPT Maker.
+- **Arquivos EDI** (OCOREN, NOTFIS, CONEMB, DOCCOB) e outros textos sem extensão conhecida passam a ser lidos, em UTF-8 ou ISO-8859-1.
 
 ## O que foi experimentado e retirado
 
